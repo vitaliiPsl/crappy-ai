@@ -16,10 +16,10 @@ type Store struct {
 	path string
 }
 
-func NewStore(cfg Config) *Store {
+func newStore(cfg Config, path string) *Store {
 	return &Store{
 		cfg:  cfg,
-		path: expandHome(cfg.ConfigPath),
+		path: path,
 	}
 }
 
@@ -36,26 +36,24 @@ func (s *Store) Save(cfg Config) error {
 	path := s.path
 	s.mu.Unlock()
 
-	return writeConfigFile(path, cfg)
+	return writeFile(path, cfg)
 }
 
 func (s *Store) Reload() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	cfg, _, err := loadConfigFile(s.path)
+	cfg, _, err := loadFile(s.path)
 	if err != nil {
 		return fmt.Errorf("reload config: %w", err)
 	}
 
-	cfg.ConfigPath = s.cfg.ConfigPath
-	cfg.WorkDir = s.cfg.WorkDir
 	s.cfg = cfg
 
 	return nil
 }
 
-func loadConfigFile(path string) (Config, bool, error) {
+func loadFile(path string) (Config, bool, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -73,7 +71,7 @@ func loadConfigFile(path string) (Config, bool, error) {
 	return cfg, true, nil
 }
 
-func writeConfigFile(path string, cfg Config) error {
+func writeFile(path string, cfg Config) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return fmt.Errorf("create config dir: %w", err)
 	}

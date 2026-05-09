@@ -28,17 +28,8 @@ Communication:
 func defaults() Config {
 	return Config{
 		SystemPrompt: DefaultSystemPrompt,
-
-		Provider: ProviderGoogle,
-		Model:    "gemini-3-flash-preview",
-		Thinking: "medium",
-
-		Providers: []ProviderConfig{
-			{Name: ProviderAnthropic, API: ProviderAnthropic, APIKeyEnv: "ANTHROPIC_API_KEY"},
-			{Name: ProviderOpenAI, API: ProviderOpenAI, APIKeyEnv: "OPENAI_API_KEY"},
-			{Name: ProviderGoogle, API: ProviderGoogle, APIKeyEnv: "GOOGLE_API_KEY"},
-		},
-
-		SessionsDir: DefaultSessionsDir,
+		Provider:     "google",
+		Model:        "gemini-3-flash-preview",
+		Thinking:     "medium",
 	}
 }
