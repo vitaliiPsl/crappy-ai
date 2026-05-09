@@ -21,7 +21,7 @@ func Load(path string, flags Flags) (*Store, error) {
 	cfg = merge(cfg, fromEnv())
 	cfg = merge(cfg, fromFlags(flags))
 
-	return newStore(cfg, path), nil
+	return NewStore(cfg, path), nil
 }
 
 func fromEnv() Config {

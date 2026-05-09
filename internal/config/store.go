@@ -16,7 +16,7 @@ type Store struct {
 	path string
 }
 
-func newStore(cfg Config, path string) *Store {
+func NewStore(cfg Config, path string) *Store {
 	return &Store{
 		cfg:  cfg,
 		path: path,

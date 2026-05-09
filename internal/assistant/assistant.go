@@ -12,20 +12,19 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/models"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
-	"github.com/vitaliiPsl/crappy-ai/internal/settings"
 )
 
 type Assistant struct {
-	settingsStore *settings.Store
-	configStore   *config.Store
-	sessionStore  session.Store
+	configStore  *config.Store
+	sessionStore session.Store
+	registry     *models.Registry
 }
 
-func New(settingsStore *settings.Store, configStore *config.Store, sessionStore session.Store) *Assistant {
+func New(configStore *config.Store, sessionStore session.Store, registry *models.Registry) *Assistant {
 	return &Assistant{
-		settingsStore: settingsStore,
-		configStore:   configStore,
-		sessionStore:  sessionStore,
+		configStore:  configStore,
+		sessionStore: sessionStore,
+		registry:     registry,
 	}
 }
 
@@ -45,7 +44,7 @@ func (a *Assistant) Run(ctx context.Context, sessionID, text string) (*kit.Strea
 
 	cfg := a.configStore.Get()
 
-	model, err := models.BuildModel(a.settingsStore.Get(), cfg)
+	model, err := a.registry.Build(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("build model: %w", err)
 	}

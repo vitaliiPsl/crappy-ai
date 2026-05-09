@@ -27,7 +27,7 @@ func Load() (*Store, error) {
 	settings.ConfigPath = utils.ExpandHome(settings.ConfigPath)
 	settings.SessionsDir = utils.ExpandHome(settings.SessionsDir)
 
-	return newStore(settings, expandedPath), nil
+	return NewStore(settings, expandedPath), nil
 }
 
 func resolvePath() string {

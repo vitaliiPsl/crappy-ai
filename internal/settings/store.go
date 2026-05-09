@@ -16,7 +16,7 @@ type Store struct {
 	path     string
 }
 
-func newStore(settings Settings, path string) *Store {
+func NewStore(settings Settings, path string) *Store {
 	return &Store{
 		settings: settings,
 		path:     path,
