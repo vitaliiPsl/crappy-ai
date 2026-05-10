@@ -6,8 +6,8 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
 )
 
-func (s *Server) CreateSession(ctx context.Context, title, workDir string) (*session.Session, error) {
-	return s.sessionStore.Create(ctx, title, workDir)
+func (s *Server) CreateSession(ctx context.Context, title string) (*session.Session, error) {
+	return s.sessionStore.Create(ctx, title)
 }
 
 func (s *Server) GetSession(ctx context.Context, sessionID string) (*session.Session, error) {

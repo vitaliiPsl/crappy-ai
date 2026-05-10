@@ -53,7 +53,7 @@ func TestCreate_ReturnsAndPersistsFields(t *testing.T) {
 	st, _ := newTestStore(t)
 	before := time.Now()
 
-	sess, err := st.Create(context.Background(), "the title", "/work")
+	sess, err := st.Create(context.Background(), "the title")
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -64,10 +64,6 @@ func TestCreate_ReturnsAndPersistsFields(t *testing.T) {
 
 	if sess.Title != "the title" {
 		t.Errorf("Title = %q", sess.Title)
-	}
-
-	if sess.WorkDir != "/work" {
-		t.Errorf("WorkDir = %q", sess.WorkDir)
 	}
 
 	if sess.CreatedAt.Before(before) {
@@ -84,19 +80,6 @@ func TestCreate_ReturnsAndPersistsFields(t *testing.T) {
 	}
 }
 
-func TestCreate_CleansWorkDir(t *testing.T) {
-	st, _ := newTestStore(t)
-
-	sess, err := st.Create(context.Background(), "t", "/work//foo/../bar")
-	if err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-
-	if sess.WorkDir != "/work/bar" {
-		t.Errorf("WorkDir = %q, want /work/bar", sess.WorkDir)
-	}
-}
-
 func TestGet_Missing(t *testing.T) {
 	st, _ := newTestStore(t)
 
@@ -107,7 +90,7 @@ func TestGet_Missing(t *testing.T) {
 
 func TestGet_ReturnsIndependentSnapshot(t *testing.T) {
 	st, _ := newTestStore(t)
-	sess, _ := st.Create(context.Background(), "original", "")
+	sess, _ := st.Create(context.Background(), "original")
 
 	first, err := st.Get(context.Background(), sess.ID)
 	if err != nil {
@@ -128,7 +111,7 @@ func TestGet_ReturnsIndependentSnapshot(t *testing.T) {
 
 func TestSave_PersistsAcrossStores(t *testing.T) {
 	st, dir := newTestStore(t)
-	sess, _ := st.Create(context.Background(), "t", "")
+	sess, _ := st.Create(context.Background(), "t")
 
 	sess.Title = "renamed"
 	sess.Usage.Add(kit.Usage{InputTokens: 5, OutputTokens: 7})
@@ -173,11 +156,11 @@ func TestList_SortsByUpdatedAtDesc(t *testing.T) {
 	st, _ := newTestStore(t)
 	ctx := context.Background()
 
-	a, _ := st.Create(ctx, "a", "")
+	a, _ := st.Create(ctx, "a")
 
 	time.Sleep(10 * time.Millisecond)
 
-	b, _ := st.Create(ctx, "b", "")
+	b, _ := st.Create(ctx, "b")
 
 	time.Sleep(10 * time.Millisecond)
 
@@ -209,7 +192,7 @@ func TestList_IgnoresNonDirEntries(t *testing.T) {
 		t.Fatalf("seed stray: %v", err)
 	}
 
-	sess, _ := st.Create(context.Background(), "real", "")
+	sess, _ := st.Create(context.Background(), "real")
 
 	list, err := st.List(context.Background())
 	if err != nil {
@@ -223,7 +206,7 @@ func TestList_IgnoresNonDirEntries(t *testing.T) {
 
 func TestDelete_RemovesDirAndCache(t *testing.T) {
 	st, dir := newTestStore(t)
-	sess, _ := st.Create(context.Background(), "t", "")
+	sess, _ := st.Create(context.Background(), "t")
 
 	if err := st.Delete(context.Background(), sess.ID); err != nil {
 		t.Fatalf("Delete: %v", err)
@@ -249,7 +232,7 @@ func TestDelete_Idempotent(t *testing.T) {
 func TestAppendEvents_FiltersTransient(t *testing.T) {
 	st, _ := newTestStore(t)
 	ctx := context.Background()
-	sess, _ := st.Create(ctx, "t", "")
+	sess, _ := st.Create(ctx, "t")
 
 	transient := session.NewContentDeltaEvent(sess.ID, kit.NewTextContent("x"))
 	persistent := session.NewMessageEvent(sess.ID,
@@ -277,7 +260,7 @@ func TestAppendEvents_BumpsUpdatedAt(t *testing.T) {
 	st, _ := newTestStore(t)
 	ctx := context.Background()
 
-	sess, _ := st.Create(ctx, "t", "")
+	sess, _ := st.Create(ctx, "t")
 	before := sess.UpdatedAt
 
 	time.Sleep(5 * time.Millisecond)
@@ -301,7 +284,7 @@ func TestAppendEvents_BumpsUpdatedAt(t *testing.T) {
 func TestAppendEvents_PreservesOrderAcrossCalls(t *testing.T) {
 	st, _ := newTestStore(t)
 	ctx := context.Background()
-	sess, _ := st.Create(ctx, "t", "")
+	sess, _ := st.Create(ctx, "t")
 
 	first := session.NewMessageEvent(sess.ID,
 		kit.NewUserMessage([]kit.Content{kit.NewTextContent("one")}))
@@ -342,7 +325,7 @@ func TestLoadEvents_Missing(t *testing.T) {
 func TestLoadEvents_RoundTripsKitContent(t *testing.T) {
 	st, _ := newTestStore(t)
 	ctx := context.Background()
-	sess, _ := st.Create(ctx, "t", "")
+	sess, _ := st.Create(ctx, "t")
 
 	msg := kit.NewModelMessage([]kit.Content{
 		kit.NewTextContent("hello"),

@@ -21,12 +21,7 @@ func NewTransport(srv *server.Server, prompt string) *Transport {
 }
 
 func (t *Transport) Run(ctx context.Context) error {
-	workDir, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("get working directory: %w", err)
-	}
-
-	sess, err := t.srv.CreateSession(ctx, "cli", workDir)
+	sess, err := t.srv.CreateSession(ctx, "cli")
 	if err != nil {
 		return fmt.Errorf("create session: %w", err)
 	}

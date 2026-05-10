@@ -151,11 +151,8 @@ func (a *Assistant) handleResult(ctx context.Context, sess *session.Session, res
 	}
 }
 
-func buildAgentOpts(cfg config.Config, sess *session.Session) []agent.Option {
+func buildAgentOpts(cfg config.Config, _ *session.Session) []agent.Option {
 	sources := []string{cfg.SystemPrompt}
-	if sess != nil && sess.WorkDir != "" {
-		sources = append(sources, "Working directory: "+sess.WorkDir)
-	}
 
 	opts := []agent.Option{
 		agent.WithInstructions(sources...),

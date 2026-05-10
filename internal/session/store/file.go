@@ -44,17 +44,12 @@ func NewFileStore(dir string) (*FileStore, error) {
 	}, nil
 }
 
-func (st *FileStore) Create(_ context.Context, title, workDir string) (*session.Session, error) {
-	if workDir != "" {
-		workDir = filepath.Clean(workDir)
-	}
-
+func (st *FileStore) Create(_ context.Context, title string) (*session.Session, error) {
 	now := time.Now()
 
 	s := &session.Session{
 		ID:        uuid.NewString(),
 		Title:     title,
-		WorkDir:   workDir,
 		CreatedAt: now,
 		UpdatedAt: now,
 	}

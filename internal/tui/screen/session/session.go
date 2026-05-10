@@ -3,7 +3,6 @@ package session
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -250,12 +249,7 @@ func (m Model) handleSubmit(text string) (Model, tea.Cmd) {
 }
 
 func (m Model) createSession(title string) (*sessiondata.Session, <-chan sessiondata.Event, error) {
-	workDir, err := os.Getwd()
-	if err != nil {
-		return nil, nil, fmt.Errorf("get working directory: %w", err)
-	}
-
-	sess, err := m.server.CreateSession(m.ctx, title, workDir)
+	sess, err := m.server.CreateSession(m.ctx, title)
 	if err != nil {
 		return nil, nil, err
 	}

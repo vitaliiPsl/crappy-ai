@@ -14,9 +14,9 @@ import (
 )
 
 const (
-	hintsText          = "Enter Submit • Shift+Enter New Line • Ctrl+o Thinking • Ctrl+t Tools"
-	streamingHintsText = "Esc Cancel • Ctrl+o Thinking • Ctrl+t Tools"
-	streamingLabel     = "Thinking..."
+	hintsText             = "Enter Submit • Ctrl+o Show thinking • Ctrl+t Show tools"
+	streamingHintsText    = "Esc Cancel • Ctrl+o Show thinking • Ctrl+t Show tools"
+	defaultStreamingLabel = "Generating..."
 )
 
 type footer struct {
@@ -117,13 +117,15 @@ func (f footer) View() string {
 		parts = append(parts, status)
 	}
 
-	parts = append(parts, strings.TrimRight(f.input.View(), "\n"))
+	parts = append(parts, strings.TrimRight(f.bodyView(), "\n"))
 
 	if meta := f.metaView(); meta != "" {
 		parts = append(parts, meta)
 	}
 
-	parts = append(parts, hintsStyle.Width(f.width).Align(lipgloss.Center).Render(f.hintsText()))
+	if hints := f.hintsView(); hints != "" {
+		parts = append(parts, hints)
+	}
 
 	return strings.Join(parts, "\n")
 }
@@ -137,12 +139,25 @@ func (f *footer) setSize(width int) {
 	f.input.SetWidth(width)
 }
 
+func (f footer) bodyView() string {
+	return f.input.View()
+}
+
 func (f footer) statusView() string {
 	if !f.streaming {
 		return ""
 	}
 
-	return subtleTextStyle.Width(f.width).Render(f.spinner.View() + " " + streamingLabel)
+	return subtleTextStyle.Width(f.width).Render(f.spinner.View() + " " + defaultStreamingLabel)
+}
+
+func (f footer) hintsView() string {
+	hints := f.hintsText()
+	if hints == "" {
+		return ""
+	}
+
+	return hintsStyle.Width(f.width).Align(lipgloss.Center).Render(hints)
 }
 
 func (f footer) hintsText() string {
@@ -158,16 +173,16 @@ func (f footer) metaView() string {
 		return ""
 	}
 
-	left := f.model
 	center := statsText(f.stats)
+	right := truncateLeft(f.model, max(f.width/3, 1))
 
-	if left == "" && center == "" {
+	if center == "" && right == "" {
 		return ""
 	}
 
 	row := []rune(strings.Repeat(" ", f.width))
-	placeSegment(row, truncate(left, max(f.width/3, 1)), 0)
 	placeSegment(row, center, max((f.width-lipgloss.Width(center))/2, 0))
+	placeSegment(row, right, max(f.width-lipgloss.Width(right), 0))
 
 	return textStyle.Render(strings.TrimRight(string(row), " "))
 }
@@ -187,7 +202,23 @@ func statsText(stats *sessiondata.TurnStats) string {
 		parts = append(parts, fmt.Sprintf("%d%% ctx", pct))
 	}
 
-	return strings.Join(parts, " | ")
+	return strings.Join(parts, " · ")
+}
+
+func truncateLeft(text string, maxLen int) string {
+	if maxLen <= 0 {
+		return ""
+	}
+
+	if lipgloss.Width(text) <= maxLen {
+		return text
+	}
+
+	if maxLen == 1 {
+		return titleEllipsis
+	}
+
+	return titleEllipsis + text[len(text)-(maxLen-1):]
 }
 
 func placeSegment(row []rune, text string, start int) {
