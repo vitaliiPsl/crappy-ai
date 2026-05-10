@@ -10,10 +10,38 @@ import (
 )
 
 const (
+	emptyLogoText = "" +
+		"  ██████╗██████╗  █████╗ ██████╗ ██████╗ ██╗   ██╗\n" +
+		" ██╔════╝██╔══██╗██╔══██╗██╔══██╗██╔══██╗╚██╗ ██╔╝\n" +
+		" ██║     ██████╔╝███████║██████╔╝██████╔╝ ╚████╔╝ \n" +
+		" ██║     ██╔══██╗██╔══██║██╔═══╝ ██╔═══╝   ╚██╔╝  \n" +
+		" ╚██████╗██║  ██║██║  ██║██║     ██║        ██║   \n" +
+		"  ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝        ╚═╝   "
+	emptyCompactLogoText = "CRAPPY"
+
 	assistantLabel = "Assistant"
 	userLabel      = "You"
 	systemLabel    = "System"
 	thinkingLabel  = "Thinking"
+
+	emptyHeadline = "What do you want to understand today?"
+	emptySubtitle = "Notice patterns, untangle thoughts, or decide what matters next."
+
+	errorPrefix    = "Error: "
+	modelPrefix    = "Model: "
+	providerPrefix = "Provider: "
+
+	toolPendingIcon = "⏺"
+	toolDoneIcon    = "✓"
+	toolErrorIcon   = "!"
+	toolIndent      = "  "
+	toolCommandMark = "$ "
+	truncatedMark   = "..."
+
+	systemPad     = " "
+	systemDivider = "-"
+
+	messagePadding = 2
 	emptyPadFactor = 4
 	maxResultLen   = 120
 	toolLines      = 5
@@ -77,12 +105,14 @@ func (conv *conversation) refreshContent() {
 func (conv *conversation) renderEmpty() string {
 	var b strings.Builder
 
-	b.WriteString(textStyle.Render("What do you want to understand today?") + "\n\n")
+	b.WriteString(textStyle.Render(conv.emptyLogo()) + "\n\n")
+	b.WriteString(textStyle.Render(emptyHeadline) + "\n")
+	b.WriteString(subtleTextStyle.Render(emptySubtitle) + "\n\n")
 
 	if conv.model != "" {
-		b.WriteString(subtleTextStyle.Render("Model: ") + textStyle.Render(conv.model) + "\n")
+		b.WriteString(subtleTextStyle.Render(modelPrefix) + textStyle.Render(conv.model) + "\n")
 	} else if conv.provider != "" {
-		b.WriteString(subtleTextStyle.Render("Provider: ") + textStyle.Render(conv.provider) + "\n")
+		b.WriteString(subtleTextStyle.Render(providerPrefix) + textStyle.Render(conv.provider) + "\n")
 	}
 
 	content := b.String()
@@ -93,9 +123,17 @@ func (conv *conversation) renderEmpty() string {
 		lipgloss.NewStyle().Width(conv.width).Align(lipgloss.Center).Render(content)
 }
 
+func (conv conversation) emptyLogo() string {
+	if conv.width > 0 && lipgloss.Width(emptyLogoText) > conv.width {
+		return emptyCompactLogoText
+	}
+
+	return emptyLogoText
+}
+
 func (conv *conversation) renderMessage(msg chatMessage, showLabel bool) string {
 	if msg.error != "" {
-		return errorStyle.Render("Error: "+msg.error) + "\n"
+		return errorStyle.Render(errorPrefix+msg.error) + "\n"
 	}
 
 	switch msg.role {
@@ -134,7 +172,7 @@ func (conv *conversation) renderAssistantMessage(msg chatMessage, showLabel bool
 	}
 
 	if msg.text != "" {
-		b.WriteString(textStyle.Width(max(0, conv.width-2)).Render(msg.text))
+		b.WriteString(textStyle.Width(max(0, conv.width-messagePadding)).Render(msg.text))
 		b.WriteByte('\n')
 	}
 
@@ -164,7 +202,7 @@ func (conv *conversation) renderStreaming(showLabel bool) string {
 	}
 
 	if conv.streamingText != "" {
-		b.WriteString(textStyle.Width(max(0, conv.width-2)).Render(conv.streamingText))
+		b.WriteString(textStyle.Width(max(0, conv.width-messagePadding)).Render(conv.streamingText))
 		b.WriteByte('\n')
 	}
 
@@ -176,9 +214,9 @@ func (conv *conversation) renderStreaming(showLabel bool) string {
 }
 
 func (conv *conversation) renderSystemMessage(msg chatMessage) string {
-	label := " " + systemLabel + " "
+	label := systemPad + systemLabel + systemPad
 	lineLen := max((conv.width-len(label))/2, 1)
-	line := strings.Repeat("-", lineLen)
+	line := strings.Repeat(systemDivider, lineLen)
 	header := systemStyle.Render(line + label + line)
 
 	if msg.text == "" {
@@ -189,20 +227,20 @@ func (conv *conversation) renderSystemMessage(msg chatMessage) string {
 }
 
 func (conv *conversation) renderTool(tool toolUse) string {
-	icon := warningStyle.Render("o")
+	icon := warningStyle.Render(toolPendingIcon)
 	if tool.Done {
-		icon = successStyle.Render("x")
+		icon = successStyle.Render(toolDoneIcon)
 	}
 
 	if tool.Error != "" {
-		icon = errorStyle.Render("!")
+		icon = errorStyle.Render(toolErrorIcon)
 	}
 
 	var b strings.Builder
-	b.WriteString(icon + " " + subtleTextStyle.Render(toolSummary(tool)) + "\n")
+	b.WriteString(icon + systemPad + subtleTextStyle.Render(toolSummary(tool)) + "\n")
 
 	if tool.Error != "" {
-		b.WriteString("  " + errorStyle.Render(truncate(tool.Error, maxResultLen)) + "\n")
+		b.WriteString(toolIndent + errorStyle.Render(truncate(tool.Error, maxResultLen)) + "\n")
 	}
 
 	if conv.showToolResult && tool.Done && tool.Result != "" {
@@ -220,7 +258,7 @@ func toolSummary(tool toolUse) string {
 
 	switch {
 	case desc != "" && cmd != "":
-		return fmt.Sprintf("%s: %s\n  $ %s", tool.Name, desc, truncate(cmd, maxResultLen))
+		return fmt.Sprintf("%s: %s\n%s%s%s", tool.Name, desc, toolIndent, toolCommandMark, truncate(cmd, maxResultLen))
 	case desc != "":
 		return fmt.Sprintf("%s: %s", tool.Name, desc)
 	case rawURL != "":
@@ -228,7 +266,7 @@ func toolSummary(tool toolUse) string {
 	case path != "":
 		return fmt.Sprintf("%s: %s", tool.Name, path)
 	case cmd != "":
-		return fmt.Sprintf("%s: $ %s", tool.Name, truncate(cmd, maxResultLen))
+		return fmt.Sprintf("%s: %s%s", tool.Name, toolCommandMark, truncate(cmd, maxResultLen))
 	default:
 		return tool.Name
 	}
@@ -238,12 +276,12 @@ func renderToolResult(result string) string {
 	lines := strings.SplitN(result, "\n", toolLines+1)
 	if len(lines) > toolLines {
 		lines = lines[:toolLines]
-		lines = append(lines, "...")
+		lines = append(lines, truncatedMark)
 	}
 
 	var b strings.Builder
 	for _, line := range lines {
-		b.WriteString("  " + subtleTextStyle.Render(line) + "\n")
+		b.WriteString(toolIndent + subtleTextStyle.Render(line) + "\n")
 	}
 
 	return strings.TrimRight(b.String(), "\n")

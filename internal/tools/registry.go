@@ -41,6 +41,7 @@ func (r *Registry) GetTool(name string) (kit.Tool, error) {
 
 func (r *Registry) GetTools() []kit.Tool {
 	names := r.names()
+
 	tools := make([]kit.Tool, 0, len(names))
 	for _, name := range names {
 		tools = append(tools, r.entries[name])
