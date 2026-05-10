@@ -9,6 +9,7 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/server"
 	sessionScreen "github.com/vitaliiPsl/crappy-ai/internal/tui/screen/session"
 	sessionsScreen "github.com/vitaliiPsl/crappy-ai/internal/tui/screen/sessions"
+	settingsScreen "github.com/vitaliiPsl/crappy-ai/internal/tui/screen/settings"
 )
 
 const paddingX = 2
@@ -20,6 +21,7 @@ type screen int
 const (
 	screenSession screen = iota
 	screenSessions
+	screenSettings
 )
 
 type Model struct {
@@ -32,6 +34,7 @@ type Model struct {
 	sessionID string
 	session   *sessionScreen.Model
 	sessions  *sessionsScreen.Model
+	settings  *settingsScreen.Model
 
 	width  int
 	height int
@@ -86,6 +89,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			return m, m.openSession("")
+
+		case "ctrl+g":
+			if m.active == screenSession && m.session != nil {
+				m.session.Cleanup()
+			}
+
+			return m, m.openSettings()
 		}
 	case sessionScreen.CreatedMsg:
 		m.sessionID = msg.SessionID
@@ -96,6 +106,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case sessionsScreen.OpenDraftSessionMsg:
 		return m, m.openSession("")
 	case sessionsScreen.ClosedMsg:
+		return m, m.openPrev()
+	case settingsScreen.ClosedMsg:
 		return m, m.openPrev()
 	}
 
@@ -121,6 +133,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		*m.sessions, cmd = m.sessions.Update(msg)
 
 		return m, cmd
+
+	case screenSettings:
+		if m.settings == nil {
+			return m, nil
+		}
+
+		var cmd tea.Cmd
+
+		*m.settings, cmd = m.settings.Update(msg)
+
+		return m, cmd
 	}
 
 	return m, nil
@@ -137,6 +160,10 @@ func (m Model) View() tea.View {
 	case screenSessions:
 		if m.sessions != nil {
 			content = m.sessions.View()
+		}
+	case screenSettings:
+		if m.settings != nil {
+			content = m.settings.View()
 		}
 	}
 
@@ -162,6 +189,12 @@ func (m *Model) resize() {
 		}
 
 		m.sessions.SetSize(innerWidth, m.height)
+	case screenSettings:
+		if m.settings == nil {
+			return
+		}
+
+		m.settings.SetSize(innerWidth, m.height)
 	}
 }
 
@@ -185,10 +218,29 @@ func (m *Model) openSessions() tea.Cmd {
 	return m.sessions.Init()
 }
 
+func (m *Model) openSettings() tea.Cmd {
+	m.prev = m.active
+	s := settingsScreen.New(m.server)
+	m.settings = &s
+	m.active = screenSettings
+	m.resize()
+
+	return m.settings.Init()
+}
+
 func (m *Model) openPrev() tea.Cmd {
 	switch m.prev {
 	case screenSession:
 		return m.openSession(m.sessionID)
+	case screenSessions:
+		if m.sessions == nil {
+			return m.openSessions()
+		}
+
+		m.active = screenSessions
+		m.resize()
+
+		return nil
 	default:
 		return m.openSession("")
 	}
