@@ -16,10 +16,10 @@ const bottomThreshold = 2
 type messageRole string
 
 const (
-	messageRoleUser      messageRole = "user"
-	messageRoleAssistant messageRole = "assistant"
-	messageRoleSystem    messageRole = "system"
-	messageRoleTool      messageRole = "tool"
+	messageRoleUser   messageRole = "user"
+	messageRoleModel  messageRole = "model"
+	messageRoleSystem messageRole = "system"
+	messageRoleTool   messageRole = "tool"
 )
 
 type toolUse struct {
@@ -278,7 +278,7 @@ func (conv *conversation) setStreamingToolResult(result kit.ToolResult) bool {
 
 func (conv *conversation) setMessageToolResult(result kit.ToolResult) bool {
 	for i := len(conv.messages) - 1; i >= 0; i-- {
-		if conv.messages[i].role != messageRoleAssistant {
+		if conv.messages[i].role != messageRoleModel {
 			continue
 		}
 
@@ -364,7 +364,7 @@ func (conv conversation) isNearBottom() bool {
 }
 
 func toChatMessage(msg kit.Message) chatMessage {
-	role := messageRoleAssistant
+	role := messageRoleModel
 	if msg.Role == kit.RoleUser {
 		role = messageRoleUser
 	}

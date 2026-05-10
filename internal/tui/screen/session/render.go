@@ -19,7 +19,7 @@ const (
 		"  ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝        ╚═╝   "
 	emptyCompactLogoText = "CRAPPY"
 
-	assistantLabel = "Assistant"
+	assistantLabel = "Crappy"
 	userLabel      = "You"
 	systemLabel    = "System"
 	thinkingLabel  = "Thinking"
@@ -91,11 +91,11 @@ func (conv *conversation) refreshContent() {
 	}
 
 	if conv.streaming {
-		if len(conv.messages) > 0 && conv.messages[len(conv.messages)-1].role != messageRoleAssistant {
+		if len(conv.messages) > 0 && conv.messages[len(conv.messages)-1].role != messageRoleModel {
 			b.WriteByte('\n')
 		}
 
-		lastIsAssistant := len(conv.messages) > 0 && conv.messages[len(conv.messages)-1].role == messageRoleAssistant
+		lastIsAssistant := len(conv.messages) > 0 && conv.messages[len(conv.messages)-1].role == messageRoleModel
 		b.WriteString(conv.renderStreaming(!lastIsAssistant))
 	}
 
@@ -139,7 +139,7 @@ func (conv *conversation) renderMessage(msg chatMessage, showLabel bool) string 
 	switch msg.role {
 	case messageRoleUser:
 		return conv.renderUserMessage(msg)
-	case messageRoleAssistant:
+	case messageRoleModel:
 		return conv.renderAssistantMessage(msg, showLabel)
 	case messageRoleSystem:
 		return conv.renderSystemMessage(msg)

@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	hintsText             = "Enter Submit • Ctrl+o Show thinking • Ctrl+t Show tools"
-	streamingHintsText    = "Esc Cancel • Ctrl+o Show thinking • Ctrl+t Show tools"
+	hintsText             = "Enter Submit • Ctrl+p Sessions • Ctrl+n New • Ctrl+o Thinking • Ctrl+t Tools"
+	streamingHintsText    = "Esc Cancel • Ctrl+p Sessions • Ctrl+o Thinking • Ctrl+t Tools"
 	defaultStreamingLabel = "Generating..."
 )
 
