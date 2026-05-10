@@ -33,6 +33,7 @@ func (c *commandSuggestions) Update(value string) {
 	}
 
 	prefix := strings.ToLower(value[1:])
+
 	c.matches = c.matches[:0]
 	for _, def := range c.commands {
 		if strings.HasPrefix(def.Name, prefix) {
@@ -93,9 +94,11 @@ func (c commandSuggestions) View() string {
 	descStyle := lipgloss.NewStyle().Foreground(thm.Muted)
 
 	lines := make([]string, 0, min(len(c.matches), maxCommandSuggestions))
+
 	start, end := c.visibleRange()
 	for idx := start; idx < end; idx++ {
 		def := c.matches[idx]
+
 		nameStyle := normalStyle
 		if idx == c.selected {
 			nameStyle = selectedStyle

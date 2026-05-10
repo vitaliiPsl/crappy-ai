@@ -144,6 +144,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case command.SystemMsg:
 		var cmd tea.Cmd
+
 		m, cmd = m.updateChildren(systemMessageMsg{Text: msg.Text})
 
 		return m, cmd

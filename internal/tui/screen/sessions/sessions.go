@@ -18,7 +18,7 @@ const (
 	headerText      = "Sessions"
 	emptyTitle      = "No sessions yet"
 	emptySubtitle   = "Press n to start a new conversation."
-	hintsText       = "j/Down Move • Enter Open • n New • d Delete • r Refresh • Ctrl+g Settings • Esc Back"
+	hintsText       = "j/Down Move • Enter Open • n New • d Delete • r Refresh • Esc Back"
 	timestampFormat = "Jan 02 15:04"
 
 	cursorPrefix   = "> "

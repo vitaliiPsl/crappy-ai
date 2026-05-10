@@ -83,20 +83,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			return m, m.openSessions()
-
-		case "ctrl+n":
-			if m.session != nil {
-				m.session.Cleanup()
-			}
-
-			return m, m.openSession("")
-
-		case "ctrl+g":
-			if m.active == screenSession && m.session != nil {
-				m.session.Cleanup()
-			}
-
-			return m, m.openSettings()
 		}
 	case sessionScreen.CreatedMsg:
 		m.sessionID = msg.SessionID
