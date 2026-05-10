@@ -19,6 +19,10 @@ type streamStartedMsg struct{}
 
 type turnStoppedMsg struct{}
 
+type submitMsg struct {
+	Text string
+}
+
 type errorMsg struct {
 	err error
 }

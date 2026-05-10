@@ -17,6 +17,10 @@ const (
 	hintsText             = "Enter Submit • Ctrl+p Sessions • Ctrl+g Settings • Ctrl+n New • Ctrl+o Thinking • Ctrl+t Tools"
 	streamingHintsText    = "Esc Cancel • Ctrl+p Sessions • Ctrl+g Settings • Ctrl+o Thinking • Ctrl+t Tools"
 	defaultStreamingLabel = "Generating..."
+
+	inputPlaceholder = "Type a message..."
+	inputPrompt      = "> "
+	inputMaxHeight   = 8
 )
 
 type footer struct {
@@ -37,14 +41,19 @@ func newFooter(model string) footer {
 	sp.Style = lipgloss.NewStyle().Foreground(thm.Primary)
 
 	return footer{
-		input:   component.NewInput(),
+		input: component.NewInput(
+			component.WithMultiline(true),
+			component.WithPlaceholder(inputPlaceholder),
+			component.WithPrompt(inputPrompt),
+			component.WithMaxHeight(inputMaxHeight),
+		),
 		spinner: sp,
 		model:   model,
 	}
 }
 
 func (f footer) Init() tea.Cmd {
-	return f.input.Init()
+	return f.input.Focus()
 }
 
 func (f footer) Update(msg tea.Msg) (footer, tea.Cmd, bool) {
@@ -103,9 +112,22 @@ func (f footer) Update(msg tea.Msg) (footer, tea.Cmd, bool) {
 		return f, nil, false
 	}
 
-	var cmd tea.Cmd
+	var (
+		cmd tea.Cmd
+		out tea.Msg
+	)
 
-	f.input, cmd, _ = f.input.Update(msg)
+	f.input, cmd, out = f.input.Update(msg)
+	if submit, ok := out.(component.ConfirmMsg); ok {
+		text := strings.TrimSpace(submit.Value)
+		if text == "" {
+			return f, nil, true
+		}
+
+		f.input.Reset()
+
+		return f, func() tea.Msg { return submitMsg{Text: submit.Value} }, true
+	}
 
 	return f, cmd, true
 }

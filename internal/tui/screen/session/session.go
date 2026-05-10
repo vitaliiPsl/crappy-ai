@@ -9,7 +9,6 @@ import (
 
 	"github.com/vitaliiPsl/crappy-ai/internal/server"
 	sessiondata "github.com/vitaliiPsl/crappy-ai/internal/session"
-	"github.com/vitaliiPsl/crappy-ai/internal/tui/component"
 )
 
 const (
@@ -115,7 +114,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 		return m.updateChildren(turnStoppedMsg{})
 
-	case component.SubmitMsg:
+	case submitMsg:
 		if m.turnActive {
 			return m, nil
 		}

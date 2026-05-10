@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"charm.land/bubbles/v2/textarea"
+	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
@@ -11,86 +12,165 @@ import (
 )
 
 const (
-	inputPlaceholder = "Type a message..."
-	inputPrompt      = "> "
-	inputMinHeight   = 1
-	inputMaxHeight   = 8
-	inputPaddingX    = 1
+	inputMinHeight = 1
+	inputMaxHeight = 6
+	inputPaddingX  = 1
 )
 
-type SubmitMsg struct {
-	Text string
+type ConfirmMsg struct {
+	Value string
+}
+
+type CancelMsg struct{}
+
+type InputOption func(*inputOptions)
+
+type inputOptions struct {
+	multiline   bool
+	masked      bool
+	placeholder string
+	prompt      string
+	maxHeight   int
 }
 
 type Input struct {
-	textarea textarea.Model
-	width    int
-	initCmd  tea.Cmd
+	textinput textinput.Model
+	textarea  textarea.Model
+
+	multiline bool
+	width     int
 }
 
-func NewInput() Input {
+func NewInput(opts ...InputOption) Input {
+	options := inputOptions{}
+	for _, opt := range opts {
+		opt(&options)
+	}
+
+	if options.maxHeight == 0 {
+		options.maxHeight = inputMaxHeight
+	}
+
 	thm := theme.Default
 
-	input := textarea.New()
-	input.Placeholder = inputPlaceholder
-	input.Prompt = inputPrompt
-	input.CharLimit = 0
-	input.ShowLineNumbers = false
-	input.DynamicHeight = true
-	input.MinHeight = inputMinHeight
-	input.MaxHeight = inputMaxHeight
-	input.SetHeight(inputMinHeight)
-	input.SetPromptFunc(lipgloss.Width(inputPrompt), func(info textarea.PromptInfo) string {
-		if info.LineNumber == 0 {
-			return inputPrompt
-		}
+	ti := textinput.New()
+	ti.Prompt = options.prompt
+	ti.Placeholder = options.placeholder
 
-		return ""
-	})
+	ti.EchoMode = textinput.EchoNormal
+	if options.masked {
+		ti.EchoMode = textinput.EchoPassword
+	}
 
-	styles := input.Styles()
-	styles.Focused.Text = lipgloss.NewStyle().Foreground(thm.Text)
-	styles.Focused.Placeholder = lipgloss.NewStyle().Foreground(thm.SubtleText)
-	styles.Focused.Prompt = lipgloss.NewStyle().Foreground(thm.Primary)
-	styles.Focused.Base = lipgloss.NewStyle().Background(thm.SurfaceAlt)
-	styles.Focused.CursorLine = lipgloss.NewStyle()
-	styles.Focused.EndOfBuffer = lipgloss.NewStyle().Foreground(thm.SurfaceAlt).Background(thm.SurfaceAlt)
-	styles.Blurred.Text = lipgloss.NewStyle().Foreground(thm.SubtleText)
-	styles.Blurred.Placeholder = lipgloss.NewStyle().Foreground(thm.Muted)
-	styles.Blurred.Prompt = lipgloss.NewStyle().Foreground(thm.Muted)
-	styles.Blurred.Base = lipgloss.NewStyle().Background(thm.SurfaceAlt)
-	styles.Blurred.CursorLine = lipgloss.NewStyle()
-	styles.Blurred.EndOfBuffer = lipgloss.NewStyle().Foreground(thm.SurfaceAlt).Background(thm.SurfaceAlt)
-	input.SetStyles(styles)
+	inputStyles := ti.Styles()
+	inputStyles.Focused.Text = lipgloss.NewStyle().Foreground(thm.Text).Background(thm.SurfaceAlt)
+	inputStyles.Focused.Placeholder = lipgloss.NewStyle().Foreground(thm.SubtleText).Background(thm.SurfaceAlt)
+	inputStyles.Focused.Prompt = lipgloss.NewStyle().Foreground(thm.Primary).Background(thm.SurfaceAlt)
+	inputStyles.Focused.Suggestion = lipgloss.NewStyle().Foreground(thm.SubtleText).Background(thm.SurfaceAlt)
+	inputStyles.Blurred.Text = lipgloss.NewStyle().Foreground(thm.SubtleText).Background(thm.SurfaceAlt)
+	inputStyles.Blurred.Placeholder = lipgloss.NewStyle().Foreground(thm.Muted).Background(thm.SurfaceAlt)
+	inputStyles.Blurred.Prompt = lipgloss.NewStyle().Foreground(thm.Muted).Background(thm.SurfaceAlt)
+	inputStyles.Blurred.Suggestion = lipgloss.NewStyle().Foreground(thm.Muted).Background(thm.SurfaceAlt)
+	ti.SetStyles(inputStyles)
 
-	return Input{textarea: input, initCmd: input.Focus()}
+	ta := textarea.New()
+	ta.Placeholder = options.placeholder
+	ta.Prompt = options.prompt
+	ta.ShowLineNumbers = false
+	ta.DynamicHeight = true
+	ta.MinHeight = inputMinHeight
+
+	ta.MaxHeight = options.maxHeight
+	if options.prompt != "" {
+		ta.SetPromptFunc(lipgloss.Width(options.prompt), func(info textarea.PromptInfo) string {
+			if info.LineNumber == 0 {
+				return options.prompt
+			}
+
+			return ""
+		})
+	}
+
+	textareaStyles := ta.Styles()
+	textareaStyles.Focused.Text = lipgloss.NewStyle().Foreground(thm.Text).Background(thm.SurfaceAlt)
+	textareaStyles.Focused.Placeholder = lipgloss.NewStyle().Foreground(thm.SubtleText).Background(thm.SurfaceAlt)
+	textareaStyles.Focused.Prompt = lipgloss.NewStyle().Foreground(thm.Primary).Background(thm.SurfaceAlt)
+	textareaStyles.Focused.Base = lipgloss.NewStyle().Background(thm.SurfaceAlt)
+	textareaStyles.Focused.CursorLine = lipgloss.NewStyle()
+	textareaStyles.Focused.EndOfBuffer = lipgloss.NewStyle().Foreground(thm.SurfaceAlt).Background(thm.SurfaceAlt)
+	textareaStyles.Blurred.Text = lipgloss.NewStyle().Foreground(thm.SubtleText).Background(thm.SurfaceAlt)
+	textareaStyles.Blurred.Placeholder = lipgloss.NewStyle().Foreground(thm.Muted).Background(thm.SurfaceAlt)
+	textareaStyles.Blurred.Prompt = lipgloss.NewStyle().Foreground(thm.Muted).Background(thm.SurfaceAlt)
+	textareaStyles.Blurred.Base = lipgloss.NewStyle().Background(thm.SurfaceAlt)
+	textareaStyles.Blurred.CursorLine = lipgloss.NewStyle()
+	textareaStyles.Blurred.EndOfBuffer = lipgloss.NewStyle().Foreground(thm.SurfaceAlt).Background(thm.SurfaceAlt)
+	ta.SetStyles(textareaStyles)
+
+	if options.multiline {
+		_ = ta.Focus()
+	} else {
+		_ = ti.Focus()
+	}
+
+	return Input{
+		textinput: ti,
+		textarea:  ta,
+		multiline: options.multiline,
+	}
 }
 
-func (i Input) Init() tea.Cmd {
-	return i.initCmd
+func WithMultiline(multiline bool) InputOption {
+	return func(o *inputOptions) {
+		o.multiline = multiline
+	}
+}
+
+func WithMasked(masked bool) InputOption {
+	return func(o *inputOptions) {
+		o.masked = masked
+	}
+}
+
+func WithPlaceholder(placeholder string) InputOption {
+	return func(o *inputOptions) {
+		o.placeholder = placeholder
+	}
+}
+
+func WithPrompt(prompt string) InputOption {
+	return func(o *inputOptions) {
+		o.prompt = prompt
+	}
+}
+
+func WithMaxHeight(maxHeight int) InputOption {
+	return func(o *inputOptions) {
+		o.maxHeight = maxHeight
+	}
 }
 
 func (i Input) Update(msg tea.Msg) (Input, tea.Cmd, tea.Msg) {
 	if key, ok := msg.(tea.KeyMsg); ok {
 		switch key.String() {
+		case "esc":
+			return i, nil, CancelMsg{}
 		case "enter":
-			return i.submit()
+			return i, nil, ConfirmMsg{Value: i.Value()}
 		case "shift+enter":
-			i.textarea.InsertRune('\n')
+			if i.multiline {
+				i.textarea.InsertRune('\n')
 
-			return i, nil, nil
-		case "pgup", "pgdown", "up", "down":
-			return i, nil, msg
+				return i, nil, nil
+			}
 		}
 	}
 
-	if _, ok := msg.(tea.MouseWheelMsg); ok {
-		return i, nil, msg
-	}
-
 	var cmd tea.Cmd
-
-	i.textarea, cmd = i.textarea.Update(msg)
+	if i.multiline {
+		i.textarea, cmd = i.textarea.Update(msg)
+	} else {
+		i.textinput, cmd = i.textinput.Update(msg)
+	}
 
 	return i, cmd, nil
 }
@@ -101,25 +181,54 @@ func (i Input) View() string {
 		Background(theme.Default.SurfaceAlt).
 		Padding(0, inputPaddingX)
 
-	return strings.TrimRight(box.Render("\n"+i.textarea.View()+"\n"), "\n")
+	var body string
+	if i.multiline {
+		body = i.textarea.View()
+	} else {
+		body = i.textinput.View()
+	}
+
+	return strings.TrimRight(box.Render("\n"+body+"\n"), "\n")
 }
 
-func (i Input) Height() int {
-	return lipgloss.Height(i.View())
+func (i Input) Value() string {
+	if i.multiline {
+		return i.textarea.Value()
+	}
+
+	return i.textinput.Value()
+}
+
+func (i *Input) SetValue(value string) {
+	if i.multiline {
+		i.textarea.SetValue(value)
+
+		return
+	}
+
+	i.textinput.SetValue(value)
+}
+
+func (i *Input) Reset() {
+	i.textinput.Reset()
+	i.textarea.Reset()
 }
 
 func (i *Input) SetWidth(width int) {
 	i.width = width
-	i.textarea.SetWidth(max(width-inputPaddingX*2, 1))
+	innerWidth := max(width-inputPaddingX*2, 1)
+	i.textinput.SetWidth(innerWidth)
+	i.textarea.SetWidth(innerWidth)
 }
 
-func (i Input) submit() (Input, tea.Cmd, tea.Msg) {
-	text := i.textarea.Value()
-	if strings.TrimSpace(text) == "" {
-		return i, nil, nil
+func (i *Input) Focus() tea.Cmd {
+	if i.multiline {
+		return i.textarea.Focus()
 	}
 
-	i.textarea.Reset()
+	return i.textinput.Focus()
+}
 
-	return i, func() tea.Msg { return SubmitMsg{Text: text} }, nil
+func (i Input) Height() int {
+	return lipgloss.Height(i.View())
 }

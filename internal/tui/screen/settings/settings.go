@@ -22,7 +22,7 @@ type Model struct {
 	state   state
 	saveErr error
 
-	editor   component.Editor
+	input    component.Input
 	viewport viewport.Model
 
 	width  int
@@ -38,7 +38,7 @@ func New(srv *server.Server) Model {
 		cfg:       srv.GetConfig(),
 		settings:  srv.GetSettings(),
 		providers: srv.GetProviders(),
-		editor:    component.NewEditor(),
+		input:     component.NewInput(),
 		viewport:  vp,
 	}
 	m.fields = buildFields()
@@ -76,7 +76,7 @@ func (m *Model) SetSize(width, height int) {
 	m.width = width
 	m.height = height
 	m.viewport.SetWidth(width)
-	m.editor.SetWidth(width)
+	m.input.SetWidth(width)
 	m.resizeViewport()
 	m.refreshContent()
 }

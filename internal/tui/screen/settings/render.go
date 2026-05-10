@@ -64,8 +64,8 @@ func (m Model) View() string {
 	hintsView := hintsStyle.Width(m.width).Align(lipgloss.Center).Render(hints)
 
 	parts := []string{header, "", m.viewport.View()}
-	if editor := m.editorView(); editor != "" {
-		parts = append(parts, editor)
+	if input := m.inputView(); input != "" {
+		parts = append(parts, input)
 	}
 
 	if status := m.statusView(); status != "" {
@@ -137,7 +137,7 @@ func (m Model) renderFieldValue(field fieldDef) string {
 	return valueStyle.Render(value)
 }
 
-func (m Model) editorView() string {
+func (m Model) inputView() string {
 	if m.state != stateEditing {
 		return ""
 	}
@@ -145,13 +145,13 @@ func (m Model) editorView() string {
 	field := m.currentField()
 	label := mutedStyle.Render(editPrefix) + selectedStyle.Render(field.label)
 
-	return label + "\n" + m.editor.View()
+	return label + "\n" + m.input.View()
 }
 
 func (m *Model) resizeViewport() {
-	editorHeight := 0
-	if editor := m.editorView(); editor != "" {
-		editorHeight = lipgloss.Height(editor)
+	inputHeight := 0
+	if input := m.inputView(); input != "" {
+		inputHeight = lipgloss.Height(input)
 	}
 
 	statusHeight := 0
@@ -159,7 +159,7 @@ func (m *Model) resizeViewport() {
 		statusHeight = lipgloss.Height(status)
 	}
 
-	m.viewport.SetHeight(max(m.height-headerLines-hintsHeight-editorHeight-statusHeight, 1))
+	m.viewport.SetHeight(max(m.height-headerLines-hintsHeight-inputHeight-statusHeight, 1))
 }
 
 func (m Model) statusView() string {
