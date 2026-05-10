@@ -14,6 +14,7 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/server"
 	sessionstore "github.com/vitaliiPsl/crappy-ai/internal/session/store"
 	"github.com/vitaliiPsl/crappy-ai/internal/settings"
+	"github.com/vitaliiPsl/crappy-ai/internal/tui"
 )
 
 func main() {
@@ -38,9 +39,7 @@ func run() error {
 		return fmt.Errorf("load settings: %w", err)
 	}
 
-	s := settingsStore.Get()
-
-	configStore, err := config.Load(s.ConfigPath, config.Flags{
+	configStore, err := config.Load(settingsStore.Get().ConfigPath, config.Flags{
 		Provider: *provider,
 		Model:    *model,
 		Thinking: *thinking,
@@ -49,7 +48,7 @@ func run() error {
 		return fmt.Errorf("load config: %w", err)
 	}
 
-	sessStore, err := sessionstore.NewFileStore(s.SessionsDir)
+	sessStore, err := sessionstore.NewFileStore(settingsStore.Get().SessionsDir)
 	if err != nil {
 		return fmt.Errorf("init session store: %w", err)
 	}
@@ -58,25 +57,14 @@ func run() error {
 	asst := assistant.New(configStore, sessStore, registry)
 	srv := server.New(asst, settingsStore, configStore, sessStore, registry)
 
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+
 	if *prompt != "" {
-		ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
-		defer cancel()
-
 		srv.AddTransport(cli.NewTransport(srv, *prompt))
-
-		return srv.Run(ctx)
+	} else {
+		srv.AddTransport(tui.NewTransport(ctx, srv))
 	}
 
-	c := srv.GetConfig()
-
-	sessions, err := srv.ListSessions(context.Background())
-	if err != nil {
-		return fmt.Errorf("list sessions: %w", err)
-	}
-
-	fmt.Printf("settings: config_path=%s sessions_dir=%s providers=%d\n", s.ConfigPath, s.SessionsDir, len(s.Providers))
-	fmt.Printf("config:   provider=%s model=%s thinking=%s\n", c.Provider, c.Model, c.Thinking)
-	fmt.Printf("sessions: count=%d\n", len(sessions))
-
-	return nil
+	return srv.Run(ctx)
 }
