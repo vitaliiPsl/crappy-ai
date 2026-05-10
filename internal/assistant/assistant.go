@@ -12,19 +12,27 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/models"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
+	"github.com/vitaliiPsl/crappy-ai/internal/tools"
 )
 
 type Assistant struct {
 	configStore  *config.Store
 	sessionStore session.Store
-	registry     *models.Registry
+	models       *models.Registry
+	tools        *tools.Registry
 }
 
-func New(configStore *config.Store, sessionStore session.Store, registry *models.Registry) *Assistant {
+func New(
+	configStore *config.Store,
+	sessionStore session.Store,
+	modelRegistry *models.Registry,
+	toolRegistry *tools.Registry,
+) *Assistant {
 	return &Assistant{
 		configStore:  configStore,
 		sessionStore: sessionStore,
-		registry:     registry,
+		models:       modelRegistry,
+		tools:        toolRegistry,
 	}
 }
 
@@ -44,12 +52,12 @@ func (a *Assistant) Run(ctx context.Context, sessionID, text string) (*kit.Strea
 
 	cfg := a.configStore.Get()
 
-	model, err := a.registry.Build(cfg)
+	model, err := a.models.Build(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("build model: %w", err)
 	}
 
-	ag, err := agent.New(model, buildAgentOpts(cfg, sess)...)
+	ag, err := agent.New(model, a.buildAgentOpts(cfg, sess)...)
 	if err != nil {
 		return nil, fmt.Errorf("build agent: %w", err)
 	}
@@ -151,11 +159,15 @@ func (a *Assistant) handleResult(ctx context.Context, sess *session.Session, res
 	}
 }
 
-func buildAgentOpts(cfg config.Config, _ *session.Session) []agent.Option {
+func (a *Assistant) buildAgentOpts(cfg config.Config, _ *session.Session) []agent.Option {
 	sources := []string{cfg.SystemPrompt}
 
 	opts := []agent.Option{
 		agent.WithInstructions(sources...),
+	}
+
+	if a.tools != nil {
+		opts = append(opts, agent.WithTools(a.tools.GetTools()...))
 	}
 
 	if cfg.Thinking != "" {

@@ -14,6 +14,7 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/server"
 	sessionstore "github.com/vitaliiPsl/crappy-ai/internal/session/store"
 	"github.com/vitaliiPsl/crappy-ai/internal/settings"
+	"github.com/vitaliiPsl/crappy-ai/internal/tools"
 	"github.com/vitaliiPsl/crappy-ai/internal/tui"
 )
 
@@ -53,9 +54,11 @@ func run() error {
 		return fmt.Errorf("init session store: %w", err)
 	}
 
-	registry := models.NewRegistry(settingsStore)
-	asst := assistant.New(configStore, sessStore, registry)
-	srv := server.New(asst, settingsStore, configStore, sessStore, registry)
+	modelRegistry := models.NewRegistry(settingsStore)
+	toolRegistry := tools.NewRegistry()
+
+	asst := assistant.New(configStore, sessStore, modelRegistry, toolRegistry)
+	srv := server.New(asst, settingsStore, configStore, sessStore, modelRegistry)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
