@@ -9,6 +9,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	sessiondata "github.com/vitaliiPsl/crappy-ai/internal/session"
+	"github.com/vitaliiPsl/crappy-ai/internal/tui/command"
 	"github.com/vitaliiPsl/crappy-ai/internal/tui/component"
 	"github.com/vitaliiPsl/crappy-ai/internal/tui/theme"
 )
@@ -18,14 +19,15 @@ const (
 	streamingHintsText    = "Esc Cancel • Ctrl+p Sessions • Ctrl+g Settings • Ctrl+o Thinking • Ctrl+t Tools"
 	defaultStreamingLabel = "Generating..."
 
-	inputPlaceholder = "Type a message..."
+	inputPlaceholder = "Type a message or /command..."
 	inputPrompt      = "> "
 	inputMaxHeight   = 8
 )
 
 type footer struct {
-	input   component.Input
-	spinner spinner.Model
+	input       component.Input
+	suggestions commandSuggestions
+	spinner     spinner.Model
 
 	streaming bool
 	model     string
@@ -34,7 +36,7 @@ type footer struct {
 	width int
 }
 
-func newFooter(model string) footer {
+func newFooter(registry *command.Registry, model string) footer {
 	thm := theme.Default
 	sp := spinner.New()
 	sp.Spinner = spinner.MiniDot
@@ -47,8 +49,9 @@ func newFooter(model string) footer {
 			component.WithPrompt(inputPrompt),
 			component.WithMaxHeight(inputMaxHeight),
 		),
-		spinner: sp,
-		model:   model,
+		suggestions: newCommandSuggestions(registry),
+		spinner:     sp,
+		model:       model,
 	}
 }
 
@@ -95,41 +98,110 @@ func (f footer) Update(msg tea.Msg) (footer, tea.Cmd, bool) {
 		return f, nil, false
 	}
 
+	if f.shouldPassThrough(msg) {
+		return f, nil, false
+	}
+
 	if key, ok := msg.(tea.KeyMsg); ok {
-		switch key.String() {
-		case "ctrl+o", "ctrl+t", "pgup", "pgdown", "up", "down":
-			return f, nil, false
+		if next, consumed := f.handleSuggestionKey(key); consumed {
+			return next, nil, true
 		}
 	}
 
-	if _, ok := msg.(tea.MouseWheelMsg); ok {
+	if !isInputMsg(msg) {
 		return f, nil, false
 	}
 
+	return f.updateInput(msg)
+}
+
+func (f footer) shouldPassThrough(msg tea.Msg) bool {
+	switch msg := msg.(type) {
+	case tea.MouseWheelMsg:
+		return true
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "ctrl+o", "ctrl+t", "pgup", "pgdown":
+			return true
+		case "up", "down":
+			return !f.suggestions.Active()
+		}
+	}
+
+	return false
+}
+
+func (f footer) handleSuggestionKey(key tea.KeyMsg) (footer, bool) {
+	switch key.String() {
+	case "up":
+		consumed := f.suggestions.Previous()
+
+		return f, consumed
+	case "down":
+		consumed := f.suggestions.Next()
+
+		return f, consumed
+	case "esc":
+		if !f.suggestions.Active() {
+			return f, false
+		}
+
+		f.suggestions.Clear()
+
+		return f, true
+	case "enter":
+		value, ok := f.suggestions.Completion(f.input.Value())
+		if !ok {
+			return f, false
+		}
+
+		f.input.SetValue(value)
+		f.suggestions.Clear()
+
+		return f, true
+	default:
+		return f, false
+	}
+}
+
+func isInputMsg(msg tea.Msg) bool {
 	switch msg.(type) {
 	case tea.KeyMsg, tea.PasteMsg, tea.PasteStartMsg, tea.PasteEndMsg:
+		return true
 	default:
-		return f, nil, false
+		return false
 	}
+}
 
+func (f footer) updateInput(msg tea.Msg) (footer, tea.Cmd, bool) {
 	var (
 		cmd tea.Cmd
 		out tea.Msg
 	)
 
 	f.input, cmd, out = f.input.Update(msg)
+	f.suggestions.Update(f.input.Value())
+
 	if submit, ok := out.(component.ConfirmMsg); ok {
-		text := strings.TrimSpace(submit.Value)
-		if text == "" {
-			return f, nil, true
-		}
-
-		f.input.Reset()
-
-		return f, func() tea.Msg { return submitMsg{Text: submit.Value} }, true
+		return f.handleSubmit(submit.Value)
 	}
 
 	return f, cmd, true
+}
+
+func (f footer) handleSubmit(value string) (footer, tea.Cmd, bool) {
+	if strings.TrimSpace(value) == "" {
+		return f, nil, true
+	}
+
+	f.input.Reset()
+	f.suggestions.Clear()
+
+	if cmdMsg, ok := parseCommand(value); ok {
+		return f, func() tea.Msg { return cmdMsg }, true
+	}
+
+	return f, func() tea.Msg { return submitMsg{Text: value} }, true
 }
 
 func (f footer) View() string {
@@ -137,6 +209,10 @@ func (f footer) View() string {
 
 	if status := f.statusView(); status != "" {
 		parts = append(parts, status)
+	}
+
+	if suggestions := f.suggestions.View(); suggestions != "" {
+		parts = append(parts, suggestions)
 	}
 
 	parts = append(parts, strings.TrimRight(f.bodyView(), "\n"))

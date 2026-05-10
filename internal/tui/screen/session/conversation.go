@@ -97,6 +97,12 @@ func (conv conversation) Update(msg tea.Msg) (conversation, tea.Cmd) {
 
 		return conv, nil
 
+	case systemMessageMsg:
+		conv.messages = append(conv.messages, chatMessage{role: messageRoleSystem, text: msg.Text})
+		conv.refreshContent()
+
+		return conv, nil
+
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+o":

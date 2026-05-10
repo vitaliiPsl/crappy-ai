@@ -23,6 +23,15 @@ type submitMsg struct {
 	Text string
 }
 
+type commandMsg struct {
+	Name string
+	Args []string
+}
+
+type systemMessageMsg struct {
+	Text string
+}
+
 type errorMsg struct {
 	err error
 }

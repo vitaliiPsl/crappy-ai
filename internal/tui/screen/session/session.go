@@ -9,6 +9,7 @@ import (
 
 	"github.com/vitaliiPsl/crappy-ai/internal/server"
 	sessiondata "github.com/vitaliiPsl/crappy-ai/internal/session"
+	"github.com/vitaliiPsl/crappy-ai/internal/tui/command"
 )
 
 const (
@@ -20,6 +21,7 @@ type Model struct {
 	ctx    context.Context
 	server *server.Server
 	sess   *sessiondata.Session
+	reg    *command.Registry
 
 	conversation conversation
 	footer       footer
@@ -34,18 +36,30 @@ type Model struct {
 
 func New(ctx context.Context, srv *server.Server, sessionID string) Model {
 	cfg := srv.GetConfig()
+	reg := newCommandRegistry()
 
 	sess, eventChan, initErr := openInitialSession(ctx, srv, sessionID)
 
 	return Model{
 		ctx:          ctx,
 		server:       srv,
+		reg:          reg,
 		conversation: newConversation(cfg.Provider, cfg.Model),
-		footer:       newFooter(cfg.Model),
+		footer:       newFooter(reg, cfg.Model),
 		sess:         sess,
 		eventChan:    eventChan,
 		err:          initErr,
 	}
+}
+
+func newCommandRegistry() *command.Registry {
+	registry := command.NewRegistry()
+	registry.Register(command.NewNewCommand())
+	registry.Register(command.NewSessionsCommand())
+	registry.Register(command.NewSettingsCommand())
+	registry.Register(command.NewHelpCommand(registry))
+
+	return registry
 }
 
 func openInitialSession(
@@ -121,6 +135,19 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 		return m.handleSubmit(msg.Text)
 
+	case commandMsg:
+		if m.turnActive {
+			return m, nil
+		}
+
+		return m.runCommand(msg)
+
+	case command.SystemMsg:
+		var cmd tea.Cmd
+		m, cmd = m.updateChildren(systemMessageMsg{Text: msg.Text})
+
+		return m, cmd
+
 	case tea.KeyMsg:
 		if msg.String() == "esc" && m.turnActive {
 			m.server.CancelTurn(m.sessionID())
@@ -130,6 +157,19 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	}
 
 	return m.updateChildren(msg)
+}
+
+func (m Model) runCommand(msg commandMsg) (Model, tea.Cmd) {
+	m.err = nil
+
+	cmd, ok := m.reg.Get(msg.Name)
+	if !ok {
+		m, updateCmd := m.updateChildren(systemMessageMsg{Text: fmt.Sprintf("Unknown command: /%s", msg.Name)})
+
+		return m, updateCmd
+	}
+
+	return m, cmd.Execute(m.ctx, command.Request{SessionID: m.sessionID(), Args: msg.Args})
 }
 
 func (m Model) View() string {

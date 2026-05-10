@@ -7,6 +7,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/server"
+	"github.com/vitaliiPsl/crappy-ai/internal/tui/command"
 	sessionScreen "github.com/vitaliiPsl/crappy-ai/internal/tui/screen/session"
 	sessionsScreen "github.com/vitaliiPsl/crappy-ai/internal/tui/screen/sessions"
 	settingsScreen "github.com/vitaliiPsl/crappy-ai/internal/tui/screen/settings"
@@ -109,6 +110,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.openPrev()
 	case settingsScreen.ClosedMsg:
 		return m, m.openPrev()
+	case command.NavNewSessionMsg:
+		if m.session != nil {
+			m.session.Cleanup()
+		}
+
+		return m, m.openSession("")
+	case command.NavSessionsMsg:
+		if m.session != nil {
+			m.session.Cleanup()
+		}
+
+		return m, m.openSessions()
+	case command.NavSettingsMsg:
+		if m.active == screenSession && m.session != nil {
+			m.session.Cleanup()
+		}
+
+		return m, m.openSettings()
 	}
 
 	switch m.active {
