@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/vitaliiPsl/crappy-adk/agent"
 	"github.com/vitaliiPsl/crappy-adk/kit"
@@ -16,10 +15,10 @@ import (
 )
 
 type Assistant struct {
-	configStore  *config.Store
-	sessionStore session.Store
-	models       *models.Registry
-	tools        *tools.Registry
+	configStore   *config.Store
+	sessionStore  session.Store
+	modelRegistry *models.Registry
+	toolRegistry  *tools.Registry
 }
 
 func New(
@@ -29,57 +28,42 @@ func New(
 	toolRegistry *tools.Registry,
 ) *Assistant {
 	return &Assistant{
-		configStore:  configStore,
-		sessionStore: sessionStore,
-		models:       modelRegistry,
-		tools:        toolRegistry,
+		configStore:   configStore,
+		sessionStore:  sessionStore,
+		modelRegistry: modelRegistry,
+		toolRegistry:  toolRegistry,
 	}
 }
 
 func (a *Assistant) Run(ctx context.Context, sessionID, text string) (*kit.Stream[session.Event, struct{}], error) {
-	sess, err := a.sessionStore.Get(ctx, sessionID)
-	if err != nil {
-		return nil, err
-	}
-
-	history, err := a.loadHistory(ctx, sessionID)
-	if err != nil {
-		return nil, fmt.Errorf("load history: %w", err)
-	}
-
-	userMsg := kit.NewUserMessage([]kit.Content{kit.NewTextContent(text)})
-	history = append(history, userMsg)
-
 	cfg := a.configStore.Get()
 
-	model, err := a.models.Build(cfg)
+	model, err := a.modelRegistry.Build(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("build model: %w", err)
 	}
 
-	ag, err := agent.New(model, a.buildAgentOpts(cfg, sess)...)
+	mem := newSessionMemory(a.sessionStore, sessionID)
+
+	ag, err := agent.New(model, mem, a.buildAgentOpts(cfg)...)
 	if err != nil {
 		return nil, fmt.Errorf("build agent: %w", err)
 	}
 
+	userMsg := kit.NewUserMessage([]kit.Content{kit.NewTextContent(text)})
+
 	return kit.NewStream(func(emit kit.Emitter[session.Event]) (struct{}, error) {
 		userEvent := session.NewMessageEvent(sessionID, userMsg)
-		a.persistEvents(ctx, sessionID, userEvent)
 
 		if err := emit.Emit(userEvent); err != nil {
 			return struct{}{}, err
 		}
 
-		stream := ag.Stream(ctx, history)
-
+		stream := ag.Stream(ctx, userMsg)
 		for kitEvent := range stream.Iter() {
 			ev, ok := session.FromKitEvent(sessionID, kitEvent)
 			if !ok {
 				continue
-			}
-
-			if ev.Persistent() {
-				a.persistEvents(ctx, sessionID, ev)
 			}
 
 			if err := emit.Emit(ev); err != nil {
@@ -87,23 +71,14 @@ func (a *Assistant) Run(ctx context.Context, sessionID, text string) (*kit.Strea
 			}
 		}
 
-		resp, err := stream.Result()
+		resp, runErr := stream.Result()
+
+		ev, err := a.handleRunResult(ctx, sessionID, resp, runErr)
 		if err != nil {
-			ev := cancelledOrError(sessionID, err)
-			if ev.Persistent() {
-				a.persistEvents(ctx, sessionID, ev)
-			}
-
-			if emitErr := emit.Emit(ev); emitErr != nil {
-				return struct{}{}, emitErr
-			}
-
-			return struct{}{}, nil
+			return struct{}{}, err
 		}
 
-		stats := a.handleResult(ctx, sess, resp)
-
-		if err := emit.Emit(session.NewTurnCompleteEvent(sessionID, stats)); err != nil {
+		if err := emit.Emit(*ev); err != nil {
 			return struct{}{}, err
 		}
 
@@ -111,63 +86,12 @@ func (a *Assistant) Run(ctx context.Context, sessionID, text string) (*kit.Strea
 	}), nil
 }
 
-func (a *Assistant) loadHistory(ctx context.Context, sessionID string) ([]kit.Message, error) {
-	events, err := a.sessionStore.LoadEvents(ctx, sessionID)
-	if err != nil {
-		return nil, err
-	}
-
-	start := 0
-	for i := len(events) - 1; i >= 0; i-- {
-		if events[i].Type != session.EventMessage || events[i].Message == nil {
-			continue
-		}
-
-		if isSummary(*events[i].Message) {
-			start = i
-
-			break
-		}
-	}
-
-	var msgs []kit.Message
-	for _, e := range events[start:] {
-		if e.Type == session.EventMessage && e.Message != nil {
-			msgs = append(msgs, *e.Message)
-		}
-	}
-
-	return msgs, nil
-}
-
-func (a *Assistant) persistEvents(ctx context.Context, sessionID string, events ...session.Event) {
-	if err := a.sessionStore.AppendEvents(ctx, sessionID, events...); err != nil {
-		fmt.Fprintf(os.Stderr, "append events: %v\n", err)
-	}
-}
-
-func (a *Assistant) handleResult(ctx context.Context, sess *session.Session, resp kit.AgentResponse) session.TurnStats {
-	sess.Usage.Add(resp.Usage)
-
-	if err := a.sessionStore.Save(ctx, sess); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: save session usage: %v\n", err)
-	}
-
-	return session.TurnStats{
-		Usage:       sess.Usage,
-		ContextUsed: resp.Usage.InputTokens,
-	}
-}
-
-func (a *Assistant) buildAgentOpts(cfg config.Config, _ *session.Session) []agent.Option {
+func (a *Assistant) buildAgentOpts(cfg config.Config) []agent.Option {
 	sources := []string{cfg.SystemPrompt}
 
 	opts := []agent.Option{
 		agent.WithInstructions(sources...),
-	}
-
-	if a.tools != nil {
-		opts = append(opts, agent.WithTools(a.tools.GetTools()...))
+		agent.WithTools(a.toolRegistry.GetTools()...),
 	}
 
 	if cfg.Thinking != "" {
@@ -177,20 +101,52 @@ func (a *Assistant) buildAgentOpts(cfg config.Config, _ *session.Session) []agen
 	return opts
 }
 
-func isSummary(msg kit.Message) bool {
-	for _, c := range msg.Content {
-		if c.Type == kit.ContentTypeSummary {
-			return true
-		}
+func (a *Assistant) handleRunResult(
+	ctx context.Context,
+	sessionID string,
+	resp kit.AgentResponse,
+	err error,
+) (*session.Event, error) {
+	if err != nil {
+		return a.handleRunError(ctx, sessionID, err)
 	}
 
-	return false
+	sess, err := a.sessionStore.Get(ctx, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("get session error: %w", err)
+	}
+
+	sess.Usage.Add(resp.Usage)
+
+	if err := a.sessionStore.Save(ctx, sess); err != nil {
+		return nil, fmt.Errorf("save session error: %w", err)
+	}
+
+	stats := session.TurnStats{
+		Usage:       sess.Usage,
+		ContextUsed: resp.Usage.InputTokens,
+	}
+
+	ev := session.NewTurnCompleteEvent(sess.ID, stats)
+
+	return &ev, nil
 }
 
-func cancelledOrError(sessionID string, err error) session.Event {
-	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-		return session.NewTurnCancelledEvent(sessionID)
+func (a *Assistant) handleRunError(
+	ctx context.Context,
+	sessionID string,
+	runErr error,
+) (*session.Event, error) {
+	if errors.Is(runErr, context.Canceled) || errors.Is(runErr, context.DeadlineExceeded) {
+		ev := session.NewTurnCancelledEvent(sessionID)
+
+		return &ev, nil
 	}
 
-	return session.NewErrorEvent(sessionID, err)
+	ev := session.NewErrorEvent(sessionID, runErr)
+	if appendErr := a.sessionStore.AppendEvents(ctx, sessionID, ev); appendErr != nil {
+		return nil, fmt.Errorf("append error event: %v", appendErr)
+	}
+
+	return &ev, nil
 }
