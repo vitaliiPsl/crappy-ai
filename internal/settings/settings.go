@@ -1,5 +1,7 @@
 package settings
 
+import "github.com/vitaliiPsl/crappy-adk/kit"
+
 const (
 	DefaultSettingsPath = "~/.crappy-ai/settings.yaml"
 	DefaultConfigPath   = "~/.crappy-ai/config.yaml"
@@ -18,11 +20,12 @@ const (
 )
 
 type ProviderSettings struct {
-	Name      string `yaml:"name"`
-	API       string `yaml:"api"`
-	BaseURL   string `yaml:"base_url,omitempty"`
-	APIKey    string `yaml:"api_key,omitempty"`
-	APIKeyEnv string `yaml:"api_key_env,omitempty"`
+	Name      string            `yaml:"name"`
+	API       string            `yaml:"api"`
+	BaseURL   string            `yaml:"base_url,omitempty"`
+	APIKey    string            `yaml:"api_key,omitempty"`
+	APIKeyEnv string            `yaml:"api_key_env,omitempty"`
+	Models    []kit.ModelConfig `yaml:"models,omitempty"`
 }
 
 type Settings struct {

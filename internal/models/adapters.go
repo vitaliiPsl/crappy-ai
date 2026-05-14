@@ -9,27 +9,27 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/settings"
 )
 
-type apiAdapter func(apiKey, baseURL, modelID string) (kit.Model, error)
+type apiAdapter func(apiKey, baseURL, modelID string, config kit.ModelConfig) (kit.Model, error)
 
 var apiAdapters = map[string]apiAdapter{
-	settings.ProviderAnthropic: func(apiKey, baseURL, modelID string) (kit.Model, error) {
-		var opts []anthropic.Option
+	settings.ProviderAnthropic: func(apiKey, baseURL, modelID string, config kit.ModelConfig) (kit.Model, error) {
+		opts := []anthropic.Option{anthropic.WithModelConfig(config)}
 		if baseURL != "" {
 			opts = append(opts, anthropic.WithBaseURL(baseURL))
 		}
 
 		return anthropic.New(apiKey, modelID, opts...)
 	},
-	settings.ProviderOpenAI: func(apiKey, baseURL, modelID string) (kit.Model, error) {
-		var opts []openai.Option
+	settings.ProviderOpenAI: func(apiKey, baseURL, modelID string, config kit.ModelConfig) (kit.Model, error) {
+		opts := []openai.Option{openai.WithModelConfig(config)}
 		if baseURL != "" {
 			opts = append(opts, openai.WithBaseURL(baseURL))
 		}
 
 		return openai.New(apiKey, modelID, opts...)
 	},
-	settings.ProviderGoogle: func(apiKey, baseURL, modelID string) (kit.Model, error) {
-		var opts []google.Option
+	settings.ProviderGoogle: func(apiKey, baseURL, modelID string, config kit.ModelConfig) (kit.Model, error) {
+		opts := []google.Option{google.WithModelConfig(config)}
 		if baseURL != "" {
 			opts = append(opts, google.WithBaseURL(baseURL))
 		}

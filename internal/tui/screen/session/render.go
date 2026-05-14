@@ -37,6 +37,7 @@ const (
 	toolIndent      = "  "
 	toolCommandMark = "$ "
 	truncatedMark   = "..."
+	compactingText  = "Compacting context..."
 
 	systemPad     = " "
 	systemDivider = "-"
@@ -72,7 +73,7 @@ var (
 )
 
 func (conv *conversation) refreshContent() {
-	if len(conv.messages) == 0 && !conv.streaming {
+	if len(conv.messages) == 0 && !conv.turnActive && !conv.hasDraft() && !conv.compacting {
 		conv.viewport.SetContent(conv.renderEmpty())
 
 		return
@@ -90,13 +91,22 @@ func (conv *conversation) refreshContent() {
 		b.WriteByte('\n')
 	}
 
-	if conv.streaming {
-		if len(conv.messages) > 0 && conv.messages[len(conv.messages)-1].role != messageRoleModel {
+	if conv.compacting {
+		if len(conv.messages) > 0 {
+			b.WriteByte('\n')
+		}
+
+		b.WriteString(conv.renderSummaryProgress())
+		b.WriteByte('\n')
+	}
+
+	if conv.turnActive || conv.hasDraft() {
+		if (len(conv.messages) > 0 && conv.messages[len(conv.messages)-1].role != messageRoleModel) || conv.compacting {
 			b.WriteByte('\n')
 		}
 
 		lastIsAssistant := len(conv.messages) > 0 && conv.messages[len(conv.messages)-1].role == messageRoleModel
-		b.WriteString(conv.renderStreaming(!lastIsAssistant))
+		b.WriteString(conv.renderDraft(!lastIsAssistant))
 	}
 
 	conv.viewport.SetContent(b.String())
@@ -183,30 +193,30 @@ func (conv *conversation) renderAssistantMessage(msg chatMessage, showLabel bool
 	return renderAssistantBlock(strings.TrimRight(b.String(), "\n"))
 }
 
-func (conv *conversation) renderStreaming(showLabel bool) string {
+func (conv *conversation) renderDraft(showLabel bool) string {
 	var b strings.Builder
 
-	thinkingText := collapseBlankLines(conv.streamingThinking)
+	thinkingText := collapseBlankLines(conv.draft.thinking)
 	showThinking := thinkingText != "" && conv.showThinking
 
-	if showLabel && (showThinking || conv.streamingText != "" || len(conv.streamingTools) > 0) {
+	if showLabel && (showThinking || conv.draft.text != "" || len(conv.draft.tools) > 0) {
 		b.WriteString(assistantLabelStyle.Render(assistantLabel) + "\n")
 	}
 
 	if showThinking {
 		b.WriteString(renderThinking(thinkingText))
 
-		if conv.streamingText != "" || len(conv.streamingTools) > 0 {
+		if conv.draft.text != "" || len(conv.draft.tools) > 0 {
 			b.WriteByte('\n')
 		}
 	}
 
-	if conv.streamingText != "" {
-		b.WriteString(textStyle.Width(max(0, conv.width-messagePadding)).Render(conv.streamingText))
+	if conv.draft.text != "" {
+		b.WriteString(textStyle.Width(max(0, conv.width-messagePadding)).Render(conv.draft.text))
 		b.WriteByte('\n')
 	}
 
-	for _, tool := range conv.streamingTools {
+	for _, tool := range conv.draft.tools {
 		b.WriteString(conv.renderTool(tool))
 	}
 
@@ -214,16 +224,24 @@ func (conv *conversation) renderStreaming(showLabel bool) string {
 }
 
 func (conv *conversation) renderSystemMessage(msg chatMessage) string {
-	label := systemPad + systemLabel + systemPad
+	return conv.renderSystemBlock(systemLabel, msg.text)
+}
+
+func (conv *conversation) renderSummaryProgress() string {
+	return conv.renderSystemBlock(systemLabel, compactingText)
+}
+
+func (conv *conversation) renderSystemBlock(name string, text string) string {
+	label := systemPad + name + systemPad
 	lineLen := max((conv.width-len(label))/2, 1)
 	line := strings.Repeat(systemDivider, lineLen)
 	header := systemStyle.Render(line + label + line)
 
-	if msg.text == "" {
+	if text == "" {
 		return header + "\n"
 	}
 
-	return header + "\n" + thinkingStyle.Render(msg.text) + "\n"
+	return header + "\n" + thinkingStyle.Render(text) + "\n"
 }
 
 func (conv *conversation) renderTool(tool toolUse) string {

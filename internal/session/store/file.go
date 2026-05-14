@@ -197,10 +197,6 @@ func (st *FileStore) AppendEvents(_ context.Context, id string, events ...sessio
 
 	enc := json.NewEncoder(f)
 	for _, ev := range events {
-		if !ev.Persistent() {
-			continue
-		}
-
 		if err := enc.Encode(ev); err != nil {
 			return fmt.Errorf("encode event: %w", err)
 		}

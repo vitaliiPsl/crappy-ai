@@ -41,15 +41,6 @@ type Event struct {
 	Stats *TurnStats `json:"stats,omitempty"`
 }
 
-func (e Event) Persistent() bool {
-	switch e.Type {
-	case EventMessage, EventError:
-		return true
-	default:
-		return false
-	}
-}
-
 func newEvent(sessionID string, t EventType) Event {
 	return Event{
 		ID:        uuid.NewString(),

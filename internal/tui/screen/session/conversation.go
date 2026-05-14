@@ -40,14 +40,14 @@ type chatMessage struct {
 }
 
 type conversation struct {
-	messages       []chatMessage
+	messages []chatMessage
+
+	turnActive bool
+	compacting bool
+	draft      chatMessage
+
 	showThinking   bool
 	showToolResult bool
-
-	streaming         bool
-	streamingText     string
-	streamingThinking string
-	streamingTools    []toolUse
 
 	viewport viewport.Model
 
@@ -140,10 +140,9 @@ func (conv *conversation) setSize(width, height int) {
 
 func (conv *conversation) loadEvents(events []sessiondata.Event) {
 	conv.messages = nil
-	conv.streaming = false
-	conv.streamingText = ""
-	conv.streamingThinking = ""
-	conv.streamingTools = nil
+	conv.turnActive = false
+	conv.resetDraft()
+	conv.compacting = false
 
 	for _, ev := range events {
 		conv.handleEvent(ev)
@@ -152,6 +151,9 @@ func (conv *conversation) loadEvents(events []sessiondata.Event) {
 
 func (conv *conversation) handleEvent(ev sessiondata.Event) {
 	switch ev.Type {
+	case sessiondata.EventContentStarted:
+		conv.handleContentStarted(ev.Content)
+
 	case sessiondata.EventContentDelta:
 		conv.handleContentDelta(ev.Content)
 
@@ -161,9 +163,8 @@ func (conv *conversation) handleEvent(ev sessiondata.Event) {
 	case sessiondata.EventMessage:
 		if ev.Message != nil {
 			conv.appendMessage(*ev.Message)
-			conv.streamingText = ""
-			conv.streamingThinking = ""
-			conv.streamingTools = nil
+
+			conv.resetDraft()
 		}
 
 	case sessiondata.EventTurnComplete, sessiondata.EventTurnCancelled:
@@ -171,6 +172,7 @@ func (conv *conversation) handleEvent(ev sessiondata.Event) {
 
 	case sessiondata.EventError:
 		conv.stopStreaming()
+		conv.compacting = false
 
 		if ev.Error != "" {
 			conv.messages = append(conv.messages, chatMessage{error: ev.Error})
@@ -178,6 +180,16 @@ func (conv *conversation) handleEvent(ev sessiondata.Event) {
 	}
 
 	conv.refreshContentPreservingFollow()
+}
+
+func (conv *conversation) handleContentStarted(content *kit.Content) {
+	if content == nil {
+		return
+	}
+
+	if content.Type == kit.ContentTypeSummary {
+		conv.compacting = true
+	}
 }
 
 func (conv *conversation) handleContentDelta(content *kit.Content) {
@@ -188,15 +200,15 @@ func (conv *conversation) handleContentDelta(content *kit.Content) {
 	switch content.Type {
 	case kit.ContentTypeText:
 		if content.Text != nil {
-			conv.streamingText += content.Text.Text
+			conv.ensureDraft().text += content.Text.Text
 		}
 	case kit.ContentTypeThinking:
 		if content.Thinking != nil {
-			conv.streamingThinking += content.Thinking.Text
+			conv.ensureDraft().thinking += content.Thinking.Text
 		}
 	case kit.ContentTypeToolResult:
 		if content.ToolResult != nil {
-			conv.mergeStreamingToolResult(*content.ToolResult)
+			conv.mergeDraftToolResult(*content.ToolResult)
 		}
 	}
 }
@@ -207,13 +219,20 @@ func (conv *conversation) handleContentDone(content *kit.Content, result *kit.To
 	}
 
 	switch content.Type {
+	case kit.ContentTypeSummary:
+		conv.compacting = false
+		conv.resetDraft()
+
+		if content.Summary != nil {
+			conv.appendSummaryMessage(content.Summary.Text)
+		}
 	case kit.ContentTypeText:
 		if content.Text != nil {
-			conv.streamingText = content.Text.Text
+			conv.ensureDraft().text = content.Text.Text
 		}
 	case kit.ContentTypeThinking:
 		if content.Thinking != nil {
-			conv.streamingThinking = content.Thinking.Text
+			conv.ensureDraft().thinking = content.Thinking.Text
 		}
 	case kit.ContentTypeToolCall:
 		if content.ToolCall != nil {
@@ -221,36 +240,33 @@ func (conv *conversation) handleContentDone(content *kit.Content, result *kit.To
 		}
 	case kit.ContentTypeToolResult:
 		if result != nil {
-			conv.mergeStreamingToolResult(*result)
+			conv.mergeDraftToolResult(*result)
 		} else if content.ToolResult != nil {
-			conv.mergeStreamingToolResult(*content.ToolResult)
-		}
-	case kit.ContentTypeSummary:
-		if content.Summary != nil {
-			conv.messages = append(conv.messages, chatMessage{role: messageRoleSystem, text: content.Summary.Text})
+			conv.mergeDraftToolResult(*content.ToolResult)
 		}
 	}
 }
 
 func (conv *conversation) addStreamingTool(call kit.ToolCall) {
-	for i := range conv.streamingTools {
-		if conv.streamingTools[i].ID == call.ID {
-			conv.streamingTools[i].Name = call.Name
-			conv.streamingTools[i].Arguments = call.Arguments
+	msg := conv.ensureDraft()
+	for i := range msg.tools {
+		if msg.tools[i].ID == call.ID {
+			msg.tools[i].Name = call.Name
+			msg.tools[i].Arguments = call.Arguments
 
 			return
 		}
 	}
 
-	conv.streamingTools = append(conv.streamingTools, toolUse{
+	msg.tools = append(msg.tools, toolUse{
 		ID:        call.ID,
 		Name:      call.Name,
 		Arguments: call.Arguments,
 	})
 }
 
-func (conv *conversation) mergeStreamingToolResult(result kit.ToolResult) {
-	if conv.setStreamingToolResult(result) {
+func (conv *conversation) mergeDraftToolResult(result kit.ToolResult) {
+	if conv.setDraftToolResult(result) {
 		return
 	}
 
@@ -258,7 +274,8 @@ func (conv *conversation) mergeStreamingToolResult(result kit.ToolResult) {
 		return
 	}
 
-	conv.streamingTools = append(conv.streamingTools, toolUse{
+	msg := conv.ensureDraft()
+	msg.tools = append(msg.tools, toolUse{
 		ID:        result.Call.ID,
 		Name:      result.Call.Name,
 		Arguments: result.Call.Arguments,
@@ -268,12 +285,12 @@ func (conv *conversation) mergeStreamingToolResult(result kit.ToolResult) {
 	})
 }
 
-func (conv *conversation) setStreamingToolResult(result kit.ToolResult) bool {
-	for i := range conv.streamingTools {
-		if conv.streamingTools[i].ID == result.Call.ID {
-			conv.streamingTools[i].Result = result.Output
-			conv.streamingTools[i].Error = result.Error
-			conv.streamingTools[i].Done = true
+func (conv *conversation) setDraftToolResult(result kit.ToolResult) bool {
+	for i := range conv.draft.tools {
+		if conv.draft.tools[i].ID == result.Call.ID {
+			conv.draft.tools[i].Result = result.Output
+			conv.draft.tools[i].Error = result.Error
+			conv.draft.tools[i].Done = true
 
 			return true
 		}
@@ -306,7 +323,7 @@ func (conv *conversation) setMessageToolResult(result kit.ToolResult) bool {
 
 func (conv *conversation) appendMessage(msg kit.Message) {
 	if isSummaryMessage(msg) {
-		conv.messages = append(conv.messages, chatMessage{role: messageRoleSystem, text: messageText(msg)})
+		conv.appendSummaryMessage(messageText(msg))
 
 		return
 	}
@@ -318,6 +335,21 @@ func (conv *conversation) appendMessage(msg kit.Message) {
 	}
 
 	conv.messages = append(conv.messages, toChatMessage(msg))
+}
+
+func (conv *conversation) appendSummaryMessage(text string) {
+	if text == "" {
+		return
+	}
+
+	if len(conv.messages) > 0 {
+		last := conv.messages[len(conv.messages)-1]
+		if last.role == messageRoleSystem && last.text == text {
+			return
+		}
+	}
+
+	conv.messages = append(conv.messages, chatMessage{role: messageRoleSystem, text: text})
 }
 
 func (conv *conversation) mergeToolMessage(msg kit.Message) {
@@ -336,19 +368,35 @@ func (conv *conversation) mergeToolMessage(msg kit.Message) {
 }
 
 func (conv *conversation) startStreaming() {
-	conv.streaming = true
-	conv.streamingText = ""
-	conv.streamingThinking = ""
-	conv.streamingTools = nil
+	conv.turnActive = true
+	conv.resetDraft()
 	conv.refreshContentPreservingFollow()
 }
 
 func (conv *conversation) stopStreaming() {
-	conv.streaming = false
-	conv.streamingText = ""
-	conv.streamingThinking = ""
-	conv.streamingTools = nil
+	conv.turnActive = false
+	conv.resetDraft()
+	conv.compacting = false
 	conv.refreshContent()
+}
+
+func (conv *conversation) ensureDraft() *chatMessage {
+	if conv.draft.role == "" {
+		conv.draft.role = messageRoleModel
+	}
+
+	return &conv.draft
+}
+
+func (conv *conversation) hasDraft() bool {
+	return conv.draft.text != "" ||
+		conv.draft.thinking != "" ||
+		len(conv.draft.tools) > 0 ||
+		conv.draft.error != ""
+}
+
+func (conv *conversation) resetDraft() {
+	conv.draft = chatMessage{}
 }
 
 func (conv *conversation) refreshContentPreservingFollow() {

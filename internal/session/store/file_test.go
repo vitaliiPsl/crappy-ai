@@ -229,16 +229,16 @@ func TestDelete_Idempotent(t *testing.T) {
 	}
 }
 
-func TestAppendEvents_FiltersTransient(t *testing.T) {
+func TestAppendEvents_StoresAppendedEvents(t *testing.T) {
 	st, _ := newTestStore(t)
 	ctx := context.Background()
 	sess, _ := st.Create(ctx, "t")
 
-	transient := session.NewContentDeltaEvent(sess.ID, kit.NewTextContent("x"))
-	persistent := session.NewMessageEvent(sess.ID,
-		kit.NewModelMessage([]kit.Content{kit.NewTextContent("hi")}))
+	delta := session.NewContentDeltaEvent(sess.ID, kit.NewTextContent("x"))
+	message := session.NewMessageEvent(sess.ID,
+		kit.NewModelMessage(kit.NewTextContent("hi")))
 
-	if err := st.AppendEvents(ctx, sess.ID, transient, persistent); err != nil {
+	if err := st.AppendEvents(ctx, sess.ID, delta, message); err != nil {
 		t.Fatalf("AppendEvents: %v", err)
 	}
 
@@ -247,12 +247,16 @@ func TestAppendEvents_FiltersTransient(t *testing.T) {
 		t.Fatalf("LoadEvents: %v", err)
 	}
 
-	if len(events) != 1 {
-		t.Fatalf("LoadEvents: got %d events, want 1", len(events))
+	if len(events) != 2 {
+		t.Fatalf("LoadEvents: got %d events, want 2", len(events))
 	}
 
-	if events[0].Type != session.EventMessage {
-		t.Errorf("only event has type %q, want %q", events[0].Type, session.EventMessage)
+	if events[0].Type != session.EventContentDelta {
+		t.Errorf("first event has type %q, want %q", events[0].Type, session.EventContentDelta)
+	}
+
+	if events[1].Type != session.EventMessage {
+		t.Errorf("second event has type %q, want %q", events[1].Type, session.EventMessage)
 	}
 }
 
@@ -266,7 +270,7 @@ func TestAppendEvents_BumpsUpdatedAt(t *testing.T) {
 	time.Sleep(5 * time.Millisecond)
 
 	ev := session.NewMessageEvent(sess.ID,
-		kit.NewModelMessage([]kit.Content{kit.NewTextContent("hi")}))
+		kit.NewModelMessage(kit.NewTextContent("hi")))
 	if err := st.AppendEvents(ctx, sess.ID, ev); err != nil {
 		t.Fatalf("AppendEvents: %v", err)
 	}
@@ -287,9 +291,9 @@ func TestAppendEvents_PreservesOrderAcrossCalls(t *testing.T) {
 	sess, _ := st.Create(ctx, "t")
 
 	first := session.NewMessageEvent(sess.ID,
-		kit.NewUserMessage([]kit.Content{kit.NewTextContent("one")}))
+		kit.NewUserMessage(kit.NewTextContent("one")))
 	second := session.NewMessageEvent(sess.ID,
-		kit.NewModelMessage([]kit.Content{kit.NewTextContent("two")}))
+		kit.NewModelMessage(kit.NewTextContent("two")))
 
 	if err := st.AppendEvents(ctx, sess.ID, first); err != nil {
 		t.Fatalf("AppendEvents first: %v", err)
@@ -327,10 +331,10 @@ func TestLoadEvents_RoundTripsKitContent(t *testing.T) {
 	ctx := context.Background()
 	sess, _ := st.Create(ctx, "t")
 
-	msg := kit.NewModelMessage([]kit.Content{
+	msg := kit.NewModelMessage(
 		kit.NewTextContent("hello"),
 		kit.NewToolCallContent(kit.NewToolCall("call-1", "tool", map[string]any{"k": "v"})),
-	})
+	)
 
 	if err := st.AppendEvents(ctx, sess.ID, session.NewMessageEvent(sess.ID, msg)); err != nil {
 		t.Fatalf("AppendEvents: %v", err)

@@ -45,12 +45,12 @@ func (a *Assistant) Run(ctx context.Context, sessionID, text string) (*kit.Strea
 
 	mem := newSessionMemory(a.sessionStore, sessionID)
 
-	ag, err := agent.New(model, mem, a.buildAgentOpts(cfg)...)
+	ag, err := agent.New(model, mem, a.buildAgentOpts(cfg, model)...)
 	if err != nil {
 		return nil, fmt.Errorf("build agent: %w", err)
 	}
 
-	userMsg := kit.NewUserMessage([]kit.Content{kit.NewTextContent(text)})
+	userMsg := kit.NewUserMessage(kit.NewTextContent(text))
 
 	return kit.NewStream(func(emit kit.Emitter[session.Event]) (struct{}, error) {
 		userEvent := session.NewMessageEvent(sessionID, userMsg)
@@ -73,7 +73,7 @@ func (a *Assistant) Run(ctx context.Context, sessionID, text string) (*kit.Strea
 
 		resp, runErr := stream.Result()
 
-		ev, err := a.handleRunResult(ctx, sessionID, resp, runErr)
+		ev, err := a.handleRunResult(ctx, sessionID, model.Config(), resp, runErr)
 		if err != nil {
 			return struct{}{}, err
 		}
@@ -86,12 +86,13 @@ func (a *Assistant) Run(ctx context.Context, sessionID, text string) (*kit.Strea
 	}), nil
 }
 
-func (a *Assistant) buildAgentOpts(cfg config.Config) []agent.Option {
+func (a *Assistant) buildAgentOpts(cfg config.Config, model kit.Model) []agent.Option {
 	sources := []string{cfg.SystemPrompt}
 
 	opts := []agent.Option{
 		agent.WithInstructions(sources...),
 		agent.WithTools(a.toolRegistry.GetTools()...),
+		newSessionSummarization(model),
 	}
 
 	if cfg.Thinking != "" {
@@ -104,6 +105,7 @@ func (a *Assistant) buildAgentOpts(cfg config.Config) []agent.Option {
 func (a *Assistant) handleRunResult(
 	ctx context.Context,
 	sessionID string,
+	modelConfig kit.ModelConfig,
 	resp kit.AgentResponse,
 	err error,
 ) (*session.Event, error) {
@@ -123,8 +125,9 @@ func (a *Assistant) handleRunResult(
 	}
 
 	stats := session.TurnStats{
-		Usage:       sess.Usage,
-		ContextUsed: resp.Usage.InputTokens,
+		Usage:         sess.Usage,
+		ContextUsed:   resp.Usage.InputTokens,
+		ContextWindow: int64(modelConfig.ContextWindow),
 	}
 
 	ev := session.NewTurnCompleteEvent(sess.ID, stats)
