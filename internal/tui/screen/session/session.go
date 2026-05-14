@@ -117,7 +117,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 		return m, tea.Batch(cmd, m.waitForEvent())
 
-	case streamStartedMsg:
+	case turnStartedMsg:
 		m.turnActive = true
 
 		return m.updateChildren(msg)
@@ -254,7 +254,7 @@ func (m Model) waitForEvent() tea.Cmd {
 
 func (m Model) runTurn(text string) tea.Cmd {
 	return tea.Batch(
-		func() tea.Msg { return streamStartedMsg{} },
+		func() tea.Msg { return turnStartedMsg{} },
 		func() tea.Msg {
 			if err := m.server.RunTurn(m.ctx, m.sessionID(), text); err != nil {
 				return errorMsg{err: err}

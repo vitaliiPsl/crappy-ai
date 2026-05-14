@@ -6,7 +6,6 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/tui/command"
-	"github.com/vitaliiPsl/crappy-ai/internal/tui/theme"
 )
 
 const maxCommandSuggestions = 4
@@ -88,10 +87,9 @@ func (c commandSuggestions) View() string {
 		return ""
 	}
 
-	thm := theme.Default
-	selectedStyle := lipgloss.NewStyle().Foreground(thm.Primary).Bold(true)
-	normalStyle := lipgloss.NewStyle().Foreground(thm.SubtleText)
-	descStyle := lipgloss.NewStyle().Foreground(thm.Muted)
+	selectedStyle := lipgloss.NewStyle().Foreground(sessionTheme.Primary).Bold(true)
+	normalStyle := lipgloss.NewStyle().Foreground(sessionTheme.SubtleText)
+	descStyle := lipgloss.NewStyle().Foreground(sessionTheme.Muted)
 
 	lines := make([]string, 0, min(len(c.matches), maxCommandSuggestions))
 

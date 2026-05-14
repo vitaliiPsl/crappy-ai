@@ -2,6 +2,7 @@ package session
 
 import (
 	"fmt"
+	"strings"
 
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
@@ -83,17 +84,17 @@ func (conv conversation) Update(msg tea.Msg) (conversation, tea.Cmd) {
 		return conv, nil
 
 	case sessionEventMsg:
-		conv.handleEvent(msg.event)
+		conv.handleLiveEvent(msg.event)
 
 		return conv, nil
 
-	case streamStartedMsg:
-		conv.startStreaming()
+	case turnStartedMsg:
+		conv.startTurn()
 
 		return conv, nil
 
 	case turnStoppedMsg:
-		conv.stopStreaming()
+		conv.stopTurn()
 
 		return conv, nil
 
@@ -147,6 +148,14 @@ func (conv *conversation) loadEvents(events []sessiondata.Event) {
 	for _, ev := range events {
 		conv.handleEvent(ev)
 	}
+
+	conv.refreshContent()
+	conv.viewport.GotoBottom()
+}
+
+func (conv *conversation) handleLiveEvent(ev sessiondata.Event) {
+	conv.handleEvent(ev)
+	conv.refreshContentPreservingFollow()
 }
 
 func (conv *conversation) handleEvent(ev sessiondata.Event) {
@@ -162,24 +171,20 @@ func (conv *conversation) handleEvent(ev sessiondata.Event) {
 
 	case sessiondata.EventMessage:
 		if ev.Message != nil {
-			conv.appendMessage(*ev.Message)
-
-			conv.resetDraft()
+			conv.commitMessage(*ev.Message)
 		}
 
 	case sessiondata.EventTurnComplete, sessiondata.EventTurnCancelled:
-		conv.stopStreaming()
+		conv.stopTurn()
 
 	case sessiondata.EventError:
-		conv.stopStreaming()
+		conv.stopTurn()
 		conv.compacting = false
 
 		if ev.Error != "" {
 			conv.messages = append(conv.messages, chatMessage{error: ev.Error})
 		}
 	}
-
-	conv.refreshContentPreservingFollow()
 }
 
 func (conv *conversation) handleContentStarted(content *kit.Content) {
@@ -236,7 +241,7 @@ func (conv *conversation) handleContentDone(content *kit.Content, result *kit.To
 		}
 	case kit.ContentTypeToolCall:
 		if content.ToolCall != nil {
-			conv.addStreamingTool(*content.ToolCall)
+			conv.addDraftTool(*content.ToolCall)
 		}
 	case kit.ContentTypeToolResult:
 		if result != nil {
@@ -247,7 +252,29 @@ func (conv *conversation) handleContentDone(content *kit.Content, result *kit.To
 	}
 }
 
-func (conv *conversation) addStreamingTool(call kit.ToolCall) {
+func (conv *conversation) commitMessage(msg kit.Message) {
+	defer conv.resetDraft()
+
+	if isSummaryMessage(msg) {
+		conv.appendSummaryMessage(messageText(msg))
+
+		return
+	}
+
+	if msg.Role == kit.RoleTool {
+		conv.mergeToolMessage(msg)
+
+		return
+	}
+
+	conv.messages = append(conv.messages, toChatMessage(msg))
+}
+
+func (conv *conversation) resetDraft() {
+	conv.draft = chatMessage{}
+}
+
+func (conv *conversation) addDraftTool(call kit.ToolCall) {
 	msg := conv.ensureDraft()
 	for i := range msg.tools {
 		if msg.tools[i].ID == call.ID {
@@ -321,22 +348,6 @@ func (conv *conversation) setMessageToolResult(result kit.ToolResult) bool {
 	return false
 }
 
-func (conv *conversation) appendMessage(msg kit.Message) {
-	if isSummaryMessage(msg) {
-		conv.appendSummaryMessage(messageText(msg))
-
-		return
-	}
-
-	if msg.Role == kit.RoleTool {
-		conv.mergeToolMessage(msg)
-
-		return
-	}
-
-	conv.messages = append(conv.messages, toChatMessage(msg))
-}
-
 func (conv *conversation) appendSummaryMessage(text string) {
 	if text == "" {
 		return
@@ -367,13 +378,13 @@ func (conv *conversation) mergeToolMessage(msg kit.Message) {
 	}
 }
 
-func (conv *conversation) startStreaming() {
+func (conv *conversation) startTurn() {
 	conv.turnActive = true
 	conv.resetDraft()
 	conv.refreshContentPreservingFollow()
 }
 
-func (conv *conversation) stopStreaming() {
+func (conv *conversation) stopTurn() {
 	conv.turnActive = false
 	conv.resetDraft()
 	conv.compacting = false
@@ -393,10 +404,6 @@ func (conv *conversation) hasDraft() bool {
 		conv.draft.thinking != "" ||
 		len(conv.draft.tools) > 0 ||
 		conv.draft.error != ""
-}
-
-func (conv *conversation) resetDraft() {
-	conv.draft = chatMessage{}
 }
 
 func (conv *conversation) refreshContentPreservingFollow() {
@@ -451,32 +458,32 @@ func isSummaryMessage(msg kit.Message) bool {
 }
 
 func messageText(msg kit.Message) string {
-	out := ""
+	var out strings.Builder
 	for _, content := range msg.Content {
 		switch content.Type {
 		case kit.ContentTypeText:
 			if content.Text != nil {
-				out += content.Text.Text
+				out.WriteString(content.Text.Text)
 			}
 		case kit.ContentTypeSummary:
 			if content.Summary != nil {
-				out += content.Summary.Text
+				out.WriteString(content.Summary.Text)
 			}
 		}
 	}
 
-	return out
+	return out.String()
 }
 
 func messageThinking(msg kit.Message) string {
-	out := ""
+	var out strings.Builder
 	for _, content := range msg.Content {
 		if content.Type == kit.ContentTypeThinking && content.Thinking != nil {
-			out += content.Thinking.Text
+			out.WriteString(content.Thinking.Text)
 		}
 	}
 
-	return out
+	return out.String()
 }
 
 func toolResultText(result kit.ToolResult) string {

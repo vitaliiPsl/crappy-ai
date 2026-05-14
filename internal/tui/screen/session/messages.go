@@ -15,7 +15,7 @@ type historyLoadedMsg struct {
 	err    error
 }
 
-type streamStartedMsg struct{}
+type turnStartedMsg struct{}
 
 type turnStoppedMsg struct{}
 

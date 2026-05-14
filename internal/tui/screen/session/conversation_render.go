@@ -5,8 +5,6 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
-
-	"github.com/vitaliiPsl/crappy-ai/internal/tui/theme"
 )
 
 const (
@@ -46,30 +44,6 @@ const (
 	emptyPadFactor = 4
 	maxResultLen   = 120
 	toolLines      = 5
-)
-
-var (
-	thm = theme.Default
-
-	userLabelStyle      = lipgloss.NewStyle().Foreground(thm.Primary).Bold(true)
-	assistantLabelStyle = lipgloss.NewStyle().Foreground(thm.Secondary).Bold(true)
-	thinkingLabelStyle  = lipgloss.NewStyle().Foreground(thm.Muted).Italic(true)
-
-	textStyle       = lipgloss.NewStyle().Foreground(thm.Text)
-	subtleTextStyle = lipgloss.NewStyle().Foreground(thm.SubtleText)
-	thinkingStyle   = lipgloss.NewStyle().Foreground(thm.Muted)
-	errorStyle      = lipgloss.NewStyle().Foreground(thm.Error)
-	hintsStyle      = lipgloss.NewStyle().Foreground(thm.SubtleText)
-	systemStyle     = lipgloss.NewStyle().Foreground(thm.Muted)
-	successStyle    = lipgloss.NewStyle().Foreground(thm.Success)
-	warningStyle    = lipgloss.NewStyle().Foreground(thm.Warning)
-
-	userMessageStyle = lipgloss.NewStyle().
-				Background(thm.SurfaceAlt).
-				Padding(0, 1)
-
-	assistantMessageStyle = lipgloss.NewStyle().
-				Padding(0, 1)
 )
 
 func (conv *conversation) refreshContent() {
