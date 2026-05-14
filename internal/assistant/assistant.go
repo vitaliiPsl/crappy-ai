@@ -12,6 +12,8 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/models"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
 	"github.com/vitaliiPsl/crappy-ai/internal/tools"
+
+	"github.com/vitaliiPsl/crappy-ai/internal/assistant/memory"
 )
 
 type Assistant struct {
@@ -43,7 +45,7 @@ func (a *Assistant) Run(ctx context.Context, sessionID, text string) (*kit.Strea
 		return nil, fmt.Errorf("build model: %w", err)
 	}
 
-	mem := newSessionMemory(a.sessionStore, sessionID)
+	mem := memory.New(a.sessionStore, sessionID)
 
 	ag, err := agent.New(model, mem, a.buildAgentOpts(cfg, model)...)
 	if err != nil {
@@ -73,12 +75,18 @@ func (a *Assistant) Run(ctx context.Context, sessionID, text string) (*kit.Strea
 
 		resp, runErr := stream.Result()
 
-		ev, err := a.handleRunResult(ctx, sessionID, model.Config(), resp, runErr)
+		var ev session.Event
+		var err error
+		if runErr != nil {
+			ev, err = a.handleRunError(ctx, sessionID, runErr)
+		} else {
+			ev, err = a.handleRunResult(ctx, sessionID, model.Config(), resp.Usage)
+		}
 		if err != nil {
 			return struct{}{}, err
 		}
 
-		if err := emit.Emit(*ev); err != nil {
+		if err := emit.Emit(ev); err != nil {
 			return struct{}{}, err
 		}
 
@@ -106,50 +114,39 @@ func (a *Assistant) handleRunResult(
 	ctx context.Context,
 	sessionID string,
 	modelConfig kit.ModelConfig,
-	resp kit.AgentResponse,
-	err error,
-) (*session.Event, error) {
-	if err != nil {
-		return a.handleRunError(ctx, sessionID, err)
-	}
-
+	usage kit.Usage,
+) (session.Event, error) {
 	sess, err := a.sessionStore.Get(ctx, sessionID)
 	if err != nil {
-		return nil, fmt.Errorf("get session error: %w", err)
+		return session.Event{}, fmt.Errorf("get session error: %w", err)
 	}
 
-	sess.Usage.Add(resp.Usage)
+	sess.Usage.Add(usage)
 
 	if err := a.sessionStore.Save(ctx, sess); err != nil {
-		return nil, fmt.Errorf("save session error: %w", err)
+		return session.Event{}, fmt.Errorf("save session error: %w", err)
 	}
 
-	stats := session.TurnStats{
+	return session.NewTurnCompleteEvent(sess.ID, session.TurnStats{
 		Usage:         sess.Usage,
-		ContextUsed:   resp.Usage.InputTokens,
-		ContextWindow: int64(modelConfig.ContextWindow),
-	}
-
-	ev := session.NewTurnCompleteEvent(sess.ID, stats)
-
-	return &ev, nil
+		ContextUsed:   usage.InputTokens,
+		ContextWindow: int64(modelConfig.InputLimit),
+	}), nil
 }
 
 func (a *Assistant) handleRunError(
 	ctx context.Context,
 	sessionID string,
 	runErr error,
-) (*session.Event, error) {
+) (session.Event, error) {
 	if errors.Is(runErr, context.Canceled) || errors.Is(runErr, context.DeadlineExceeded) {
-		ev := session.NewTurnCancelledEvent(sessionID)
-
-		return &ev, nil
+		return session.NewTurnCancelledEvent(sessionID), nil
 	}
 
 	ev := session.NewErrorEvent(sessionID, runErr)
 	if appendErr := a.sessionStore.AppendEvents(ctx, sessionID, ev); appendErr != nil {
-		return nil, fmt.Errorf("append error event: %v", appendErr)
+		return session.Event{}, fmt.Errorf("append error event: %v", appendErr)
 	}
 
-	return &ev, nil
+	return ev, nil
 }

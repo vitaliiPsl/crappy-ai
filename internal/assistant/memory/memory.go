@@ -1,4 +1,4 @@
-package assistant
+package memory
 
 import (
 	"context"
@@ -8,14 +8,12 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
 )
 
-var _ kit.Memory = (*sessionMemory)(nil)
-
 type sessionMemory struct {
 	store     session.Store
 	sessionID string
 }
 
-func newSessionMemory(store session.Store, sessionID string) *sessionMemory {
+func New(store session.Store, sessionID string) kit.Memory {
 	return &sessionMemory{
 		store:     store,
 		sessionID: sessionID,
