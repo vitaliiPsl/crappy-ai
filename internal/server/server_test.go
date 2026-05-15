@@ -21,6 +21,10 @@ func (a *fakeAssistant) Run(context.Context, string, string) (*kit.Stream[sessio
 	return a.stream, a.err
 }
 
+func (a *fakeAssistant) Compact(context.Context, string) (*kit.Stream[session.Event, struct{}], error) {
+	return a.stream, a.err
+}
+
 func newTestServer(t *testing.T, asst Assistant) (*Server, *session.Session) {
 	t.Helper()
 

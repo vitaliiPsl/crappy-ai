@@ -57,6 +57,7 @@ func newCommandRegistry() *command.Registry {
 	registry.Register(command.NewNewCommand())
 	registry.Register(command.NewSessionsCommand())
 	registry.Register(command.NewSettingsCommand())
+	registry.Register(command.NewCompactCommand())
 	registry.Register(command.NewHelpCommand(registry))
 
 	return registry
@@ -148,6 +149,13 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m, cmd = m.updateChildren(systemMessageMsg{Text: msg.Text})
 
 		return m, cmd
+
+	case command.CompactSessionMsg:
+		if m.turnActive || m.sessionID() == "" {
+			return m, nil
+		}
+
+		return m, m.runCompact()
 
 	case tea.KeyMsg:
 		if msg.String() == "esc" && m.turnActive {
@@ -262,6 +270,20 @@ func (m Model) runTurn(text string) tea.Cmd {
 
 			return nil
 		},
+	)
+}
+
+func (m Model) runCompact() tea.Cmd {
+	return tea.Batch(
+		func() tea.Msg { return turnStartedMsg{} },
+		func() tea.Msg {
+			if err := m.server.Compact(m.ctx, m.sessionID()); err != nil {
+				return errorMsg{err: err}
+			}
+
+			return nil
+		},
+		m.waitForEvent(),
 	)
 }
 

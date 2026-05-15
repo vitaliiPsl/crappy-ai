@@ -22,6 +22,7 @@ type Transport interface {
 
 type Assistant interface {
 	Run(ctx context.Context, sessionID, text string) (*kit.Stream[session.Event, struct{}], error)
+	Compact(ctx context.Context, sessionID string) (*kit.Stream[session.Event, struct{}], error)
 }
 
 type Server struct {
@@ -142,6 +143,22 @@ func (s *Server) Detach(sessionID string, ch <-chan session.Event) {
 }
 
 func (s *Server) RunTurn(ctx context.Context, sessionID, text string) error {
+	return s.startTurn(ctx, sessionID, func(turnCtx context.Context) (*kit.Stream[session.Event, struct{}], error) {
+		return s.assistant.Run(turnCtx, sessionID, text)
+	})
+}
+
+func (s *Server) Compact(ctx context.Context, sessionID string) error {
+	return s.startTurn(ctx, sessionID, func(turnCtx context.Context) (*kit.Stream[session.Event, struct{}], error) {
+		return s.assistant.Compact(turnCtx, sessionID)
+	})
+}
+
+func (s *Server) startTurn(
+	ctx context.Context,
+	sessionID string,
+	open func(context.Context) (*kit.Stream[session.Event, struct{}], error),
+) error {
 	st := s.getOrCreateSessionState(sessionID)
 
 	st.mu.Lock()
@@ -155,7 +172,7 @@ func (s *Server) RunTurn(ctx context.Context, sessionID, text string) error {
 	st.cancelTurn = cancel
 	st.mu.Unlock()
 
-	stream, err := s.assistant.Run(turnCtx, sessionID, text)
+	stream, err := open(turnCtx)
 	if err != nil {
 		st.mu.Lock()
 		st.cancelTurn = nil

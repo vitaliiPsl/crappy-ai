@@ -8,12 +8,12 @@ import (
 	"github.com/vitaliiPsl/crappy-adk/agent"
 	"github.com/vitaliiPsl/crappy-adk/kit"
 
+	"github.com/vitaliiPsl/crappy-ai/internal/assistant/memory"
+	"github.com/vitaliiPsl/crappy-ai/internal/assistant/summarization"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/models"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
 	"github.com/vitaliiPsl/crappy-ai/internal/tools"
-
-	"github.com/vitaliiPsl/crappy-ai/internal/assistant/memory"
 )
 
 type Assistant struct {
@@ -75,13 +75,17 @@ func (a *Assistant) Run(ctx context.Context, sessionID, text string) (*kit.Strea
 
 		resp, runErr := stream.Result()
 
-		var ev session.Event
-		var err error
+		var (
+			ev  session.Event
+			err error
+		)
+
 		if runErr != nil {
 			ev, err = a.handleRunError(ctx, sessionID, runErr)
 		} else {
 			ev, err = a.handleRunResult(ctx, sessionID, model.Config(), resp.Usage)
 		}
+
 		if err != nil {
 			return struct{}{}, err
 		}
@@ -100,7 +104,7 @@ func (a *Assistant) buildAgentOpts(cfg config.Config, model kit.Model) []agent.O
 	opts := []agent.Option{
 		agent.WithInstructions(sources...),
 		agent.WithTools(a.toolRegistry.GetTools()...),
-		newSessionSummarization(model),
+		summarization.New(model),
 	}
 
 	if cfg.Thinking != "" {
