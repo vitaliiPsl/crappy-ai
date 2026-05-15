@@ -37,5 +37,6 @@ func fromFlags(f Flags) Config {
 		Provider: f.Provider,
 		Model:    f.Model,
 		Thinking: f.Thinking,
+		Cwd:      f.Cwd,
 	}
 }

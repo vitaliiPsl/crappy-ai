@@ -11,12 +11,15 @@ type Config struct {
 	Provider     string `yaml:"provider"`
 	Model        string `yaml:"model"`
 	Thinking     string `yaml:"thinking,omitempty"`
+
+	Cwd string `yaml:"-"`
 }
 
 type Flags struct {
 	Provider string
 	Model    string
 	Thinking string
+	Cwd      string
 }
 
 func merge(base, overlay Config) Config {
@@ -34,6 +37,10 @@ func merge(base, overlay Config) Config {
 
 	if overlay.Thinking != "" {
 		base.Thinking = overlay.Thinking
+	}
+
+	if overlay.Cwd != "" {
+		base.Cwd = overlay.Cwd
 	}
 
 	return base

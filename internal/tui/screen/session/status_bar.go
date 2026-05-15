@@ -9,6 +9,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	sessiondata "github.com/vitaliiPsl/crappy-ai/internal/session"
+	"github.com/vitaliiPsl/crappy-ai/internal/utils"
 )
 
 const (
@@ -22,12 +23,13 @@ type statusBar struct {
 
 	turnActive bool
 	model      string
+	cwd        string
 	stats      *sessiondata.TurnStats
 
 	width int
 }
 
-func newStatusBar(model string) statusBar {
+func newStatusBar(model, cwd string) statusBar {
 	sp := spinner.New()
 	sp.Spinner = spinner.MiniDot
 	sp.Style = lipgloss.NewStyle().Foreground(sessionTheme.Primary)
@@ -35,6 +37,7 @@ func newStatusBar(model string) statusBar {
 	return statusBar{
 		spinner: sp,
 		model:   model,
+		cwd:     utils.CompactHome(cwd),
 	}
 }
 
@@ -114,14 +117,17 @@ func (s statusBar) MetaView() string {
 		return ""
 	}
 
+	segWidth := max(s.width/3, 1)
+	left := truncateLeft(s.cwd, segWidth)
 	center := statsText(s.stats)
-	right := truncateLeft(s.model, max(s.width/3, 1))
+	right := truncateLeft(s.model, segWidth)
 
-	if center == "" && right == "" {
+	if left == "" && center == "" && right == "" {
 		return ""
 	}
 
 	row := []rune(strings.Repeat(" ", s.width))
+	placeSegment(row, left, 0)
 	placeSegment(row, center, max((s.width-lipgloss.Width(center))/2, 0))
 	placeSegment(row, right, max(s.width-lipgloss.Width(right), 0))
 

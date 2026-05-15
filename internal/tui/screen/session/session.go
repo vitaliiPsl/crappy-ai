@@ -40,12 +40,17 @@ func New(ctx context.Context, srv *server.Server, sessionID string) Model {
 
 	sess, eventChan, initErr := openInitialSession(ctx, srv, sessionID)
 
+	cwd := cfg.Cwd
+	if sess != nil && sess.Cwd != "" {
+		cwd = sess.Cwd
+	}
+
 	return Model{
 		ctx:          ctx,
 		server:       srv,
 		reg:          reg,
 		conversation: newConversation(cfg.Provider, cfg.Model),
-		footer:       newFooter(reg, cfg.Model),
+		footer:       newFooter(reg, cfg.Model, cwd),
 		sess:         sess,
 		eventChan:    eventChan,
 		err:          initErr,

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant"
 	"github.com/vitaliiPsl/crappy-ai/internal/cli"
@@ -30,10 +31,16 @@ func run() error {
 		provider = flag.String("provider", "", "active provider name")
 		model    = flag.String("model", "", "active model id")
 		thinking = flag.String("thinking", "", "thinking level (disabled|low|medium|high)")
+		cwd      = flag.String("cwd", "", "working directory for new sessions (default: current directory)")
 		prompt   = flag.String("prompt", "", "if set, run a single turn with this prompt and exit")
 	)
 
 	flag.Parse()
+
+	resolvedCwd, err := resolveCwd(*cwd)
+	if err != nil {
+		return fmt.Errorf("resolve cwd: %w", err)
+	}
 
 	settingsStore, err := settings.Load()
 	if err != nil {
@@ -44,6 +51,7 @@ func run() error {
 		Provider: *provider,
 		Model:    *model,
 		Thinking: *thinking,
+		Cwd:      resolvedCwd,
 	})
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
@@ -70,4 +78,12 @@ func run() error {
 	}
 
 	return srv.Run(ctx)
+}
+
+func resolveCwd(flagValue string) (string, error) {
+	if flagValue == "" {
+		return os.Getwd()
+	}
+
+	return filepath.Abs(flagValue)
 }

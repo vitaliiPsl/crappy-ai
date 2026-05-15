@@ -48,6 +48,7 @@ func (s *Store) Reload() error {
 		return fmt.Errorf("reload config: %w", err)
 	}
 
+	cfg.Cwd = s.cfg.Cwd
 	s.cfg = cfg
 
 	return nil

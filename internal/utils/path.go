@@ -18,3 +18,24 @@ func ExpandHome(path string) string {
 
 	return filepath.Join(home, path[2:])
 }
+
+func CompactHome(path string) string {
+	if path == "" {
+		return path
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return path
+	}
+
+	if path == home {
+		return "~"
+	}
+
+	if rel, ok := strings.CutPrefix(path, home+string(filepath.Separator)); ok {
+		return "~" + string(filepath.Separator) + rel
+	}
+
+	return path
+}

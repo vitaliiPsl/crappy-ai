@@ -7,7 +7,9 @@ import (
 )
 
 func (s *Server) CreateSession(ctx context.Context, title string) (*session.Session, error) {
-	return s.sessionStore.Create(ctx, title)
+	config := s.configStore.Get()
+
+	return s.sessionStore.Create(ctx, title, config.Cwd)
 }
 
 func (s *Server) GetSession(ctx context.Context, sessionID string) (*session.Session, error) {

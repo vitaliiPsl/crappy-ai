@@ -39,7 +39,7 @@ func (s *fakeStore) AppendEvents(_ context.Context, _ string, events ...session.
 	return nil
 }
 
-func (s *fakeStore) Create(context.Context, string) (*session.Session, error) {
+func (s *fakeStore) Create(context.Context, string, string) (*session.Session, error) {
 	panic("fakeStore.Create not implemented")
 }
 

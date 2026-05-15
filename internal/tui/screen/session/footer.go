@@ -14,10 +14,10 @@ type footer struct {
 	status statusBar
 }
 
-func newFooter(registry *command.Registry, model string) footer {
+func newFooter(registry *command.Registry, model, cwd string) footer {
 	return footer{
 		input:  newInputBar(registry),
-		status: newStatusBar(model),
+		status: newStatusBar(model, cwd),
 	}
 }
 
