@@ -25,17 +25,13 @@ Every line should carry information a new agent needs to continue.
 Omit greetings, filler, duplicate wording, and anything with no future relevance.
 This summary must be compact, but at the same time be sufficient to continue without the original conversation.`
 
-const (
-	thresholdRatio         = 0.75
-	estimatedCharsPerToken = 4
-	messageTokenOverhead   = 4
-)
+const thresholdRatio = 0.75
 
 func New(model kit.Model) agent.Option {
 	summarizer := NewSummarizer(model)
 
 	return xsummarization.WithSummarization(
-		whenEstimatedContextExceeds(model.Config(), thresholdRatio),
+		whenLastInputExceeds(model.Config(), thresholdRatio),
 		strategy(summarizer),
 	)
 }

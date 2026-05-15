@@ -180,3 +180,11 @@ func TestStrategy_PropagatesMemoryReadError(t *testing.T) {
 
 	model.AssertCallCount(t, 0)
 }
+
+type errMemory struct {
+	err error
+}
+
+func (m errMemory) Context(context.Context) ([]kit.Message, error) { return nil, m.err }
+func (m errMemory) History(context.Context) ([]kit.Message, error) { return nil, m.err }
+func (errMemory) Record(context.Context, ...kit.Message) error     { return nil }
