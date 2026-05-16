@@ -3,6 +3,8 @@ package models
 import (
 	"testing"
 
+	"github.com/vitaliiPsl/crappy-adk/kit"
+
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/settings"
 	settingsmodels "github.com/vitaliiPsl/crappy-ai/internal/settings/models"
@@ -10,10 +12,15 @@ import (
 
 func testSettings() settings.Settings {
 	return settings.Settings{
-		Providers: []settingsmodels.ProviderSettings{
+		Providers: []settings.ProviderSettings{
 			{Name: settingsmodels.ProviderAnthropic, API: settingsmodels.ProviderAnthropic, APIKey: "test-key"},
 			{Name: settingsmodels.ProviderOpenAI, API: settingsmodels.ProviderOpenAI, APIKey: "test-key"},
 			{Name: settingsmodels.ProviderGoogle, API: settingsmodels.ProviderGoogle, APIKey: "test-key"},
+		},
+		Models: map[string][]kit.ModelConfig{
+			settingsmodels.ProviderOpenAI: {
+				{ID: "gpt-5", ContextWindow: 400_000},
+			},
 		},
 	}
 }
@@ -72,7 +79,7 @@ func TestBuildModel_UnknownProvider(t *testing.T) {
 
 func TestBuildModel_UnknownAPI(t *testing.T) {
 	s := settings.Settings{
-		Providers: []settingsmodels.ProviderSettings{
+		Providers: []settings.ProviderSettings{
 			{Name: "weird", API: "weird-api", APIKey: "k"},
 		},
 	}
@@ -89,7 +96,7 @@ func TestBuildModel_NoAPIKey(t *testing.T) {
 	t.Setenv(envVar, "")
 
 	s := settings.Settings{
-		Providers: []settingsmodels.ProviderSettings{
+		Providers: []settings.ProviderSettings{
 			{Name: settingsmodels.ProviderAnthropic, API: settingsmodels.ProviderAnthropic, APIKeyEnv: envVar},
 		},
 	}
@@ -106,7 +113,7 @@ func TestBuildModel_APIKeyFromEnv(t *testing.T) {
 	t.Setenv(envVar, "from-env")
 
 	s := settings.Settings{
-		Providers: []settingsmodels.ProviderSettings{
+		Providers: []settings.ProviderSettings{
 			{Name: settingsmodels.ProviderAnthropic, API: settingsmodels.ProviderAnthropic, APIKeyEnv: envVar},
 		},
 	}
@@ -120,6 +127,20 @@ func TestBuildModel_APIKeyFromEnv(t *testing.T) {
 
 	if m == nil {
 		t.Fatal("buildModel returned nil model")
+	}
+}
+
+func TestBuildModel_UsesSettingsModels(t *testing.T) {
+	s := testSettings()
+	cfg := config.Config{Provider: settingsmodels.ProviderOpenAI, Model: "gpt-5"}
+
+	m, err := buildModel(s, cfg)
+	if err != nil {
+		t.Fatalf("buildModel: %v", err)
+	}
+
+	if got := m.Config().ContextWindow; got != 400_000 {
+		t.Fatalf("ContextWindow = %d, want metadata from Models", got)
 	}
 }
 

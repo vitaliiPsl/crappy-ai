@@ -51,56 +51,40 @@ type upstreamLimits struct {
 	Output  int `json:"output"`
 }
 
-func Refresh(ctx context.Context, path string, providers []ProviderSettings) error {
-	if path == "" {
-		return nil
-	}
-
+func Refresh(ctx context.Context, path string) (map[string][]kit.ModelConfig, error) {
 	upstream, err := fetchModelsDev(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	out := filterCatalog(providers, upstream)
-	if len(out) == 0 {
-		return nil
+	fresh := normalizeUpstream(upstream)
+
+	if path != "" {
+		if err := write(path, fresh); err != nil {
+			return nil, err
+		}
 	}
 
-	return writeModels(path, out)
+	out := DefaultModels()
+	for provider, list := range fresh {
+		if len(list) > 0 {
+			out[provider] = list
+		}
+	}
+
+	return out, nil
 }
 
-func filterCatalog(providers []ProviderSettings, upstream map[string]upstreamProvider) map[string][]kit.ModelConfig {
-	out := make(map[string][]kit.ModelConfig, len(providers))
+func normalizeUpstream(upstream map[string]upstreamProvider) map[string][]kit.ModelConfig {
+	out := make(map[string][]kit.ModelConfig, len(upstream))
 
-	for _, p := range providers {
-		src, ok := upstream[p.API]
-		if !ok {
-			continue
-		}
-
-		curatedOrder := make(map[string]int, len(p.Models))
-		for i, m := range p.Models {
-			curatedOrder[m.ID] = i
-		}
-
+	for provider, src := range upstream {
 		models := make([]kit.ModelConfig, 0, len(src.Models))
 		for id, m := range src.Models {
-			models = append(models, normalizeUpstreamModel(p.Name, id, m))
+			models = append(models, mapUpstreamModel(provider, id, m))
 		}
 
 		sort.Slice(models, func(i, j int) bool {
-			oi, iok := curatedOrder[models[i].ID]
-			oj, jok := curatedOrder[models[j].ID]
-
-			switch {
-			case iok && jok:
-				return oi < oj
-			case iok:
-				return true
-			case jok:
-				return false
-			}
-
 			if models[i].ReleaseDate != models[j].ReleaseDate {
 				return models[i].ReleaseDate > models[j].ReleaseDate
 			}
@@ -109,7 +93,7 @@ func filterCatalog(providers []ProviderSettings, upstream map[string]upstreamPro
 		})
 
 		if len(models) > 0 {
-			out[p.Name] = models
+			out[provider] = models
 		}
 	}
 
@@ -149,7 +133,7 @@ func fetchModelsDev(ctx context.Context) (map[string]upstreamProvider, error) {
 	return catalog, nil
 }
 
-func normalizeUpstreamModel(provider, id string, u upstreamModel) kit.ModelConfig {
+func mapUpstreamModel(provider, id string, u upstreamModel) kit.ModelConfig {
 	cfg := kit.ModelConfig{
 		ID:              id,
 		Provider:        provider,

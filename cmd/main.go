@@ -66,7 +66,7 @@ func run() error {
 	toolRegistry := tools.NewRegistry()
 
 	go func() {
-		if err := settings.RefreshModels(context.Background(), settingsStore.Get()); err != nil {
+		if err := settingsStore.RefreshModels(context.Background()); err != nil {
 			fmt.Fprintf(os.Stderr, "warning: refresh models from remote: %v\n", err)
 		}
 	}()

@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -8,6 +9,8 @@ import (
 	"sync"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/vitaliiPsl/crappy-ai/internal/settings/models"
 )
 
 type Store struct {
@@ -27,7 +30,7 @@ func (s *Store) Get() Settings {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	return cloneSettings(s.settings)
+	return s.settings
 }
 
 func (s *Store) Save(settings Settings) error {
@@ -39,16 +42,15 @@ func (s *Store) Save(settings Settings) error {
 	return writeFile(path, settings)
 }
 
-func (s *Store) Reload() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	settings, _, err := loadFile(s.path)
+func (s *Store) RefreshModels(ctx context.Context) error {
+	fresh, err := models.Refresh(ctx, s.Get().ModelsPath)
 	if err != nil {
-		return fmt.Errorf("reload settings: %w", err)
+		return err
 	}
 
-	s.settings = settings
+	s.mu.Lock()
+	s.settings.Models = fresh
+	s.mu.Unlock()
 
 	return nil
 }

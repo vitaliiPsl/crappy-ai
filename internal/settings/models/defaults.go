@@ -2,26 +2,11 @@ package models
 
 import "github.com/vitaliiPsl/crappy-adk/kit"
 
-func DefaultProviders() []ProviderSettings {
-	return []ProviderSettings{
-		{
-			Name:      ProviderAnthropic,
-			API:       ProviderAnthropic,
-			APIKeyEnv: "ANTHROPIC_API_KEY",
-			Models:    anthropicModels(),
-		},
-		{
-			Name:      ProviderOpenAI,
-			API:       ProviderOpenAI,
-			APIKeyEnv: "OPENAI_API_KEY",
-			Models:    openaiModels(),
-		},
-		{
-			Name:      ProviderGoogle,
-			API:       ProviderGoogle,
-			APIKeyEnv: "GOOGLE_API_KEY",
-			Models:    googleModels(),
-		},
+func DefaultModels() map[string][]kit.ModelConfig {
+	return map[string][]kit.ModelConfig{
+		ProviderAnthropic: anthropicModels(),
+		ProviderOpenAI:    openaiModels(),
+		ProviderGoogle:    googleModels(),
 	}
 }
 

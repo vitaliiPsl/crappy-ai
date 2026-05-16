@@ -1,6 +1,6 @@
 package settings
 
-import settings "github.com/vitaliiPsl/crappy-ai/internal/settings/models"
+import coresettings "github.com/vitaliiPsl/crappy-ai/internal/settings"
 
 const (
 	conversationSection = "Conversation"
@@ -62,7 +62,7 @@ func buildFields() []fieldDef {
 			section: modelSection,
 			label:   thinkingLabel,
 			kind:    fieldOption,
-			options: func(Model) []string { return []string{"", "low", "medium", "high"} },
+			options: func(Model) []string { return []string{"disabled", "low", "medium", "high"} },
 			get:     func(m Model) string { return m.cfg.Thinking },
 			set:     func(m *Model, value string) { m.cfg.Thinking = value },
 		},
@@ -116,7 +116,7 @@ func providerOptions(m Model) []string {
 	return out
 }
 
-func (m Model) provider() settings.ProviderSettings {
+func (m Model) provider() coresettings.ProviderSettings {
 	for _, p := range m.settings.Providers {
 		if p.Name == m.cfg.Provider {
 			return p
@@ -129,10 +129,10 @@ func (m Model) provider() settings.ProviderSettings {
 		}
 	}
 
-	return settings.ProviderSettings{Name: m.cfg.Provider, API: m.cfg.Provider}
+	return coresettings.ProviderSettings{Name: m.cfg.Provider, API: m.cfg.Provider}
 }
 
-func (m *Model) setProvider(provider settings.ProviderSettings) {
+func (m *Model) setProvider(provider coresettings.ProviderSettings) {
 	for i, p := range m.settings.Providers {
 		if p.Name == provider.Name {
 			m.settings.Providers[i] = provider

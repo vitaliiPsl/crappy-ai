@@ -8,7 +8,6 @@ import (
 
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/settings"
-	settingsmodels "github.com/vitaliiPsl/crappy-ai/internal/settings/models"
 )
 
 type Registry struct {
@@ -19,14 +18,14 @@ func NewRegistry(settingsStore *settings.Store) *Registry {
 	return &Registry{settingsStore: settingsStore}
 }
 
-func (r *Registry) GetProviders() []settingsmodels.ProviderSettings {
+func (r *Registry) GetProviders() []settings.ProviderSettings {
 	return r.settingsStore.Get().Providers
 }
 
-func (r *Registry) GetProvider(name string) (settingsmodels.ProviderSettings, error) {
+func (r *Registry) GetProvider(name string) (settings.ProviderSettings, error) {
 	p, ok := findProvider(r.settingsStore.Get().Providers, name)
 	if !ok {
-		return settingsmodels.ProviderSettings{}, fmt.Errorf("unknown provider %q", name)
+		return settings.ProviderSettings{}, fmt.Errorf("unknown provider %q", name)
 	}
 
 	return p, nil
@@ -64,23 +63,23 @@ func buildModel(s settings.Settings, cfg config.Config) (kit.Model, error) {
 		return nil, fmt.Errorf("provider %q: no API key (set %s)", provider.Name, provider.APIKeyEnv)
 	}
 
-	modelConfig := findModelConfig(provider, cfg.Model)
+	modelConfig := findModelConfig(s.Models[cfg.Provider], cfg.Model)
 
 	return adapter(apiKey, provider.BaseURL, cfg.Model, modelConfig)
 }
 
-func findProvider(providers []settingsmodels.ProviderSettings, name string) (settingsmodels.ProviderSettings, bool) {
+func findProvider(providers []settings.ProviderSettings, name string) (settings.ProviderSettings, bool) {
 	for _, p := range providers {
 		if p.Name == name {
 			return p, true
 		}
 	}
 
-	return settingsmodels.ProviderSettings{}, false
+	return settings.ProviderSettings{}, false
 }
 
-func findModelConfig(provider settingsmodels.ProviderSettings, modelID string) kit.ModelConfig {
-	for _, model := range provider.Models {
+func findModelConfig(models []kit.ModelConfig, modelID string) kit.ModelConfig {
+	for _, model := range models {
 		if model.ID == modelID {
 			return model
 		}

@@ -1,8 +1,6 @@
 package settings
 
-import (
-	"github.com/vitaliiPsl/crappy-ai/internal/settings/models"
-)
+import "github.com/vitaliiPsl/crappy-adk/kit"
 
 const (
 	DefaultSettingsPath = "~/.crappy-ai/settings.yaml"
@@ -18,10 +16,12 @@ const (
 )
 
 type Settings struct {
-	ConfigPath  string                    `yaml:"config_path,omitempty"`
-	SessionsDir string                    `yaml:"sessions_dir,omitempty"`
-	ModelsPath  string                    `yaml:"models_path,omitempty"`
-	Providers   []models.ProviderSettings `yaml:"providers,omitempty"`
+	ConfigPath  string `yaml:"config_path,omitempty"`
+	SessionsDir string `yaml:"sessions_dir,omitempty"`
+	ModelsPath  string `yaml:"models_path,omitempty"`
+
+	Providers []ProviderSettings           `yaml:"providers,omitempty"`
+	Models    map[string][]kit.ModelConfig `yaml:"-"`
 }
 
 func defaults() Settings {
@@ -29,6 +29,6 @@ func defaults() Settings {
 		ConfigPath:  DefaultConfigPath,
 		SessionsDir: DefaultSessionsDir,
 		ModelsPath:  DefaultModelsPath,
-		Providers:   models.DefaultProviders(),
+		Providers:   DefaultProviders(),
 	}
 }

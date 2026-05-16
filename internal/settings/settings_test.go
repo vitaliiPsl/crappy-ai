@@ -3,16 +3,17 @@ package settings
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
-	"github.com/vitaliiPsl/crappy-ai/internal/settings/models"
-
 	"github.com/vitaliiPsl/crappy-adk/kit"
+
+	"github.com/vitaliiPsl/crappy-ai/internal/settings/models"
 )
 
 func TestMergeProvidersPreservesDefaultsForPartialOverride(t *testing.T) {
 	base := Settings{
-		Providers: []models.ProviderSettings{
+		Providers: []ProviderSettings{
 			{
 				Name: models.ProviderAnthropic,
 				API:  models.ProviderAnthropic,
@@ -21,16 +22,18 @@ func TestMergeProvidersPreservesDefaultsForPartialOverride(t *testing.T) {
 				Name:      models.ProviderOpenAI,
 				API:       models.ProviderOpenAI,
 				APIKeyEnv: "OPENAI_API_KEY",
-				Models:    []kit.ModelConfig{{ID: "gpt-5"}},
 			},
 			{
 				Name: models.ProviderGoogle,
 				API:  models.ProviderGoogle,
 			},
 		},
+		Models: map[string][]kit.ModelConfig{
+			models.ProviderOpenAI: {{ID: "gpt-5"}},
+		},
 	}
 	overlay := Settings{
-		Providers: []models.ProviderSettings{
+		Providers: []ProviderSettings{
 			{
 				Name:   models.ProviderOpenAI,
 				APIKey: "secret",
@@ -74,32 +77,8 @@ func TestMergeProvidersPreservesDefaultsForPartialOverride(t *testing.T) {
 		t.Errorf("APIKey = %q, want secret", openai.APIKey)
 	}
 
-	if len(openai.Models) != 1 || openai.Models[0].ID != "gpt-5" {
-		t.Fatalf("Models = %+v, want gpt-5 metadata preserved", openai.Models)
-	}
-}
-
-func TestStoreGetReturnsDeepCopy(t *testing.T) {
-	store := NewStore(Settings{
-		Providers: []models.ProviderSettings{
-			{
-				Name:   models.ProviderOpenAI,
-				Models: []kit.ModelConfig{{ID: "gpt-5"}},
-			},
-		},
-	}, "")
-
-	got := store.Get()
-	got.Providers[0].Name = "changed"
-	got.Providers[0].Models[0].ID = "changed"
-
-	again := store.Get()
-	if again.Providers[0].Name != models.ProviderOpenAI {
-		t.Fatalf("stored provider name = %q, want %q", again.Providers[0].Name, models.ProviderOpenAI)
-	}
-
-	if again.Providers[0].Models[0].ID != "gpt-5" {
-		t.Fatalf("stored model ID = %q, want gpt-5", again.Providers[0].Models[0].ID)
+	if len(got.Models[models.ProviderOpenAI]) != 1 || got.Models[models.ProviderOpenAI][0].ID != "gpt-5" {
+		t.Fatalf("Models = %+v, want gpt-5 metadata preserved", got.Models[models.ProviderOpenAI])
 	}
 }
 
@@ -107,8 +86,11 @@ func TestWriteFileUsesPrivatePermissions(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.yaml")
 
 	if err := writeFile(path, Settings{
-		Providers: []models.ProviderSettings{
+		Providers: []ProviderSettings{
 			{Name: models.ProviderOpenAI, APIKey: "secret"},
+		},
+		Models: map[string][]kit.ModelConfig{
+			models.ProviderOpenAI: {{ID: "gpt-5"}},
 		},
 	}); err != nil {
 		t.Fatalf("writeFile() error = %v", err)
@@ -121,5 +103,14 @@ func TestWriteFileUsesPrivatePermissions(t *testing.T) {
 
 	if mode := info.Mode().Perm(); mode != 0o600 {
 		t.Fatalf("mode = %o, want 600", mode)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+
+	if string(data) == "" || strings.Contains(string(data), "gpt-5") {
+		t.Fatalf("settings file should not persist available models, got:\n%s", data)
 	}
 }

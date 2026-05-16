@@ -1,7 +1,6 @@
 package settings
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"sort"
@@ -24,21 +23,16 @@ func Load() (*Store, error) {
 		}
 	}
 
-	base := defaults()
-	models.ApplyModels(utils.ExpandHome(base.ModelsPath), base.Providers)
-
-	settings := merge(base, fileSettings)
+	settings := merge(defaults(), fileSettings)
 	settings = merge(settings, fromEnv())
 
 	settings.ConfigPath = utils.ExpandHome(settings.ConfigPath)
 	settings.SessionsDir = utils.ExpandHome(settings.SessionsDir)
 	settings.ModelsPath = utils.ExpandHome(settings.ModelsPath)
 
-	return NewStore(settings, expandedPath), nil
-}
+	settings.Models = models.Load(settings.ModelsPath)
 
-func RefreshModels(ctx context.Context, s Settings) error {
-	return models.Refresh(ctx, s.ModelsPath, s.Providers)
+	return NewStore(settings, expandedPath), nil
 }
 
 func merge(base, overlay Settings) Settings {
@@ -61,8 +55,8 @@ func merge(base, overlay Settings) Settings {
 	return base
 }
 
-func mergeProviders(base, overlay []models.ProviderSettings) []models.ProviderSettings {
-	byName := make(map[string]models.ProviderSettings, len(base)+len(overlay))
+func mergeProviders(base, overlay []ProviderSettings) []ProviderSettings {
+	byName := make(map[string]ProviderSettings, len(base)+len(overlay))
 	for _, p := range base {
 		byName[p.Name] = p
 	}
@@ -77,7 +71,7 @@ func mergeProviders(base, overlay []models.ProviderSettings) []models.ProviderSe
 		byName[p.Name] = p
 	}
 
-	merged := make([]models.ProviderSettings, 0, len(byName))
+	merged := make([]ProviderSettings, 0, len(byName))
 	for _, p := range byName {
 		merged = append(merged, p)
 	}
@@ -89,7 +83,7 @@ func mergeProviders(base, overlay []models.ProviderSettings) []models.ProviderSe
 	return merged
 }
 
-func mergeProvider(base, overlay models.ProviderSettings) models.ProviderSettings {
+func mergeProvider(base, overlay ProviderSettings) ProviderSettings {
 	if overlay.Name != "" {
 		base.Name = overlay.Name
 	}
@@ -110,38 +104,7 @@ func mergeProvider(base, overlay models.ProviderSettings) models.ProviderSetting
 		base.APIKeyEnv = overlay.APIKeyEnv
 	}
 
-	if len(overlay.Models) > 0 {
-		base.Models = overlay.Models
-	}
-
 	return base
-}
-
-func cloneSettings(settings Settings) Settings {
-	settings.Providers = cloneProviders(settings.Providers)
-
-	return settings
-}
-
-func cloneProviders(providers []models.ProviderSettings) []models.ProviderSettings {
-	if providers == nil {
-		return nil
-	}
-
-	out := make([]models.ProviderSettings, len(providers))
-	for i, p := range providers {
-		out[i] = cloneProvider(p)
-	}
-
-	return out
-}
-
-func cloneProvider(provider models.ProviderSettings) models.ProviderSettings {
-	if provider.Models != nil {
-		provider.Models = append(provider.Models[:0:0], provider.Models...)
-	}
-
-	return provider
 }
 
 func resolvePath() string {
