@@ -12,6 +12,7 @@ const (
 	headerText = "Settings"
 	hintsText  = "j/Down Move • Enter Edit • Left/Right Cycle • s Save • Esc Back"
 	editHints  = "Enter Confirm • Shift+Enter New Line • Esc Cancel"
+	pickHints  = "Type Filter • j/Down Move • Enter Select • Esc Cancel"
 	editPrefix = "Editing "
 
 	emptyValue     = "(none)"
@@ -56,14 +57,13 @@ func (m Model) View() string {
 
 	header := lipgloss.NewStyle().Width(m.width).Align(lipgloss.Center).Render(headerStyle.Render(title))
 
-	hints := hintsText
-	if m.state == stateEditing {
-		hints = editHints
+	hintsView := hintsStyle.Width(m.width).Align(lipgloss.Center).Render(m.hintsText())
+
+	parts := []string{header, "", m.fields.View()}
+	if suggestions := m.modelSuggestionsView(); suggestions != "" {
+		parts = append(parts, suggestions)
 	}
 
-	hintsView := hintsStyle.Width(m.width).Align(lipgloss.Center).Render(hints)
-
-	parts := []string{header, "", m.viewport.View()}
 	if input := m.inputView(); input != "" {
 		parts = append(parts, input)
 	}
@@ -78,48 +78,41 @@ func (m Model) View() string {
 }
 
 func (m *Model) refreshContent() {
-	if len(m.fields) == 0 {
-		m.viewport.SetContent("")
+	m.fields.SetRows(m.fieldRows())
+}
 
-		return
+func (m Model) fieldRows() []fieldRow {
+	rows := make([]fieldRow, 0, len(m.fields.defs))
+	for _, field := range m.fields.defs {
+		rows = append(rows, fieldRow{
+			section: field.section,
+			label:   field.label,
+			value:   m.renderFieldValue(field),
+		})
 	}
 
-	var b strings.Builder
+	return rows
+}
 
-	currentSection := ""
-	for i, field := range m.fields {
-		if field.section != currentSection {
-			if currentSection != "" {
-				b.WriteByte('\n')
-			}
-
-			currentSection = field.section
-			b.WriteString(sectionStyle.Render(currentSection))
-			b.WriteByte('\n')
-		}
-
-		cursor := noCursorPrefix
-
-		style := labelStyle
-		if i == m.cursor {
-			cursor = cursorPrefix
-			style = selectedStyle
-		}
-
-		b.WriteString(cursor)
-		b.WriteString(style.Render(labelCell(field.label)))
-		b.WriteString(valueSep)
-		b.WriteString(m.renderFieldValue(field))
-		b.WriteByte('\n')
+func (m Model) hintsText() string {
+	switch m.state {
+	case stateEditing:
+		return editHints
+	case statePickingModel:
+		return pickHints
+	default:
+		return hintsText
 	}
-
-	m.viewport.SetContent(strings.TrimRight(b.String(), "\n"))
 }
 
 func (m Model) renderFieldValue(field fieldDef) string {
 	value := field.get(m)
 	if field.masked && value != "" {
 		return valueStyle.Render(maskText)
+	}
+
+	if field.kind == fieldModel {
+		return modelPreview(value, m.hasModel(value))
 	}
 
 	if value == "" {
@@ -138,14 +131,26 @@ func (m Model) renderFieldValue(field fieldDef) string {
 }
 
 func (m Model) inputView() string {
-	if m.state != stateEditing {
+	if m.state != stateEditing && m.state != statePickingModel {
 		return ""
 	}
 
-	field := m.currentField()
+	field := m.fields.currentField()
 	label := mutedStyle.Render(editPrefix) + selectedStyle.Render(field.label)
 
+	if m.state == statePickingModel {
+		return m.input.View()
+	}
+
 	return label + "\n" + m.input.View()
+}
+
+func (m Model) modelSuggestionsView() string {
+	if m.state != statePickingModel {
+		return ""
+	}
+
+	return m.modelSuggestions.View()
 }
 
 func (m *Model) resizeViewport() {
@@ -154,12 +159,17 @@ func (m *Model) resizeViewport() {
 		inputHeight = lipgloss.Height(input)
 	}
 
+	suggestionsHeight := 0
+	if suggestions := m.modelSuggestionsView(); suggestions != "" {
+		suggestionsHeight = lipgloss.Height(suggestions)
+	}
+
 	statusHeight := 0
 	if status := m.statusView(); status != "" {
 		statusHeight = lipgloss.Height(status)
 	}
 
-	m.viewport.SetHeight(max(m.height-headerLines-hintsHeight-inputHeight-statusHeight, 1))
+	m.fields.SetSize(m.width, max(m.height-headerLines-hintsHeight-inputHeight-suggestionsHeight-statusHeight, 1))
 }
 
 func (m Model) statusView() string {
@@ -172,24 +182,6 @@ func (m Model) statusView() string {
 		return successStyle.Width(m.width).Render(savedText)
 	default:
 		return ""
-	}
-}
-
-func (m *Model) scrollToCursor() {
-	line := m.cursor
-	for i := 0; i <= m.cursor && i < len(m.fields); i++ {
-		if i == 0 || m.fields[i].section != m.fields[i-1].section {
-			line++
-		}
-	}
-
-	height := m.viewport.Height()
-
-	offset := m.viewport.YOffset()
-	if line < offset {
-		m.viewport.SetYOffset(line)
-	} else if line >= offset+height {
-		m.viewport.SetYOffset(line - height + 1)
 	}
 }
 
@@ -230,6 +222,18 @@ func optionPreview(value string, options []string) string {
 	}
 
 	return strings.Join(parts, optionSep)
+}
+
+func modelPreview(value string, known bool) string {
+	if value == "" {
+		return valueStyle.Render(emptyValue)
+	}
+
+	if known {
+		return valueStyle.Render(value)
+	}
+
+	return valueStyle.Render(value) + " " + mutedStyle.Render("(custom)")
 }
 
 func clamp(value, minValue, maxValue int) int {

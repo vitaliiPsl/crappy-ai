@@ -1,7 +1,6 @@
 package settings
 
 import (
-	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
@@ -16,32 +15,30 @@ type Model struct {
 	cfg       config.Config
 	settings  appsettings.Settings
 	providers []appsettings.ProviderSettings
-	fields    []fieldDef
+	fields    fieldsModel
 
-	cursor  int
-	state   state
-	saveErr error
+	state       state
+	returnState state
+	saveErr     error
 
-	input    component.Input
-	viewport viewport.Model
+	input            component.Input
+	modelSuggestions modelSuggestions
 
 	width  int
 	height int
 }
 
 func New(srv *server.Server) Model {
-	vp := viewport.New()
-	vp.SoftWrap = true
-
 	m := Model{
 		server:    srv,
 		cfg:       srv.GetConfig(),
 		settings:  srv.GetSettings(),
 		providers: srv.GetProviders(),
 		input:     component.NewInput(),
-		viewport:  vp,
 	}
-	m.fields = buildFields()
+	m.fields = newFieldsModel(buildFields())
+	m.fields.SetRows(m.fieldRows())
+	m.modelSuggestions = newModelSuggestions(m.modelOptions())
 
 	return m
 }
@@ -51,6 +48,10 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
+	if action, ok := msg.(fieldAction); ok {
+		return m.handleFieldAction(action)
+	}
+
 	if saved, ok := msg.(savedMsg); ok {
 		if saved.err == nil {
 			m.state = stateSaved
@@ -69,70 +70,54 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		return m.updateEditing(msg)
 	}
 
+	if m.state == statePickingModel {
+		return m.updatePickingModel(msg)
+	}
+
 	return m.updateBrowsing(msg)
 }
 
 func (m *Model) SetSize(width, height int) {
 	m.width = width
 	m.height = height
-	m.viewport.SetWidth(width)
 	m.input.SetWidth(width)
 	m.resizeViewport()
 	m.refreshContent()
 }
 
 func (m Model) updateBrowsing(msg tea.Msg) (Model, tea.Cmd) {
-	key, ok := msg.(tea.KeyMsg)
-	if !ok {
-		var cmd tea.Cmd
+	if key, ok := msg.(tea.KeyMsg); ok {
+		switch key.String() {
+		case "s":
+			m.state = stateSaving
+			m.saveErr = nil
 
-		m.viewport, cmd = m.viewport.Update(msg)
+			return m, m.save()
 
-		return m, cmd
+		case "esc":
+			return m, func() tea.Msg { return ClosedMsg{} }
+		}
 	}
 
-	field := m.currentField()
+	var (
+		cmd tea.Cmd
+	)
 
-	switch key.String() {
-	case "up", "k":
-		if m.cursor > 0 {
-			m.cursor--
-		}
+	m.fields, cmd = m.fields.Update(msg)
 
-	case "down", "j":
-		if m.cursor < len(m.fields)-1 {
-			m.cursor++
-		}
+	return m, cmd
+}
 
-	case "left":
-		if field.kind == fieldOption {
-			m.cycleOption(-1)
-		}
-
-	case "right":
-		if field.kind == fieldOption {
-			m.cycleOption(1)
-		}
-
-	case "enter":
-		if field.kind == fieldOption {
-			m.cycleOption(1)
-		} else {
-			return m.startEditing()
-		}
-
-	case "s":
-		m.state = stateSaving
-		m.saveErr = nil
-
-		return m, m.save()
-
-	case "esc":
-		return m, func() tea.Msg { return ClosedMsg{} }
+func (m Model) handleFieldAction(action fieldAction) (Model, tea.Cmd) {
+	switch action.kind {
+	case fieldActionEdit:
+		return m.startEditing(action.field)
+	case fieldActionPickModel:
+		return m.startModelPicking()
+	case fieldActionCycle:
+		m.cycleOption(action.field, action.delta)
+		m.refreshContent()
 	}
-
-	m.refreshContent()
-	m.scrollToCursor()
 
 	return m, nil
 }

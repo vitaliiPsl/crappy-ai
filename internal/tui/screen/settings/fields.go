@@ -1,6 +1,10 @@
 package settings
 
-import coresettings "github.com/vitaliiPsl/crappy-ai/internal/settings"
+import (
+	"github.com/vitaliiPsl/crappy-adk/kit"
+
+	coresettings "github.com/vitaliiPsl/crappy-ai/internal/settings"
+)
 
 const (
 	conversationSection = "Conversation"
@@ -22,6 +26,7 @@ const (
 	fieldText fieldKind = iota
 	fieldTextarea
 	fieldOption
+	fieldModel
 )
 
 type fieldDef struct {
@@ -49,12 +54,12 @@ func buildFields() []fieldDef {
 			kind:    fieldOption,
 			options: providerOptions,
 			get:     func(m Model) string { return m.cfg.Provider },
-			set:     func(m *Model, value string) { m.cfg.Provider = value },
+			set:     func(m *Model, value string) { m.setActiveProvider(value) },
 		},
 		{
 			section: modelSection,
 			label:   modelLabel,
-			kind:    fieldText,
+			kind:    fieldModel,
 			get:     func(m Model) string { return m.cfg.Model },
 			set:     func(m *Model, value string) { m.cfg.Model = value },
 		},
@@ -146,17 +151,60 @@ func (m *Model) setProvider(provider coresettings.ProviderSettings) {
 	m.providers = m.settings.Providers
 }
 
-func (m Model) currentField() fieldDef {
-	if len(m.fields) == 0 {
-		return fieldDef{}
+func (m *Model) setActiveProvider(provider string) {
+	m.cfg.Provider = provider
+
+	if m.hasModel(m.cfg.Model) {
+		return
 	}
 
-	return m.fields[clamp(m.cursor, 0, len(m.fields)-1)]
+	models := m.modelOptions()
+	if len(models) > 0 {
+		m.cfg.Model = models[0].ID
+	}
 }
 
-func (m *Model) cycleOption(delta int) {
-	field := m.currentField()
+func (m Model) hasModel(modelID string) bool {
+	if modelID == "" {
+		return false
+	}
 
+	for _, model := range m.modelOptions() {
+		if model.ID == modelID {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (m Model) modelOptions() []kit.ModelConfig {
+	if len(m.settings.Models) == 0 {
+		return nil
+	}
+
+	for _, key := range m.modelCatalogKeys() {
+		models := m.settings.Models[key]
+		if len(models) > 0 {
+			return models
+		}
+	}
+
+	return nil
+}
+
+func (m Model) modelCatalogKeys() []string {
+	provider := m.provider()
+
+	keys := []string{m.cfg.Provider}
+	if provider.API != "" && provider.API != m.cfg.Provider {
+		keys = append(keys, provider.API)
+	}
+
+	return keys
+}
+
+func (m *Model) cycleOption(field fieldDef, delta int) {
 	options := field.options(*m)
 	if len(options) == 0 {
 		return
