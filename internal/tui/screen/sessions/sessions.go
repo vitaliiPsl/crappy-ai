@@ -9,40 +9,37 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	"github.com/vitaliiPsl/crappy-adk/kit"
+
 	"github.com/vitaliiPsl/crappy-ai/internal/server"
 	sessiondata "github.com/vitaliiPsl/crappy-ai/internal/session"
-	"github.com/vitaliiPsl/crappy-ai/internal/tui/theme"
+	"github.com/vitaliiPsl/crappy-ai/internal/tui/component"
+	"github.com/vitaliiPsl/crappy-ai/internal/utils"
 )
 
 const (
-	headerText      = "Sessions"
-	emptyTitle      = "No sessions yet"
-	emptySubtitle   = "Press n to start a new conversation."
-	hintsText       = "j/Down Move • Enter Open • n New • d Delete • r Refresh • Esc Back"
+	headerText          = "Sessions"
+	hintsText           = "j/Down Move • Enter Open • n New • d Delete • r Refresh • Esc Back"
+	emptyTitle          = "No sessions yet"
+	emptySubtitle       = "Press n to start a new conversation."
+	untitledText        = "Untitled session"
+	deleteConfirmPrompt = "Delete session?"
+	errorPrefix         = "Error: "
+)
+
+const (
+	cursorPrefix    = "> "
+	noCursorPrefix  = "  "
+	titleSep        = "  "
+	metaPad         = "  "
+	metaSep         = " · "
 	timestampFormat = "Jan 02 15:04"
+)
 
-	cursorPrefix   = "> "
-	noCursorPrefix = "  "
-	timestampPad   = "  "
-	untitledText   = "Untitled session"
-	errorPrefix    = "Error: "
-
+const (
 	shortIDLen  = 8
 	itemHeight  = 3
 	headerLines = 2
-	hintsHeight = 1
-)
-
-var (
-	thm = theme.Default
-
-	headerStyle    = lipgloss.NewStyle().Foreground(thm.Primary).Bold(true)
-	selectedStyle  = lipgloss.NewStyle().Foreground(thm.Primary).Bold(true)
-	itemStyle      = lipgloss.NewStyle().Foreground(thm.Text)
-	timestampStyle = lipgloss.NewStyle().Foreground(thm.SubtleText)
-	emptyStyle     = lipgloss.NewStyle().Foreground(thm.SubtleText)
-	errorStyle     = lipgloss.NewStyle().Foreground(thm.Error)
-	hintsStyle     = lipgloss.NewStyle().Foreground(thm.SubtleText)
 )
 
 type Model struct {
@@ -53,10 +50,12 @@ type Model struct {
 	cursor   int
 	err      error
 
-	viewport viewport.Model
+	pendingDelete bool
+	deleteConfirm component.Confirm
 
-	width  int
-	height int
+	viewport viewport.Model
+	width    int
+	height   int
 }
 
 func New(ctx context.Context, srv *server.Server) Model {
@@ -67,6 +66,10 @@ func New(ctx context.Context, srv *server.Server) Model {
 		ctx:      ctx,
 		server:   srv,
 		viewport: vp,
+		deleteConfirm: component.NewConfirm(
+			component.WithConfirmPrompt(deleteConfirmPrompt),
+			component.WithCancelKeys("n", "esc", "d"),
+		),
 	}
 }
 
@@ -79,57 +82,18 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	case sessionsLoadedMsg:
 		m.err = msg.err
 		m.sessions = msg.sessions
-		m.cursor = clampCursor(msg.cursor, len(m.sessions))
+		m.cursor = clampCursor(m.cursor, len(m.sessions))
 		m.refreshContent()
 		m.scrollToCursor()
 
 		return m, nil
 
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "up", "k":
-			if m.cursor > 0 {
-				m.cursor--
-				m.refreshContent()
-				m.scrollToCursor()
-			}
-
-			return m, nil
-
-		case "down", "j":
-			if m.cursor < len(m.sessions)-1 {
-				m.cursor++
-				m.refreshContent()
-				m.scrollToCursor()
-			}
-
-			return m, nil
-
-		case "enter":
-			if len(m.sessions) == 0 {
-				return m, nil
-			}
-
-			sessionID := m.sessions[m.cursor].ID
-
-			return m, func() tea.Msg { return OpenSessionMsg{SessionID: sessionID} }
-
-		case "n":
-			return m, func() tea.Msg { return OpenDraftSessionMsg{} }
-
-		case "d":
-			if len(m.sessions) == 0 {
-				return m, nil
-			}
-
-			return m, m.deleteSession(m.sessions[m.cursor].ID)
-
-		case "r":
-			return m, m.loadSessions()
-
-		case "esc":
-			return m, func() tea.Msg { return ClosedMsg{} }
+		if m.pendingDelete {
+			return m.handleDelete(msg)
 		}
+
+		return m.handleKey(msg)
 	}
 
 	var cmd tea.Cmd
@@ -141,72 +105,185 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 func (m Model) View() string {
 	header := lipgloss.NewStyle().Width(m.width).Align(lipgloss.Center).Render(headerStyle.Render(headerText))
-	hints := hintsStyle.Width(m.width).Align(lipgloss.Center).Render(hintsText)
+	bottom := lipgloss.NewStyle().Width(m.width).Align(lipgloss.Center).Render(m.bottomView())
 
-	return header + "\n\n" + m.viewport.View() + "\n" + hints
+	return header + "\n\n" + m.viewport.View() + "\n" + bottom
 }
 
 func (m *Model) SetSize(width, height int) {
 	m.width = width
 	m.height = height
 	m.viewport.SetWidth(width)
-	m.viewport.SetHeight(max(height-headerLines-hintsHeight, 1))
+	m.resizeViewport()
 	m.refreshContent()
 }
 
-func (m *Model) refreshContent() {
-	if m.err != nil {
-		m.viewport.SetContent(errorStyle.Render(errorPrefix + m.err.Error()))
+func (m Model) handleKey(key tea.KeyMsg) (Model, tea.Cmd) {
+	switch key.String() {
+	case "up", "k":
+		return m.moveCursor(-1)
 
-		return
+	case "down", "j":
+		return m.moveCursor(1)
+
+	case "enter":
+		return m.openSelected()
+
+	case "n":
+		return m, func() tea.Msg { return OpenDraftSessionMsg{} }
+
+	case "d":
+		return m.requestDelete()
+
+	case "r":
+		return m, m.loadSessions()
+
+	case "esc":
+		return m, func() tea.Msg { return ClosedMsg{} }
 	}
 
-	if len(m.sessions) == 0 {
-		m.viewport.SetContent(m.renderEmpty())
+	var cmd tea.Cmd
 
-		return
-	}
+	m.viewport, cmd = m.viewport.Update(key)
 
-	var b strings.Builder
-	for i, sess := range m.sessions {
-		title := sessionTitle(sess)
-		timestamp := sess.UpdatedAt.Format(timestampFormat)
-
-		if i == m.cursor {
-			b.WriteString(selectedStyle.Render(cursorPrefix + title))
-		} else {
-			b.WriteString(noCursorPrefix + itemStyle.Render(title))
-		}
-
-		b.WriteByte('\n')
-		b.WriteString(timestampStyle.Render(timestampPad + timestamp))
-		b.WriteString("\n\n")
-	}
-
-	m.viewport.SetContent(strings.TrimRight(b.String(), "\n"))
+	return m, cmd
 }
 
-func (m Model) renderEmpty() string {
+func (m Model) handleDelete(msg tea.Msg) (Model, tea.Cmd) {
+	var (
+		cmd tea.Cmd
+		out tea.Msg
+	)
+
+	m.deleteConfirm, cmd, out = m.deleteConfirm.Update(msg)
+
+	switch out.(type) {
+	case component.ConfirmMsg:
+		m.pendingDelete = false
+		m.resizeViewport()
+
+		return m, m.deleteSession(m.sessions[m.cursor].ID)
+
+	case component.CancelMsg:
+		m.pendingDelete = false
+		m.resizeViewport()
+
+		return m, nil
+	}
+
+	return m, cmd
+}
+
+func (m Model) moveCursor(delta int) (Model, tea.Cmd) {
+	next := m.cursor + delta
+	if next < 0 || next >= len(m.sessions) {
+		return m, nil
+	}
+
+	m.cursor = next
+	m.refreshContent()
+	m.scrollToCursor()
+
+	return m, nil
+}
+
+func (m Model) openSelected() (Model, tea.Cmd) {
+	if len(m.sessions) == 0 {
+		return m, nil
+	}
+
+	id := m.sessions[m.cursor].ID
+
+	return m, func() tea.Msg { return OpenSessionMsg{SessionID: id} }
+}
+
+func (m Model) requestDelete() (Model, tea.Cmd) {
+	if len(m.sessions) == 0 {
+		return m, nil
+	}
+
+	m.pendingDelete = true
+	m.resizeViewport()
+
+	return m, nil
+}
+
+func (m Model) bottomView() string {
+	if m.pendingDelete {
+		return m.deleteConfirm.View()
+	}
+
+	return hintsStyle.Render(hintsText)
+}
+
+func (m *Model) resizeViewport() {
+	bottomHeight := lipgloss.Height(m.bottomView())
+	m.viewport.SetHeight(max(m.height-headerLines-bottomHeight, 1))
+}
+
+func (m *Model) refreshContent() {
+	switch {
+	case m.err != nil:
+		m.viewport.SetContent(errorStyle.Render(errorPrefix + m.err.Error()))
+	case len(m.sessions) == 0:
+		m.viewport.SetContent(renderEmpty(m.width, m.viewport.Height()))
+	default:
+		m.viewport.SetContent(renderList(m.sessions, m.cursor))
+	}
+}
+
+func renderEmpty(width, height int) string {
 	content := emptyStyle.Render(emptyTitle) + "\n" + emptyStyle.Render(emptySubtitle)
 
 	return lipgloss.NewStyle().
-		Width(m.width).
-		Height(max(m.viewport.Height(), 1)).
+		Width(width).
+		Height(max(height, 1)).
 		Align(lipgloss.Center).
 		AlignVertical(lipgloss.Center).
 		Render(content)
 }
 
+func renderList(sessions []*sessiondata.Session, cursor int) string {
+	var b strings.Builder
+	for i, sess := range sessions {
+		b.WriteString(renderSession(sess, i == cursor))
+		b.WriteString("\n\n")
+	}
+
+	return strings.TrimRight(b.String(), "\n")
+}
+
+func renderSession(sess *sessiondata.Session, selected bool) string {
+	title := sessionTitle(sess)
+
+	cursor := noCursorPrefix
+
+	id := itemStyle.Render(shortSessionID(sess.ID))
+
+	titleText := itemStyle.Render(title)
+	if selected {
+		cursor = selectedStyle.Render(cursorPrefix)
+		id = selectedStyle.Render(shortSessionID(sess.ID))
+		titleText = selectedStyle.Render(title)
+	}
+
+	titleLine := cursor + id + titleSep + titleText
+	metaLine := metaStyle.Render(metaPad + sessionMeta(sess))
+
+	return titleLine + "\n" + metaLine
+}
+
 func (m *Model) scrollToCursor() {
 	itemStart := m.cursor * itemHeight
 	itemEnd := itemStart + itemHeight - 1
-	vpHeight := m.viewport.Height()
+	height := m.viewport.Height()
 	offset := m.viewport.YOffset()
 
-	if itemStart < offset {
+	switch {
+	case itemStart < offset:
 		m.viewport.SetYOffset(itemStart)
-	} else if itemEnd >= offset+vpHeight {
-		m.viewport.SetYOffset(itemEnd - vpHeight + 1)
+	case itemEnd >= offset+height:
+		m.viewport.SetYOffset(itemEnd - height + 1)
 	}
 }
 
@@ -214,23 +291,42 @@ func (m Model) loadSessions() tea.Cmd {
 	return func() tea.Msg {
 		sessions, err := m.server.ListSessions(m.ctx)
 
-		return sessionsLoadedMsg{sessions: sessions, err: err, cursor: m.cursor}
+		return sessionsLoadedMsg{sessions: sessions, err: err}
 	}
 }
 
-func (m Model) deleteSession(sessionID string) tea.Cmd {
-	nextCursor := m.cursor
-
+func (m Model) deleteSession(id string) tea.Cmd {
 	return func() tea.Msg {
-		deleteErr := m.server.DeleteSession(m.ctx, sessionID)
+		deleteErr := m.server.DeleteSession(m.ctx, id)
 
 		sessions, err := m.server.ListSessions(m.ctx)
 		if err == nil && deleteErr != nil {
 			err = deleteErr
 		}
 
-		return sessionsLoadedMsg{sessions: sessions, err: err, cursor: nextCursor}
+		return sessionsLoadedMsg{sessions: sessions, err: err}
 	}
+}
+
+func sessionMeta(sess *sessiondata.Session) string {
+	parts := []string{sess.UpdatedAt.Format(timestampFormat)}
+	if cwd := utils.CompactHome(sess.Cwd); cwd != "" {
+		parts = append(parts, cwd)
+	}
+
+	if tokens := sessionTokens(sess.Usage); tokens != "" {
+		parts = append(parts, tokens)
+	}
+
+	return strings.Join(parts, metaSep)
+}
+
+func sessionTokens(u kit.Usage) string {
+	if u.InputTokens == 0 && u.OutputTokens == 0 {
+		return ""
+	}
+
+	return fmt.Sprintf("%s in / %s out", utils.FormatTokens(u.InputTokens), utils.FormatTokens(u.OutputTokens))
 }
 
 func sessionTitle(sess *sessiondata.Session) string {
@@ -238,23 +334,24 @@ func sessionTitle(sess *sessiondata.Session) string {
 		return sess.Title
 	}
 
-	if len(sess.ID) >= shortIDLen {
-		return fmt.Sprintf("%s %s", untitledText, sess.ID[:shortIDLen])
-	}
-
 	return untitledText
 }
 
+func shortSessionID(id string) string {
+	if len(id) >= shortIDLen {
+		return id[:shortIDLen]
+	}
+
+	return id
+}
+
 func clampCursor(cursor, count int) int {
-	if count <= 0 {
+	switch {
+	case count <= 0:
 		return 0
-	}
-
-	if cursor < 0 {
+	case cursor < 0:
 		return 0
-	}
-
-	if cursor >= count {
+	case cursor >= count:
 		return count - 1
 	}
 

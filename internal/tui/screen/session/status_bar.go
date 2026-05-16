@@ -107,8 +107,8 @@ func statsText(stats *sessiondata.TurnStats) string {
 	}
 
 	parts := []string{
-		fmt.Sprintf("%s in", formatTokens(stats.Usage.InputTokens)),
-		fmt.Sprintf("%s out", formatTokens(stats.Usage.OutputTokens)),
+		fmt.Sprintf("%s in", utils.FormatTokens(stats.Usage.InputTokens)),
+		fmt.Sprintf("%s out", utils.FormatTokens(stats.Usage.OutputTokens)),
 	}
 
 	if stats.ContextWindow > 0 {
@@ -154,16 +154,4 @@ func placeSegment(row []rune, text string, start int) {
 
 		row[pos] = r
 	}
-}
-
-func formatTokens(n int64) string {
-	if n >= 1_000_000 {
-		return fmt.Sprintf("%.1fM", float64(n)/1_000_000)
-	}
-
-	if n >= 1_000 {
-		return fmt.Sprintf("%.1fk", float64(n)/1_000)
-	}
-
-	return fmt.Sprintf("%d", n)
 }
