@@ -21,8 +21,8 @@ type Model struct {
 	returnState state
 	saveErr     error
 
-	input            component.Input
-	modelSuggestions modelSuggestions
+	input       component.Input
+	modelPicker modelPicker
 
 	width  int
 	height int
@@ -38,7 +38,7 @@ func New(srv *server.Server) Model {
 	}
 	m.fields = newFieldsModel(buildFields())
 	m.fields.SetRows(m.fieldRows())
-	m.modelSuggestions = newModelSuggestions(m.modelOptions())
+	m.modelPicker = newModelPicker(m.modelOptions())
 
 	return m
 }

@@ -58,14 +58,14 @@ func (m Model) updatePickingModel(msg tea.Msg) (Model, tea.Cmd) {
 	if key, ok := msg.(tea.KeyMsg); ok {
 		switch key.String() {
 		case "up", "k":
-			m.modelSuggestions.Previous()
+			m.modelPicker.Previous()
 			m.resizeViewport()
 			m.refreshContent()
 
 			return m, nil
 
 		case "down", "j":
-			m.modelSuggestions.Next()
+			m.modelPicker.Next()
 			m.resizeViewport()
 			m.refreshContent()
 
@@ -79,7 +79,7 @@ func (m Model) updatePickingModel(msg tea.Msg) (Model, tea.Cmd) {
 			return m, nil
 
 		case "enter":
-			if model, ok := m.modelSuggestions.Selected(); ok {
+			if model, ok := m.modelPicker.Selected(); ok {
 				m.cfg.Model = model.ID
 				m.state = stateDirty
 				m.saveErr = nil
@@ -98,13 +98,13 @@ func (m Model) updatePickingModel(msg tea.Msg) (Model, tea.Cmd) {
 	)
 
 	m.input, cmd, out = m.input.Update(msg)
-	m.modelSuggestions.Update(m.input.Value())
+	m.modelPicker.Update(m.input.Value())
 
 	switch out.(type) {
 	case component.CancelMsg:
 		m.state = m.returnState
 	case component.ConfirmMsg:
-		if model, ok := m.modelSuggestions.Selected(); ok {
+		if model, ok := m.modelPicker.Selected(); ok {
 			m.cfg.Model = model.ID
 			m.state = stateDirty
 			m.saveErr = nil
@@ -124,11 +124,11 @@ func (m Model) startModelPicking() (Model, tea.Cmd) {
 	}
 
 	m.input = component.NewInput(
-		component.WithPlaceholder(modelSuggestPlaceholder),
-		component.WithPrompt(modelSuggestPrompt),
+		component.WithPlaceholder(modelPickerPlaceholder),
+		component.WithPrompt(modelPickerPrompt),
 	)
 	m.input.SetWidth(m.width)
-	m.modelSuggestions.SetModels(models, m.cfg.Model)
+	m.modelPicker.SetModels(models, m.cfg.Model)
 	m.returnState = m.state
 	m.state = statePickingModel
 	m.resizeViewport()

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
@@ -15,12 +14,9 @@ import (
 const (
 	hintsText           = "Enter Submit • Ctrl+p Sessions • Ctrl+o Thinking • Ctrl+t Tools"
 	activeTurnHintsText = "Esc Cancel • Ctrl+p Sessions • Ctrl+o Thinking • Ctrl+t Tools"
-	defaultTurnLabel    = "Generating..."
 )
 
 type statusBar struct {
-	spinner spinner.Model
-
 	turnActive bool
 	model      string
 	cwd        string
@@ -30,18 +26,13 @@ type statusBar struct {
 }
 
 func newStatusBar(model, cwd string) statusBar {
-	sp := spinner.New()
-	sp.Spinner = spinner.MiniDot
-	sp.Style = lipgloss.NewStyle().Foreground(sessionTheme.Primary)
-
 	return statusBar{
-		spinner: sp,
-		model:   model,
-		cwd:     utils.CompactHome(cwd),
+		model: model,
+		cwd:   utils.CompactHome(cwd),
 	}
 }
 
-func (s statusBar) Update(msg tea.Msg) (statusBar, tea.Cmd, bool) {
+func (s statusBar) Update(msg tea.Msg) (statusBar, tea.Cmd) {
 	switch msg := msg.(type) {
 	case sessionEventMsg:
 		switch msg.event.Type {
@@ -52,67 +43,34 @@ func (s statusBar) Update(msg tea.Msg) (statusBar, tea.Cmd, bool) {
 			s.turnActive = false
 		}
 
-		return s, nil, false
-
 	case turnStartedMsg:
 		s.turnActive = true
 
-		return s, s.spinner.Tick, false
-
 	case turnStoppedMsg:
 		s.turnActive = false
-
-		return s, nil, false
-
-	case spinner.TickMsg:
-		if !s.turnActive {
-			return s, nil, true
-		}
-
-		var cmd tea.Cmd
-
-		s.spinner, cmd = s.spinner.Update(msg)
-
-		return s, cmd, true
 	}
 
-	return s, nil, false
+	return s, nil
 }
 
-func (s statusBar) TurnActive() bool {
-	return s.turnActive
+func (s statusBar) View() string {
+	var parts []string
+	if meta := s.metaView(); meta != "" {
+		parts = append(parts, meta)
+	}
+
+	if hints := s.hintsView(); hints != "" {
+		parts = append(parts, hints)
+	}
+
+	return strings.Join(parts, "\n")
 }
 
 func (s *statusBar) setSize(width int) {
 	s.width = width
 }
 
-func (s statusBar) StatusView() string {
-	if !s.turnActive {
-		return ""
-	}
-
-	return subtleTextStyle.Width(s.width).Render(s.spinner.View() + " " + defaultTurnLabel)
-}
-
-func (s statusBar) HintsView() string {
-	hints := s.hintsText()
-	if hints == "" {
-		return ""
-	}
-
-	return hintsStyle.Width(s.width).Align(lipgloss.Center).Render(hints)
-}
-
-func (s statusBar) hintsText() string {
-	if s.turnActive {
-		return activeTurnHintsText
-	}
-
-	return hintsText
-}
-
-func (s statusBar) MetaView() string {
+func (s statusBar) metaView() string {
 	if s.width <= 0 {
 		return ""
 	}
@@ -132,6 +90,15 @@ func (s statusBar) MetaView() string {
 	placeSegment(row, right, max(s.width-lipgloss.Width(right), 0))
 
 	return textStyle.Render(strings.TrimRight(string(row), " "))
+}
+
+func (s statusBar) hintsView() string {
+	hints := hintsText
+	if s.turnActive {
+		hints = activeTurnHintsText
+	}
+
+	return hintsStyle.Width(s.width).Align(lipgloss.Center).Render(hints)
 }
 
 func statsText(stats *sessiondata.TurnStats) string {

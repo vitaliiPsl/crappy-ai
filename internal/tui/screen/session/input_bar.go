@@ -16,8 +16,8 @@ const (
 )
 
 type inputBar struct {
-	input       component.Input
-	suggestions commandSuggestions
+	input    component.Input
+	commands commandPicker
 }
 
 func newInputBar(registry *command.Registry) inputBar {
@@ -28,7 +28,7 @@ func newInputBar(registry *command.Registry) inputBar {
 			component.WithPrompt(inputPrompt),
 			component.WithMaxHeight(inputMaxHeight),
 		),
-		suggestions: newCommandSuggestions(registry),
+		commands: newCommandPicker(registry),
 	}
 }
 
@@ -55,11 +55,14 @@ func (b inputBar) Update(msg tea.Msg) (inputBar, tea.Cmd, bool) {
 }
 
 func (b inputBar) View() string {
-	return b.input.View()
-}
+	input := strings.TrimRight(b.input.View(), "\n")
 
-func (b inputBar) SuggestionsView() string {
-	return b.suggestions.View()
+	suggestions := b.commands.View()
+	if suggestions == "" {
+		return input
+	}
+
+	return suggestions + "\n" + input
 }
 
 func (b *inputBar) setSize(width int) {
@@ -75,7 +78,7 @@ func (b inputBar) shouldPassThrough(msg tea.Msg) bool {
 		case "ctrl+o", "ctrl+t", "pgup", "pgdown":
 			return true
 		case "up", "down":
-			return !b.suggestions.Active()
+			return !b.commands.Active()
 		}
 	}
 
@@ -85,29 +88,29 @@ func (b inputBar) shouldPassThrough(msg tea.Msg) bool {
 func (b inputBar) handleSuggestionKey(key tea.KeyMsg) (inputBar, bool) {
 	switch key.String() {
 	case "up":
-		consumed := b.suggestions.Previous()
+		consumed := b.commands.Previous()
 
 		return b, consumed
 	case "down":
-		consumed := b.suggestions.Next()
+		consumed := b.commands.Next()
 
 		return b, consumed
 	case "esc":
-		if !b.suggestions.Active() {
+		if !b.commands.Active() {
 			return b, false
 		}
 
-		b.suggestions.Clear()
+		b.commands.Clear()
 
 		return b, true
 	case "enter":
-		value, ok := b.suggestions.Completion(b.input.Value())
+		value, ok := b.commands.Completion(b.input.Value())
 		if !ok {
 			return b, false
 		}
 
 		b.input.SetValue(value)
-		b.suggestions.Clear()
+		b.commands.Clear()
 
 		return b, true
 	default:
@@ -131,7 +134,7 @@ func (b inputBar) updateInput(msg tea.Msg) (inputBar, tea.Cmd, bool) {
 	)
 
 	b.input, cmd, out = b.input.Update(msg)
-	b.suggestions.Update(b.input.Value())
+	b.commands.Update(b.input.Value())
 
 	if submit, ok := out.(component.ConfirmMsg); ok {
 		return b.handleSubmit(submit.Value)
@@ -146,7 +149,7 @@ func (b inputBar) handleSubmit(value string) (inputBar, tea.Cmd, bool) {
 	}
 
 	b.input.Reset()
-	b.suggestions.Clear()
+	b.commands.Clear()
 
 	if cmdMsg, ok := parseCommand(value); ok {
 		return b, func() tea.Msg { return cmdMsg }, true

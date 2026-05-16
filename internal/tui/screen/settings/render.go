@@ -60,7 +60,7 @@ func (m Model) View() string {
 	hintsView := hintsStyle.Width(m.width).Align(lipgloss.Center).Render(m.hintsText())
 
 	parts := []string{header, "", m.fields.View()}
-	if suggestions := m.modelSuggestionsView(); suggestions != "" {
+	if suggestions := m.modelPickerView(); suggestions != "" {
 		parts = append(parts, suggestions)
 	}
 
@@ -145,12 +145,12 @@ func (m Model) inputView() string {
 	return label + "\n" + m.input.View()
 }
 
-func (m Model) modelSuggestionsView() string {
+func (m Model) modelPickerView() string {
 	if m.state != statePickingModel {
 		return ""
 	}
 
-	return m.modelSuggestions.View()
+	return m.modelPicker.View()
 }
 
 func (m *Model) resizeViewport() {
@@ -160,7 +160,7 @@ func (m *Model) resizeViewport() {
 	}
 
 	suggestionsHeight := 0
-	if suggestions := m.modelSuggestionsView(); suggestions != "" {
+	if suggestions := m.modelPickerView(); suggestions != "" {
 		suggestionsHeight = lipgloss.Height(suggestions)
 	}
 

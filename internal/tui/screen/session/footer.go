@@ -10,12 +10,14 @@ import (
 )
 
 type footer struct {
+	turn   turnIndicator
 	input  inputBar
 	status statusBar
 }
 
 func newFooter(registry *command.Registry, model, cwd string) footer {
 	return footer{
+		turn:   newTurnIndicator(),
 		input:  newInputBar(registry),
 		status: newStatusBar(model, cwd),
 	}
@@ -33,14 +35,17 @@ func (f footer) Update(msg tea.Msg) (footer, tea.Cmd, bool) {
 		consumed bool
 	)
 
-	f.status, cmd, consumed = f.status.Update(msg)
-
+	f.turn, cmd, consumed = f.turn.Update(msg)
 	cmds = append(cmds, cmd)
+
+	f.status, cmd = f.status.Update(msg)
+	cmds = append(cmds, cmd)
+
 	if consumed {
 		return f, tea.Batch(cmds...), true
 	}
 
-	if f.status.TurnActive() {
+	if f.turn.Active() {
 		return f, tea.Batch(cmds...), false
 	}
 
@@ -53,22 +58,14 @@ func (f footer) Update(msg tea.Msg) (footer, tea.Cmd, bool) {
 func (f footer) View() string {
 	var parts []string
 
-	if status := f.status.StatusView(); status != "" {
+	if turn := f.turn.View(); turn != "" {
+		parts = append(parts, turn)
+	}
+
+	parts = append(parts, f.input.View())
+
+	if status := f.status.View(); status != "" {
 		parts = append(parts, status)
-	}
-
-	if suggestions := f.input.SuggestionsView(); suggestions != "" {
-		parts = append(parts, suggestions)
-	}
-
-	parts = append(parts, strings.TrimRight(f.input.View(), "\n"))
-
-	if meta := f.status.MetaView(); meta != "" {
-		parts = append(parts, meta)
-	}
-
-	if hints := f.status.HintsView(); hints != "" {
-		parts = append(parts, hints)
 	}
 
 	return strings.Join(parts, "\n")
@@ -79,6 +76,7 @@ func (f footer) Height() int {
 }
 
 func (f *footer) setSize(width int) {
+	f.turn.setSize(width)
 	f.input.setSize(width)
 	f.status.setSize(width)
 }
