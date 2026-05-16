@@ -1,6 +1,6 @@
 package settings
 
-import appsettings "github.com/vitaliiPsl/crappy-ai/internal/settings"
+import settings "github.com/vitaliiPsl/crappy-ai/internal/settings/models"
 
 const (
 	conversationSection = "Conversation"
@@ -116,7 +116,7 @@ func providerOptions(m Model) []string {
 	return out
 }
 
-func (m Model) provider() appsettings.ProviderSettings {
+func (m Model) provider() settings.ProviderSettings {
 	for _, p := range m.settings.Providers {
 		if p.Name == m.cfg.Provider {
 			return p
@@ -129,10 +129,10 @@ func (m Model) provider() appsettings.ProviderSettings {
 		}
 	}
 
-	return appsettings.ProviderSettings{Name: m.cfg.Provider, API: m.cfg.Provider}
+	return settings.ProviderSettings{Name: m.cfg.Provider, API: m.cfg.Provider}
 }
 
-func (m *Model) setProvider(provider appsettings.ProviderSettings) {
+func (m *Model) setProvider(provider settings.ProviderSettings) {
 	for i, p := range m.settings.Providers {
 		if p.Name == provider.Name {
 			m.settings.Providers[i] = provider

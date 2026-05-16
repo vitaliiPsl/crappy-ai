@@ -5,14 +5,15 @@ import (
 
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/settings"
+	settingsmodels "github.com/vitaliiPsl/crappy-ai/internal/settings/models"
 )
 
 func testSettings() settings.Settings {
 	return settings.Settings{
-		Providers: []settings.ProviderSettings{
-			{Name: settings.ProviderAnthropic, API: settings.ProviderAnthropic, APIKey: "test-key"},
-			{Name: settings.ProviderOpenAI, API: settings.ProviderOpenAI, APIKey: "test-key"},
-			{Name: settings.ProviderGoogle, API: settings.ProviderGoogle, APIKey: "test-key"},
+		Providers: []settingsmodels.ProviderSettings{
+			{Name: settingsmodels.ProviderAnthropic, API: settingsmodels.ProviderAnthropic, APIKey: "test-key"},
+			{Name: settingsmodels.ProviderOpenAI, API: settingsmodels.ProviderOpenAI, APIKey: "test-key"},
+			{Name: settingsmodels.ProviderGoogle, API: settingsmodels.ProviderGoogle, APIKey: "test-key"},
 		},
 	}
 }
@@ -35,13 +36,13 @@ func TestGetProviders(t *testing.T) {
 func TestGetProvider(t *testing.T) {
 	r := newTestRegistry(t)
 
-	p, err := r.GetProvider(settings.ProviderAnthropic)
+	p, err := r.GetProvider(settingsmodels.ProviderAnthropic)
 	if err != nil {
 		t.Fatalf("GetProvider: %v", err)
 	}
 
-	if p.Name != settings.ProviderAnthropic {
-		t.Errorf("Name = %q, want %q", p.Name, settings.ProviderAnthropic)
+	if p.Name != settingsmodels.ProviderAnthropic {
+		t.Errorf("Name = %q, want %q", p.Name, settingsmodels.ProviderAnthropic)
 	}
 
 	if _, err := r.GetProvider("unknown"); err == nil {
@@ -56,7 +57,7 @@ func TestBuildModel_RequiresProvider(t *testing.T) {
 }
 
 func TestBuildModel_RequiresModel(t *testing.T) {
-	cfg := config.Config{Provider: settings.ProviderAnthropic}
+	cfg := config.Config{Provider: settingsmodels.ProviderAnthropic}
 	if _, err := buildModel(testSettings(), cfg); err == nil {
 		t.Fatal("expected error for empty model")
 	}
@@ -71,7 +72,7 @@ func TestBuildModel_UnknownProvider(t *testing.T) {
 
 func TestBuildModel_UnknownAPI(t *testing.T) {
 	s := settings.Settings{
-		Providers: []settings.ProviderSettings{
+		Providers: []settingsmodels.ProviderSettings{
 			{Name: "weird", API: "weird-api", APIKey: "k"},
 		},
 	}
@@ -88,12 +89,12 @@ func TestBuildModel_NoAPIKey(t *testing.T) {
 	t.Setenv(envVar, "")
 
 	s := settings.Settings{
-		Providers: []settings.ProviderSettings{
-			{Name: settings.ProviderAnthropic, API: settings.ProviderAnthropic, APIKeyEnv: envVar},
+		Providers: []settingsmodels.ProviderSettings{
+			{Name: settingsmodels.ProviderAnthropic, API: settingsmodels.ProviderAnthropic, APIKeyEnv: envVar},
 		},
 	}
 
-	cfg := config.Config{Provider: settings.ProviderAnthropic, Model: "claude-sonnet-4"}
+	cfg := config.Config{Provider: settingsmodels.ProviderAnthropic, Model: "claude-sonnet-4"}
 	if _, err := buildModel(s, cfg); err == nil {
 		t.Fatal("expected error for missing api key")
 	}
@@ -105,12 +106,12 @@ func TestBuildModel_APIKeyFromEnv(t *testing.T) {
 	t.Setenv(envVar, "from-env")
 
 	s := settings.Settings{
-		Providers: []settings.ProviderSettings{
-			{Name: settings.ProviderAnthropic, API: settings.ProviderAnthropic, APIKeyEnv: envVar},
+		Providers: []settingsmodels.ProviderSettings{
+			{Name: settingsmodels.ProviderAnthropic, API: settingsmodels.ProviderAnthropic, APIKeyEnv: envVar},
 		},
 	}
 
-	cfg := config.Config{Provider: settings.ProviderAnthropic, Model: "claude-sonnet-4"}
+	cfg := config.Config{Provider: settingsmodels.ProviderAnthropic, Model: "claude-sonnet-4"}
 
 	m, err := buildModel(s, cfg)
 	if err != nil {
@@ -127,9 +128,9 @@ func TestBuildModel_DispatchesToEachProvider(t *testing.T) {
 		provider string
 		model    string
 	}{
-		{settings.ProviderAnthropic, "claude-sonnet-4"},
-		{settings.ProviderOpenAI, "gpt-5"},
-		{settings.ProviderGoogle, "gemini-3-flash"},
+		{settingsmodels.ProviderAnthropic, "claude-sonnet-4"},
+		{settingsmodels.ProviderOpenAI, "gpt-5"},
+		{settingsmodels.ProviderGoogle, "gemini-3-flash"},
 	}
 
 	for _, tc := range cases {

@@ -7,6 +7,7 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/server"
 	appsettings "github.com/vitaliiPsl/crappy-ai/internal/settings"
+	settingsmodels "github.com/vitaliiPsl/crappy-ai/internal/settings/models"
 	"github.com/vitaliiPsl/crappy-ai/internal/tui/component"
 )
 
@@ -15,7 +16,7 @@ type Model struct {
 
 	cfg       config.Config
 	settings  appsettings.Settings
-	providers []appsettings.ProviderSettings
+	providers []settingsmodels.ProviderSettings
 	fields    []fieldDef
 
 	cursor  int

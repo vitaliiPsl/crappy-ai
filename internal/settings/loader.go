@@ -1,9 +1,11 @@
 package settings
 
 import (
+	"context"
 	"fmt"
 	"os"
 
+	"github.com/vitaliiPsl/crappy-ai/internal/settings/models"
 	"github.com/vitaliiPsl/crappy-ai/internal/utils"
 )
 
@@ -21,13 +23,21 @@ func Load() (*Store, error) {
 		}
 	}
 
-	settings := merge(defaults(), fileSettings)
+	base := defaults()
+	models.ApplyModels(utils.ExpandHome(base.ModelsPath), base.Providers)
+
+	settings := merge(base, fileSettings)
 	settings = merge(settings, fromEnv())
 
 	settings.ConfigPath = utils.ExpandHome(settings.ConfigPath)
 	settings.SessionsDir = utils.ExpandHome(settings.SessionsDir)
+	settings.ModelsPath = utils.ExpandHome(settings.ModelsPath)
 
 	return NewStore(settings, expandedPath), nil
+}
+
+func RefreshModels(ctx context.Context, s Settings) error {
+	return models.Refresh(ctx, s.ModelsPath, s.Providers)
 }
 
 func resolvePath() string {
@@ -41,5 +51,6 @@ func resolvePath() string {
 func fromEnv() Settings {
 	return Settings{
 		SessionsDir: os.Getenv(EnvSessionsDir),
+		ModelsPath:  os.Getenv(EnvModelsPath),
 	}
 }

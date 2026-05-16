@@ -8,6 +8,7 @@ import (
 
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/settings"
+	settingsmodels "github.com/vitaliiPsl/crappy-ai/internal/settings/models"
 )
 
 type Registry struct {
@@ -18,14 +19,14 @@ func NewRegistry(settingsStore *settings.Store) *Registry {
 	return &Registry{settingsStore: settingsStore}
 }
 
-func (r *Registry) GetProviders() []settings.ProviderSettings {
+func (r *Registry) GetProviders() []settingsmodels.ProviderSettings {
 	return r.settingsStore.Get().Providers
 }
 
-func (r *Registry) GetProvider(name string) (settings.ProviderSettings, error) {
+func (r *Registry) GetProvider(name string) (settingsmodels.ProviderSettings, error) {
 	p, ok := findProvider(r.settingsStore.Get().Providers, name)
 	if !ok {
-		return settings.ProviderSettings{}, fmt.Errorf("unknown provider %q", name)
+		return settingsmodels.ProviderSettings{}, fmt.Errorf("unknown provider %q", name)
 	}
 
 	return p, nil
@@ -68,17 +69,17 @@ func buildModel(s settings.Settings, cfg config.Config) (kit.Model, error) {
 	return adapter(apiKey, provider.BaseURL, cfg.Model, modelConfig)
 }
 
-func findProvider(providers []settings.ProviderSettings, name string) (settings.ProviderSettings, bool) {
+func findProvider(providers []settingsmodels.ProviderSettings, name string) (settingsmodels.ProviderSettings, bool) {
 	for _, p := range providers {
 		if p.Name == name {
 			return p, true
 		}
 	}
 
-	return settings.ProviderSettings{}, false
+	return settingsmodels.ProviderSettings{}, false
 }
 
-func findModelConfig(provider settings.ProviderSettings, modelID string) kit.ModelConfig {
+func findModelConfig(provider settingsmodels.ProviderSettings, modelID string) kit.ModelConfig {
 	for _, model := range provider.Models {
 		if model.ID == modelID {
 			return model

@@ -3,6 +3,7 @@ package server
 import (
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/settings"
+	settingsmodels "github.com/vitaliiPsl/crappy-ai/internal/settings/models"
 )
 
 func (s *Server) GetConfig() config.Config {
@@ -21,6 +22,6 @@ func (s *Server) UpdateSettings(st settings.Settings) error {
 	return s.settingsStore.Save(st)
 }
 
-func (s *Server) GetProviders() []settings.ProviderSettings {
+func (s *Server) GetProviders() []settingsmodels.ProviderSettings {
 	return s.registry.GetProviders()
 }

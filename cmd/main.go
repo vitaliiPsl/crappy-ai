@@ -65,6 +65,12 @@ func run() error {
 	modelRegistry := models.NewRegistry(settingsStore)
 	toolRegistry := tools.NewRegistry()
 
+	go func() {
+		if err := settings.RefreshModels(context.Background(), settingsStore.Get()); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: refresh models from remote: %v\n", err)
+		}
+	}()
+
 	asst := assistant.New(configStore, sessStore, modelRegistry, toolRegistry)
 	srv := server.New(asst, settingsStore, configStore, sessStore, modelRegistry)
 

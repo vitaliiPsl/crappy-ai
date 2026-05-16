@@ -6,7 +6,7 @@ import (
 	"github.com/vitaliiPsl/crappy-adk/providers/google"
 	"github.com/vitaliiPsl/crappy-adk/providers/openai"
 
-	"github.com/vitaliiPsl/crappy-ai/internal/settings"
+	settings "github.com/vitaliiPsl/crappy-ai/internal/settings/models"
 )
 
 type apiAdapter func(apiKey, baseURL, modelID string, config kit.ModelConfig) (kit.Model, error)
