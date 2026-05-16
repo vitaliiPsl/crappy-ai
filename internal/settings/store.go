@@ -27,7 +27,7 @@ func (s *Store) Get() Settings {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	return s.settings
+	return cloneSettings(s.settings)
 }
 
 func (s *Store) Save(settings Settings) error {
@@ -78,7 +78,7 @@ func writeFile(path string, settings Settings) error {
 
 	tmp := path + ".tmp"
 
-	f, err := os.Create(tmp)
+	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return fmt.Errorf("create settings file: %w", err)
 	}
