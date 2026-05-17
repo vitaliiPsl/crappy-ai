@@ -9,7 +9,20 @@ import (
 var (
 	sessionTheme = theme.Default
 
-	thinkingLabelStyle = lipgloss.NewStyle().Foreground(sessionTheme.Muted).Italic(true)
+	thinkingHeaderStyle = lipgloss.NewStyle().
+				Foreground(sessionTheme.Muted).
+				Italic(true).
+				Bold(true)
+
+	toolNameStyle = lipgloss.NewStyle().Foreground(sessionTheme.Text).Bold(true)
+
+	toolBlockBase = lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder(), false, false, false, true).
+			PaddingLeft(1)
+
+	toolBlockPending = toolBlockBase.BorderForeground(sessionTheme.Warning)
+	toolBlockDone    = toolBlockBase.BorderForeground(sessionTheme.Success)
+	toolBlockError   = toolBlockBase.BorderForeground(sessionTheme.Error)
 
 	textStyle       = lipgloss.NewStyle().Foreground(sessionTheme.Text)
 	subtleTextStyle = lipgloss.NewStyle().Foreground(sessionTheme.SubtleText)
@@ -17,8 +30,6 @@ var (
 	errorStyle      = lipgloss.NewStyle().Foreground(sessionTheme.Error)
 	hintsStyle      = lipgloss.NewStyle().Foreground(sessionTheme.SubtleText)
 	systemStyle     = lipgloss.NewStyle().Foreground(sessionTheme.Muted)
-	successStyle    = lipgloss.NewStyle().Foreground(sessionTheme.Success)
-	warningStyle    = lipgloss.NewStyle().Foreground(sessionTheme.Warning)
 
 	userMessageStyle = lipgloss.NewStyle().
 				Background(sessionTheme.SurfaceAlt).

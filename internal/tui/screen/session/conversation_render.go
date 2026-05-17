@@ -17,23 +17,18 @@ const (
 		"  ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝        ╚═╝   "
 	emptyCompactLogoText = "CRAPPY"
 
-	systemLabel   = "System"
-	thinkingLabel = "Thinking"
+	systemLabel = "System"
 
-	emptyHeadline = "What do you want to understand today?"
+	emptyHeadline = "What are we working on today?"
 	emptySubtitle = "Notice patterns, untangle thoughts, or decide what matters next."
 
 	errorPrefix    = "Error: "
 	modelPrefix    = "Model: "
 	providerPrefix = "Provider: "
 
-	toolPendingIcon = "⏺"
-	toolDoneIcon    = "✓"
-	toolErrorIcon   = "!"
-	toolIndent      = "  "
-	toolCommandMark = "$ "
-	truncatedMark   = "..."
-	compactingText  = "Compacting context..."
+	toolIndent     = "  "
+	truncatedMark  = "..."
+	compactingText = "Compacting context..."
 
 	systemPad     = " "
 	systemDivider = "-"
@@ -136,9 +131,9 @@ func (conv *conversation) renderAssistantMessage(msg chatMessage) string {
 
 	contentWidth := max(0, conv.width-messagePadding)
 
-	if msg.thinking != "" && conv.showThinking {
-		b.WriteString(renderThinking(msg.thinking, contentWidth))
-		b.WriteByte('\n')
+	if msg.thinking != "" {
+		b.WriteString(renderThinking(msg.thinking, conv.showThinking, contentWidth))
+		b.WriteString("\n\n")
 	}
 
 	if msg.text != "" {
@@ -150,7 +145,7 @@ func (conv *conversation) renderAssistantMessage(msg chatMessage) string {
 		b.WriteString(conv.renderTool(tool))
 	}
 
-	return assistantMessageStyle.Render(strings.TrimRight(b.String(), "\n"))
+	return assistantMessageStyle.Render(b.String())
 }
 
 func (conv *conversation) renderSystemMessage(msg chatMessage) string {
@@ -175,49 +170,75 @@ func (conv *conversation) renderSystemBlock(name string, text string) string {
 }
 
 func (conv *conversation) renderTool(tool toolUse) string {
-	icon := warningStyle.Render(toolPendingIcon)
-	if tool.Done {
-		icon = successStyle.Render(toolDoneIcon)
-	}
-
-	if tool.Error != "" {
-		icon = errorStyle.Render(toolErrorIcon)
-	}
-
 	var b strings.Builder
-	b.WriteString(icon + systemPad + subtleTextStyle.Render(toolSummary(tool)) + "\n")
 
-	if tool.Error != "" {
-		b.WriteString(toolIndent + errorStyle.Render(truncate(tool.Error, maxResultLen)) + "\n")
+	head := toolNameStyle.Render(tool.Name)
+	if arg := toolInlineArg(tool); arg != "" {
+		head += "  " + subtleTextStyle.Render(arg)
 	}
 
-	if conv.showToolResult && tool.Done && tool.Result != "" {
-		b.WriteString(renderToolResult(tool.Result) + "\n")
+	b.WriteString(head)
+
+	if desc := toolSecondaryDescription(tool); desc != "" {
+		b.WriteString("\n" + subtleTextStyle.Render(desc))
 	}
-
-	return b.String()
-}
-
-func toolSummary(tool toolUse) string {
-	desc, _ := tool.Arguments["description"].(string)
-	cmd, _ := tool.Arguments["command"].(string)
-	path, _ := tool.Arguments["path"].(string)
-	rawURL, _ := tool.Arguments["url"].(string)
 
 	switch {
-	case desc != "" && cmd != "":
-		return fmt.Sprintf("%s: %s\n%s%s%s", tool.Name, desc, toolIndent, toolCommandMark, truncate(cmd, maxResultLen))
-	case desc != "":
-		return fmt.Sprintf("%s: %s", tool.Name, desc)
-	case rawURL != "":
-		return fmt.Sprintf("%s: %s", tool.Name, truncate(rawURL, maxResultLen))
-	case path != "":
-		return fmt.Sprintf("%s: %s", tool.Name, path)
-	case cmd != "":
-		return fmt.Sprintf("%s: %s%s", tool.Name, toolCommandMark, truncate(cmd, maxResultLen))
-	default:
-		return tool.Name
+	case tool.Error != "":
+		b.WriteString("\n" + errorStyle.Render(truncate(tool.Error, maxResultLen)))
+	case conv.showToolResult && tool.Done && tool.Result != "":
+		b.WriteString("\n" + renderToolResult(tool.Result))
 	}
+
+	return toolBlockStyle(tool).Render(b.String()) + "\n"
+}
+
+func toolBlockStyle(tool toolUse) lipgloss.Style {
+	switch {
+	case tool.Error != "":
+		return toolBlockError
+	case tool.Done:
+		return toolBlockDone
+	default:
+		return toolBlockPending
+	}
+}
+
+func toolInlineArg(tool toolUse) string {
+	if cmd, _ := tool.Arguments["command"].(string); cmd != "" {
+		return truncate(cmd, maxResultLen)
+	}
+
+	if path, _ := tool.Arguments["path"].(string); path != "" {
+		return path
+	}
+
+	if rawURL, _ := tool.Arguments["url"].(string); rawURL != "" {
+		return truncate(rawURL, maxResultLen)
+	}
+
+	if desc, _ := tool.Arguments["description"].(string); desc != "" {
+		return desc
+	}
+
+	return ""
+}
+
+func toolSecondaryDescription(tool toolUse) string {
+	desc, _ := tool.Arguments["description"].(string)
+	if desc == "" {
+		return ""
+	}
+
+	cmd, _ := tool.Arguments["command"].(string)
+	path, _ := tool.Arguments["path"].(string)
+
+	rawURL, _ := tool.Arguments["url"].(string)
+	if cmd == "" && path == "" && rawURL == "" {
+		return ""
+	}
+
+	return desc
 }
 
 func renderToolResult(result string) string {
@@ -235,7 +256,20 @@ func renderToolResult(result string) string {
 	return strings.TrimRight(b.String(), "\n")
 }
 
-func renderThinking(thinking string, width int) string {
-	return thinkingLabelStyle.Render(thinkingLabel) + "\n" +
-		thinkingStyle.Width(width).Render(thinking)
+func renderThinking(thinking string, expanded bool, width int) string {
+	header := thinkingHeaderStyle.Render("Thinking · " + thinkingSizeText(thinking))
+	if !expanded {
+		return header
+	}
+
+	return header + "\n\n" + thinkingStyle.Width(width).Render(thinking)
+}
+
+func thinkingSizeText(s string) string {
+	n := len([]rune(s))
+	if n >= 1000 {
+		return fmt.Sprintf("%.1fk chars", float64(n)/1000)
+	}
+
+	return fmt.Sprintf("%d chars", n)
 }
