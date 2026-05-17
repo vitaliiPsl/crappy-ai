@@ -17,10 +17,8 @@ const (
 		"  ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝        ╚═╝   "
 	emptyCompactLogoText = "CRAPPY"
 
-	assistantLabel = "Crappy"
-	userLabel      = "You"
-	systemLabel    = "System"
-	thinkingLabel  = "Thinking"
+	systemLabel   = "System"
+	thinkingLabel = "Thinking"
 
 	emptyHeadline = "What do you want to understand today?"
 	emptySubtitle = "Notice patterns, untangle thoughts, or decide what matters next."
@@ -47,7 +45,7 @@ const (
 )
 
 func (conv *conversation) refreshContent() {
-	if len(conv.messages) == 0 && !conv.turnActive && !conv.hasDraft() && !conv.compacting {
+	if len(conv.messages) == 0 && !conv.runActive && !conv.hasDraft() && !conv.compacting {
 		conv.viewport.SetContent(conv.renderEmpty())
 
 		return
@@ -60,8 +58,7 @@ func (conv *conversation) refreshContent() {
 			b.WriteByte('\n')
 		}
 
-		showLabel := i == 0 || conv.messages[i-1].role != msg.role
-		b.WriteString(conv.renderMessage(msg, showLabel))
+		b.WriteString(conv.renderMessage(msg))
 		b.WriteByte('\n')
 	}
 
@@ -74,13 +71,8 @@ func (conv *conversation) refreshContent() {
 		b.WriteByte('\n')
 	}
 
-	if conv.turnActive || conv.hasDraft() {
-		if (len(conv.messages) > 0 && conv.messages[len(conv.messages)-1].role != messageRoleModel) || conv.compacting {
-			b.WriteByte('\n')
-		}
-
-		lastIsAssistant := len(conv.messages) > 0 && conv.messages[len(conv.messages)-1].role == messageRoleModel
-		b.WriteString(conv.renderDraft(!lastIsAssistant))
+	if conv.runActive || conv.hasDraft() {
+		b.WriteString(conv.renderAssistantMessage(conv.draft))
 	}
 
 	conv.viewport.SetContent(b.String())
@@ -103,8 +95,7 @@ func (conv *conversation) renderEmpty() string {
 	lines := strings.Count(content, "\n")
 	pad := max((conv.height-lines-emptyPadFactor)/2, 0)
 
-	return strings.Repeat("\n", pad) +
-		lipgloss.NewStyle().Width(conv.width).Align(lipgloss.Center).Render(content)
+	return strings.Repeat("\n", pad) + emptyCenterStyle.Width(conv.width).Render(content)
 }
 
 func (conv conversation) emptyLogo() string {
@@ -115,7 +106,7 @@ func (conv conversation) emptyLogo() string {
 	return emptyLogoText
 }
 
-func (conv *conversation) renderMessage(msg chatMessage, showLabel bool) string {
+func (conv *conversation) renderMessage(msg chatMessage) string {
 	if msg.error != "" {
 		return errorStyle.Render(errorPrefix+msg.error) + "\n"
 	}
@@ -124,7 +115,7 @@ func (conv *conversation) renderMessage(msg chatMessage, showLabel bool) string 
 	case messageRoleUser:
 		return conv.renderUserMessage(msg)
 	case messageRoleModel:
-		return conv.renderAssistantMessage(msg, showLabel)
+		return conv.renderAssistantMessage(msg)
 	case messageRoleSystem:
 		return conv.renderSystemMessage(msg)
 	case messageRoleTool:
@@ -135,28 +126,23 @@ func (conv *conversation) renderMessage(msg chatMessage, showLabel bool) string 
 }
 
 func (conv *conversation) renderUserMessage(msg chatMessage) string {
-	content := userLabelStyle.Render(userLabel) + "\n" + textStyle.Render(msg.text)
+	content := "\n" + textStyle.Render(msg.text) + "\n"
 
 	return userMessageStyle.Width(conv.width).Render(content)
 }
 
-func (conv *conversation) renderAssistantMessage(msg chatMessage, showLabel bool) string {
+func (conv *conversation) renderAssistantMessage(msg chatMessage) string {
 	var b strings.Builder
 
-	if showLabel {
-		b.WriteString(assistantLabelStyle.Render(assistantLabel) + "\n")
-	}
+	contentWidth := max(0, conv.width-messagePadding)
 
-	if thinking := collapseBlankLines(msg.thinking); thinking != "" && conv.showThinking {
-		b.WriteString(renderThinking(thinking))
-
-		if msg.text != "" || len(msg.tools) > 0 {
-			b.WriteByte('\n')
-		}
+	if msg.thinking != "" && conv.showThinking {
+		b.WriteString(renderThinking(msg.thinking, contentWidth))
+		b.WriteByte('\n')
 	}
 
 	if msg.text != "" {
-		b.WriteString(textStyle.Width(max(0, conv.width-messagePadding)).Render(msg.text))
+		b.WriteString(textStyle.Width(contentWidth).Render(msg.text))
 		b.WriteByte('\n')
 	}
 
@@ -164,37 +150,7 @@ func (conv *conversation) renderAssistantMessage(msg chatMessage, showLabel bool
 		b.WriteString(conv.renderTool(tool))
 	}
 
-	return renderAssistantBlock(strings.TrimRight(b.String(), "\n"))
-}
-
-func (conv *conversation) renderDraft(showLabel bool) string {
-	var b strings.Builder
-
-	thinkingText := collapseBlankLines(conv.draft.thinking)
-	showThinking := thinkingText != "" && conv.showThinking
-
-	if showLabel && (showThinking || conv.draft.text != "" || len(conv.draft.tools) > 0) {
-		b.WriteString(assistantLabelStyle.Render(assistantLabel) + "\n")
-	}
-
-	if showThinking {
-		b.WriteString(renderThinking(thinkingText))
-
-		if conv.draft.text != "" || len(conv.draft.tools) > 0 {
-			b.WriteByte('\n')
-		}
-	}
-
-	if conv.draft.text != "" {
-		b.WriteString(textStyle.Width(max(0, conv.width-messagePadding)).Render(conv.draft.text))
-		b.WriteByte('\n')
-	}
-
-	for _, tool := range conv.draft.tools {
-		b.WriteString(conv.renderTool(tool))
-	}
-
-	return renderAssistantBlock(strings.TrimRight(b.String(), "\n"))
+	return assistantMessageStyle.Render(strings.TrimRight(b.String(), "\n"))
 }
 
 func (conv *conversation) renderSystemMessage(msg chatMessage) string {
@@ -279,15 +235,7 @@ func renderToolResult(result string) string {
 	return strings.TrimRight(b.String(), "\n")
 }
 
-func renderThinking(thinking string) string {
+func renderThinking(thinking string, width int) string {
 	return thinkingLabelStyle.Render(thinkingLabel) + "\n" +
-		thinkingStyle.Render(thinking) + "\n"
-}
-
-func renderAssistantBlock(content string) string {
-	if content == "" {
-		return ""
-	}
-
-	return assistantMessageStyle.Render(content)
+		thinkingStyle.Width(width).Render(thinking)
 }

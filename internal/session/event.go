@@ -37,9 +37,8 @@ type Event struct {
 	Type      EventType `json:"type"`
 	Timestamp time.Time `json:"timestamp"`
 
-	Content    *kit.Content    `json:"content,omitempty"`
-	Message    *kit.Message    `json:"message,omitempty"`
-	ToolResult *kit.ToolResult `json:"tool_result,omitempty"`
+	Content *kit.Content `json:"content,omitempty"`
+	Message *kit.Message `json:"message,omitempty"`
 
 	Error string `json:"error,omitempty"`
 
@@ -128,10 +127,7 @@ func FromKitEvent(sessionID string, e kit.AgentEvent) (Event, bool) {
 			return Event{}, false
 		}
 
-		ev := NewContentDoneEvent(sessionID, *e.Content)
-		ev.ToolResult = e.ToolResult
-
-		return ev, true
+		return NewContentDoneEvent(sessionID, *e.Content), true
 	case kit.EventMessage:
 		if e.Message == nil {
 			return Event{}, false

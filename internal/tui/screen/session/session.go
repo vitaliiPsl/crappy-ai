@@ -28,8 +28,8 @@ type Model struct {
 	footer       footer
 	eventChan    <-chan sessiondata.Event
 
-	err        error
-	turnActive bool
+	err       error
+	runActive bool
 
 	width  int
 	height int
@@ -115,7 +115,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	case sessionEventMsg:
 		switch msg.event.Type {
 		case sessiondata.EventTurnComplete, sessiondata.EventTurnCancelled, sessiondata.EventError:
-			m.turnActive = false
+			m.runActive = false
 		}
 
 		var cmd tea.Cmd
@@ -127,26 +127,26 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	case permissionPromptMsg:
 		return m, m.respondPrompt(msg.ToolCallID, msg.Response)
 
-	case turnStartedMsg:
-		m.turnActive = true
+	case runStartedMsg:
+		m.runActive = true
 
 		return m.updateChildren(msg)
 
 	case errorMsg:
-		m.turnActive = false
+		m.runActive = false
 		m.err = msg.err
 
-		return m.updateChildren(turnStoppedMsg{})
+		return m.updateChildren(runStoppedMsg{})
 
 	case submitMsg:
-		if m.turnActive {
+		if m.runActive {
 			return m, nil
 		}
 
 		return m.handleSubmit(msg.Text)
 
 	case commandMsg:
-		if m.turnActive {
+		if m.runActive {
 			return m, nil
 		}
 
@@ -160,14 +160,14 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, cmd
 
 	case command.CompactSessionMsg:
-		if m.turnActive || m.sessionID() == "" {
+		if m.runActive || m.sessionID() == "" {
 			return m, nil
 		}
 
 		return m, m.runCompact()
 
 	case tea.KeyMsg:
-		if msg.String() == "esc" && m.turnActive && !m.footer.HasPrompt() {
+		if msg.String() == "esc" && m.runActive && !m.footer.HasPrompt() {
 			m.server.CancelRun(m.sessionID())
 
 			return m, nil
@@ -241,7 +241,7 @@ func (m *Model) SetSize(width, height int) {
 }
 
 func (m *Model) Cleanup() {
-	if m.eventChan != nil && m.sessionID() != "" {
+	if m.eventChan != nil {
 		m.server.Unsubscribe(m.sessionID(), m.eventChan)
 		m.eventChan = nil
 	}
@@ -279,9 +279,9 @@ func (m Model) waitForEvent() tea.Cmd {
 	}
 }
 
-func (m Model) runTurn(text string) tea.Cmd {
+func (m Model) startRun(text string) tea.Cmd {
 	return tea.Batch(
-		func() tea.Msg { return turnStartedMsg{} },
+		func() tea.Msg { return runStartedMsg{} },
 		func() tea.Msg {
 			if err := m.server.Send(m.ctx, m.sessionID(), text); err != nil {
 				return errorMsg{err: err}
@@ -294,7 +294,7 @@ func (m Model) runTurn(text string) tea.Cmd {
 
 func (m Model) runCompact() tea.Cmd {
 	return tea.Batch(
-		func() tea.Msg { return turnStartedMsg{} },
+		func() tea.Msg { return runStartedMsg{} },
 		func() tea.Msg {
 			if err := m.server.Compact(m.ctx, m.sessionID()); err != nil {
 				return errorMsg{err: err}
@@ -302,7 +302,6 @@ func (m Model) runCompact() tea.Cmd {
 
 			return nil
 		},
-		m.waitForEvent(),
 	)
 }
 
@@ -322,9 +321,10 @@ func (m Model) handleSubmit(text string) (Model, tea.Cmd) {
 		m.eventChan = ch
 
 		cmds = append(cmds, func() tea.Msg { return CreatedMsg{SessionID: sess.ID} })
+		cmds = append(cmds, m.waitForEvent())
 	}
 
-	cmds = append(cmds, m.runTurn(text), m.waitForEvent())
+	cmds = append(cmds, m.startRun(text))
 
 	return m, tea.Batch(cmds...)
 }

@@ -9,9 +9,7 @@ import (
 var (
 	sessionTheme = theme.Default
 
-	userLabelStyle      = lipgloss.NewStyle().Foreground(sessionTheme.Primary).Bold(true)
-	assistantLabelStyle = lipgloss.NewStyle().Foreground(sessionTheme.Secondary).Bold(true)
-	thinkingLabelStyle  = lipgloss.NewStyle().Foreground(sessionTheme.Muted).Italic(true)
+	thinkingLabelStyle = lipgloss.NewStyle().Foreground(sessionTheme.Muted).Italic(true)
 
 	textStyle       = lipgloss.NewStyle().Foreground(sessionTheme.Text)
 	subtleTextStyle = lipgloss.NewStyle().Foreground(sessionTheme.SubtleText)
@@ -28,4 +26,6 @@ var (
 
 	assistantMessageStyle = lipgloss.NewStyle().
 				Padding(0, 1)
+
+	emptyCenterStyle = lipgloss.NewStyle().Align(lipgloss.Center)
 )

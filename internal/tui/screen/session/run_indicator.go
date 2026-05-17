@@ -8,23 +8,23 @@ import (
 	sessiondata "github.com/vitaliiPsl/crappy-ai/internal/session"
 )
 
-const defaultTurnLabel = "Generating..."
+const defaultRunLabel = "Generating..."
 
-type turnIndicator struct {
+type runIndicator struct {
 	spinner spinner.Model
 	active  bool
 	width   int
 }
 
-func newTurnIndicator() turnIndicator {
+func newRunIndicator() runIndicator {
 	sp := spinner.New()
 	sp.Spinner = spinner.MiniDot
 	sp.Style = lipgloss.NewStyle().Foreground(sessionTheme.Primary)
 
-	return turnIndicator{spinner: sp}
+	return runIndicator{spinner: sp}
 }
 
-func (t turnIndicator) Update(msg tea.Msg) (turnIndicator, tea.Cmd, bool) {
+func (t runIndicator) Update(msg tea.Msg) (runIndicator, tea.Cmd, bool) {
 	switch msg := msg.(type) {
 	case sessionEventMsg:
 		switch msg.event.Type {
@@ -36,12 +36,12 @@ func (t turnIndicator) Update(msg tea.Msg) (turnIndicator, tea.Cmd, bool) {
 
 		return t, nil, false
 
-	case turnStartedMsg:
+	case runStartedMsg:
 		t.active = true
 
 		return t, t.spinner.Tick, false
 
-	case turnStoppedMsg:
+	case runStoppedMsg:
 		t.active = false
 
 		return t, nil, false
@@ -61,18 +61,18 @@ func (t turnIndicator) Update(msg tea.Msg) (turnIndicator, tea.Cmd, bool) {
 	return t, nil, false
 }
 
-func (t turnIndicator) View() string {
+func (t runIndicator) View() string {
 	if !t.active {
 		return ""
 	}
 
-	return subtleTextStyle.Width(t.width).Render(t.spinner.View() + " " + defaultTurnLabel)
+	return subtleTextStyle.Width(t.width).Render(t.spinner.View() + " " + defaultRunLabel)
 }
 
-func (t turnIndicator) Active() bool {
+func (t runIndicator) Active() bool {
 	return t.active
 }
 
-func (t *turnIndicator) setSize(width int) {
+func (t *runIndicator) setSize(width int) {
 	t.width = width
 }

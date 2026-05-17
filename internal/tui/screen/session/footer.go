@@ -12,7 +12,7 @@ import (
 )
 
 type footer struct {
-	turn   turnIndicator
+	run    runIndicator
 	input  inputBar
 	status statusBar
 	prompt *permissionPrompt
@@ -22,7 +22,7 @@ type footer struct {
 
 func newFooter(registry *command.Registry, model, cwd string) footer {
 	return footer{
-		turn:   newTurnIndicator(),
+		run:    newRunIndicator(),
 		input:  newInputBar(registry),
 		status: newStatusBar(model, cwd),
 	}
@@ -44,7 +44,7 @@ func (f footer) Update(msg tea.Msg) (footer, tea.Cmd, bool) {
 		consumed bool
 	)
 
-	f.turn, cmd, consumed = f.turn.Update(msg)
+	f.run, cmd, consumed = f.run.Update(msg)
 	cmds = append(cmds, cmd)
 
 	f.status, cmd = f.status.Update(msg)
@@ -77,7 +77,7 @@ func (f footer) Update(msg tea.Msg) (footer, tea.Cmd, bool) {
 		return f, tea.Batch(cmds...), true
 	}
 
-	if f.turn.Active() {
+	if f.run.Active() {
 		return f, tea.Batch(cmds...), false
 	}
 
@@ -90,8 +90,8 @@ func (f footer) Update(msg tea.Msg) (footer, tea.Cmd, bool) {
 func (f footer) View() string {
 	var parts []string
 
-	if turn := f.turn.View(); turn != "" {
-		parts = append(parts, turn)
+	if run := f.run.View(); run != "" {
+		parts = append(parts, run)
 	}
 
 	parts = append(parts, f.bodyView())
@@ -113,7 +113,7 @@ func (f footer) HasPrompt() bool {
 
 func (f *footer) setSize(width int) {
 	f.width = width
-	f.turn.setSize(width)
+	f.run.setSize(width)
 	f.input.setSize(width)
 	f.status.setSize(width)
 

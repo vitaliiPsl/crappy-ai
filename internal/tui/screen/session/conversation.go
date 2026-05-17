@@ -43,7 +43,7 @@ type chatMessage struct {
 type conversation struct {
 	messages []chatMessage
 
-	turnActive bool
+	runActive  bool
 	compacting bool
 	draft      chatMessage
 
@@ -83,23 +83,26 @@ func (conv conversation) Update(msg tea.Msg) (conversation, tea.Cmd) {
 
 		return conv, nil
 
+	case runStartedMsg:
+		conv.startRun()
+
+		return conv, nil
+
+	case runStoppedMsg:
+		conv.stopRun()
+
+		return conv, nil
+
 	case sessionEventMsg:
-		conv.handleLiveEvent(msg.event)
-
-		return conv, nil
-
-	case turnStartedMsg:
-		conv.startTurn()
-
-		return conv, nil
-
-	case turnStoppedMsg:
-		conv.stopTurn()
+		conv.handleRunEvent(msg.event)
 
 		return conv, nil
 
 	case systemMessageMsg:
-		conv.messages = append(conv.messages, chatMessage{role: messageRoleSystem, text: msg.Text})
+		conv.messages = append(conv.messages, chatMessage{
+			role: messageRoleSystem,
+			text: msg.Text,
+		})
 		conv.refreshContent()
 
 		return conv, nil
@@ -139,11 +142,24 @@ func (conv *conversation) setSize(width, height int) {
 	conv.refreshContent()
 }
 
+func (conv *conversation) startRun() {
+	conv.runActive = true
+	conv.resetDraft()
+	conv.refreshContentPreservingFollow()
+}
+
+func (conv *conversation) stopRun() {
+	conv.runActive = false
+	conv.compacting = false
+	conv.resetDraft()
+	conv.refreshContent()
+}
+
 func (conv *conversation) loadEvents(events []sessiondata.Event) {
 	conv.messages = nil
-	conv.turnActive = false
-	conv.resetDraft()
+	conv.runActive = false
 	conv.compacting = false
+	conv.resetDraft()
 
 	for _, ev := range events {
 		conv.handleEvent(ev)
@@ -153,7 +169,7 @@ func (conv *conversation) loadEvents(events []sessiondata.Event) {
 	conv.viewport.GotoBottom()
 }
 
-func (conv *conversation) handleLiveEvent(ev sessiondata.Event) {
+func (conv *conversation) handleRunEvent(ev sessiondata.Event) {
 	conv.handleEvent(ev)
 	conv.refreshContentPreservingFollow()
 }
@@ -167,7 +183,7 @@ func (conv *conversation) handleEvent(ev sessiondata.Event) {
 		conv.handleContentDelta(ev.Content)
 
 	case sessiondata.EventContentDone:
-		conv.handleContentDone(ev.Content, ev.ToolResult)
+		conv.handleContentDone(ev.Content)
 
 	case sessiondata.EventMessage:
 		if ev.Message != nil {
@@ -175,11 +191,10 @@ func (conv *conversation) handleEvent(ev sessiondata.Event) {
 		}
 
 	case sessiondata.EventTurnComplete, sessiondata.EventTurnCancelled:
-		conv.stopTurn()
+		conv.stopRun()
 
 	case sessiondata.EventError:
-		conv.stopTurn()
-		conv.compacting = false
+		conv.stopRun()
 
 		if ev.Error != "" {
 			conv.messages = append(conv.messages, chatMessage{error: ev.Error})
@@ -211,14 +226,10 @@ func (conv *conversation) handleContentDelta(content *kit.Content) {
 		if content.Thinking != nil {
 			conv.ensureDraft().thinking += content.Thinking.Text
 		}
-	case kit.ContentTypeToolResult:
-		if content.ToolResult != nil {
-			conv.mergeDraftToolResult(*content.ToolResult)
-		}
 	}
 }
 
-func (conv *conversation) handleContentDone(content *kit.Content, result *kit.ToolResult) {
+func (conv *conversation) handleContentDone(content *kit.Content) {
 	if content == nil {
 		return
 	}
@@ -244,9 +255,7 @@ func (conv *conversation) handleContentDone(content *kit.Content, result *kit.To
 			conv.addDraftTool(*content.ToolCall)
 		}
 	case kit.ContentTypeToolResult:
-		if result != nil {
-			conv.mergeDraftToolResult(*result)
-		} else if content.ToolResult != nil {
+		if content.ToolResult != nil {
 			conv.mergeDraftToolResult(*content.ToolResult)
 		}
 	}
@@ -270,8 +279,34 @@ func (conv *conversation) commitMessage(msg kit.Message) {
 	conv.messages = append(conv.messages, toChatMessage(msg))
 }
 
-func (conv *conversation) resetDraft() {
-	conv.draft = chatMessage{}
+func (conv *conversation) appendSummaryMessage(text string) {
+	if text == "" {
+		return
+	}
+
+	if len(conv.messages) > 0 {
+		last := conv.messages[len(conv.messages)-1]
+		if last.role == messageRoleSystem && last.text == text {
+			return
+		}
+	}
+
+	conv.messages = append(conv.messages, chatMessage{role: messageRoleSystem, text: text})
+}
+
+func (conv *conversation) mergeToolMessage(msg kit.Message) {
+	for _, result := range msg.ToolResults() {
+		if !conv.setMessageToolResult(result) {
+			conv.messages = append(conv.messages, chatMessage{
+				role: messageRoleTool,
+				text: toolResultText(result),
+			})
+		}
+	}
+
+	if len(msg.ToolResults()) == 0 && messageText(msg) != "" {
+		conv.messages = append(conv.messages, chatMessage{role: messageRoleTool, text: messageText(msg)})
+	}
 }
 
 func (conv *conversation) addDraftTool(call kit.ToolCall) {
@@ -348,55 +383,16 @@ func (conv *conversation) setMessageToolResult(result kit.ToolResult) bool {
 	return false
 }
 
-func (conv *conversation) appendSummaryMessage(text string) {
-	if text == "" {
-		return
-	}
-
-	if len(conv.messages) > 0 {
-		last := conv.messages[len(conv.messages)-1]
-		if last.role == messageRoleSystem && last.text == text {
-			return
-		}
-	}
-
-	conv.messages = append(conv.messages, chatMessage{role: messageRoleSystem, text: text})
-}
-
-func (conv *conversation) mergeToolMessage(msg kit.Message) {
-	for _, result := range msg.ToolResults() {
-		if !conv.setMessageToolResult(result) {
-			conv.messages = append(conv.messages, chatMessage{
-				role: messageRoleTool,
-				text: toolResultText(result),
-			})
-		}
-	}
-
-	if len(msg.ToolResults()) == 0 && messageText(msg) != "" {
-		conv.messages = append(conv.messages, chatMessage{role: messageRoleTool, text: messageText(msg)})
-	}
-}
-
-func (conv *conversation) startTurn() {
-	conv.turnActive = true
-	conv.resetDraft()
-	conv.refreshContentPreservingFollow()
-}
-
-func (conv *conversation) stopTurn() {
-	conv.turnActive = false
-	conv.resetDraft()
-	conv.compacting = false
-	conv.refreshContent()
-}
-
 func (conv *conversation) ensureDraft() *chatMessage {
 	if conv.draft.role == "" {
 		conv.draft.role = messageRoleModel
 	}
 
 	return &conv.draft
+}
+
+func (conv *conversation) resetDraft() {
+	conv.draft = chatMessage{}
 }
 
 func (conv *conversation) hasDraft() bool {

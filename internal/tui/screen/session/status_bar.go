@@ -17,7 +17,7 @@ const (
 )
 
 type statusBar struct {
-	turnActive    bool
+	runActive     bool
 	model         string
 	cwd           string
 	stats         *sessiondata.TurnStats
@@ -42,17 +42,17 @@ func (s statusBar) Update(msg tea.Msg) (statusBar, tea.Cmd) {
 	case sessionEventMsg:
 		switch msg.event.Type {
 		case sessiondata.EventTurnComplete:
-			s.turnActive = false
+			s.runActive = false
 			s.stats = msg.event.Stats
 		case sessiondata.EventTurnCancelled, sessiondata.EventError:
-			s.turnActive = false
+			s.runActive = false
 		}
 
-	case turnStartedMsg:
-		s.turnActive = true
+	case runStartedMsg:
+		s.runActive = true
 
-	case turnStoppedMsg:
-		s.turnActive = false
+	case runStoppedMsg:
+		s.runActive = false
 	}
 
 	return s, nil
@@ -99,7 +99,7 @@ func (s statusBar) metaView() string {
 
 func (s statusBar) hintsView() string {
 	hints := hintsText
-	if s.turnActive {
+	if s.runActive {
 		hints = activeTurnHintsText
 	}
 
