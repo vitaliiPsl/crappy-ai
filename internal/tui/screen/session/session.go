@@ -83,7 +83,7 @@ func openInitialSession(
 		return nil, nil, err
 	}
 
-	eventChan, err := srv.Attach(ctx, sessionID)
+	eventChan, err := srv.Subscribe(ctx, sessionID)
 	if err != nil {
 		return sess, nil, err
 	}
@@ -168,7 +168,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		if msg.String() == "esc" && m.turnActive && !m.footer.HasPrompt() {
-			m.server.CancelTurn(m.sessionID())
+			m.server.CancelRun(m.sessionID())
 
 			return m, nil
 		}
@@ -242,7 +242,7 @@ func (m *Model) SetSize(width, height int) {
 
 func (m *Model) Cleanup() {
 	if m.eventChan != nil && m.sessionID() != "" {
-		m.server.Detach(m.sessionID(), m.eventChan)
+		m.server.Unsubscribe(m.sessionID(), m.eventChan)
 		m.eventChan = nil
 	}
 }
@@ -283,7 +283,7 @@ func (m Model) runTurn(text string) tea.Cmd {
 	return tea.Batch(
 		func() tea.Msg { return turnStartedMsg{} },
 		func() tea.Msg {
-			if err := m.server.RunTurn(m.ctx, m.sessionID(), text); err != nil {
+			if err := m.server.Send(m.ctx, m.sessionID(), text); err != nil {
 				return errorMsg{err: err}
 			}
 
@@ -335,7 +335,7 @@ func (m Model) createSession(title string) (*sessiondata.Session, <-chan session
 		return nil, nil, err
 	}
 
-	ch, err := m.server.Attach(m.ctx, sess.ID)
+	ch, err := m.server.Subscribe(m.ctx, sess.ID)
 	if err != nil {
 		return nil, nil, err
 	}

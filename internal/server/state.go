@@ -9,10 +9,10 @@ import (
 )
 
 type sessionState struct {
-	mu         sync.Mutex
-	clients    []chan session.Event
-	cancelTurn context.CancelFunc
-	pending    map[string]*pendingPrompt
+	mu      sync.Mutex
+	subs    []*subscriber
+	cancel  context.CancelFunc
+	pending map[string]*pendingPrompt
 }
 
 type pendingPrompt struct {
@@ -20,25 +20,64 @@ type pendingPrompt struct {
 	response chan permission.Response
 }
 
-func (st *sessionState) removeClient(ch <-chan session.Event) (last bool) {
+func (st *sessionState) subscribe(ctx context.Context) (*subscriber, error) {
+	st.mu.Lock()
+	sub := newSubscriber()
+	st.subs = append(st.subs, sub)
+
+	pending := make([]session.Event, 0, len(st.pending))
+	for _, p := range st.pending {
+		pending = append(pending, p.event)
+	}
+	st.mu.Unlock()
+
+	for _, ev := range pending {
+		if err := sub.notify(ctx, ev); err != nil {
+			st.unsubscribe(sub.ch)
+
+			return nil, err
+		}
+	}
+
+	return sub, nil
+}
+
+func (st *sessionState) unsubscribe(ch <-chan session.Event) (removed, last bool) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 
-	for i, c := range st.clients {
-		if c == ch {
-			st.clients = append(st.clients[:i], st.clients[i+1:]...)
+	for i, sub := range st.subs {
+		if sub.ch == ch {
+			st.subs = append(st.subs[:i], st.subs[i+1:]...)
 
-			close(c)
+			sub.close()
+
+			removed = true
 
 			break
 		}
 	}
 
-	return len(st.clients) == 0
+	return removed, len(st.subs) == 0
+}
+
+func (st *sessionState) broadcast(ctx context.Context, ev session.Event) error {
+	st.mu.Lock()
+	snapshot := make([]*subscriber, len(st.subs))
+	copy(snapshot, st.subs)
+	st.mu.Unlock()
+
+	for _, sub := range snapshot {
+		if err := sub.notify(ctx, ev); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (st *sessionState) idle() bool {
-	return len(st.clients) == 0 && len(st.pending) == 0 && st.cancelTurn == nil
+	return len(st.subs) == 0 && len(st.pending) == 0 && st.cancel == nil
 }
 
 func (s *Server) getSessionState(sessionID string) (*sessionState, bool) {

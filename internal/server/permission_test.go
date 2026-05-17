@@ -19,12 +19,12 @@ func toolCall(id string) kit.ToolCall {
 func TestAsk_DeliversPromptAndResponse(t *testing.T) {
 	srv, sess := newTestServer(t, &fakeAssistant{})
 
-	ch, err := srv.Attach(context.Background(), sess.ID)
+	ch, err := srv.Subscribe(context.Background(), sess.ID)
 	if err != nil {
-		t.Fatalf("Attach: %v", err)
+		t.Fatalf("Subscribe: %v", err)
 	}
 
-	defer srv.Detach(sess.ID, ch)
+	defer srv.Unsubscribe(sess.ID, ch)
 
 	want := permission.Response{Decision: permission.Allow, Scope: permission.ScopeOnce}
 
@@ -69,12 +69,12 @@ func TestAsk_DeliversPromptAndResponse(t *testing.T) {
 func TestAsk_ReturnsCtxErrorOnCancel(t *testing.T) {
 	srv, sess := newTestServer(t, &fakeAssistant{})
 
-	ch, err := srv.Attach(context.Background(), sess.ID)
+	ch, err := srv.Subscribe(context.Background(), sess.ID)
 	if err != nil {
-		t.Fatalf("Attach: %v", err)
+		t.Fatalf("Subscribe: %v", err)
 	}
 
-	defer srv.Detach(sess.ID, ch)
+	defer srv.Unsubscribe(sess.ID, ch)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -105,12 +105,12 @@ func TestAsk_ReturnsCtxErrorOnCancel(t *testing.T) {
 func TestAttach_ReplaysPendingPrompts(t *testing.T) {
 	srv, sess := newTestServer(t, &fakeAssistant{})
 
-	primary, err := srv.Attach(context.Background(), sess.ID)
+	primary, err := srv.Subscribe(context.Background(), sess.ID)
 	if err != nil {
-		t.Fatalf("Attach: %v", err)
+		t.Fatalf("Subscribe: %v", err)
 	}
 
-	defer srv.Detach(sess.ID, primary)
+	defer srv.Unsubscribe(sess.ID, primary)
 
 	go func() {
 		_, _ = srv.Ask(context.Background(), sess.ID, toolCall("call-3"))
@@ -118,12 +118,12 @@ func TestAttach_ReplaysPendingPrompts(t *testing.T) {
 
 	_ = readEvent(t, primary)
 
-	late, err := srv.Attach(context.Background(), sess.ID)
+	late, err := srv.Subscribe(context.Background(), sess.ID)
 	if err != nil {
-		t.Fatalf("late Attach: %v", err)
+		t.Fatalf("late Subscribe: %v", err)
 	}
 
-	defer srv.Detach(sess.ID, late)
+	defer srv.Unsubscribe(sess.ID, late)
 
 	ev := readEvent(t, late)
 	if ev.Type != session.EventPermissionPrompt || ev.Prompt == nil || ev.Prompt.ToolCall.ID != "call-3" {
@@ -141,5 +141,56 @@ func TestRespondPrompt_UnknownReturnsError(t *testing.T) {
 	err := srv.RespondPrompt(sess.ID, "missing", permission.Response{})
 	if err == nil {
 		t.Fatal("RespondPrompt for missing session should fail")
+	}
+}
+
+func TestRespondPrompt_TwiceReturnsError(t *testing.T) {
+	srv, sess := newTestServer(t, &fakeAssistant{})
+
+	ch, err := srv.Subscribe(context.Background(), sess.ID)
+	if err != nil {
+		t.Fatalf("Subscribe: %v", err)
+	}
+
+	defer srv.Unsubscribe(sess.ID, ch)
+
+	go func() {
+		_, _ = srv.Ask(context.Background(), sess.ID, toolCall("call-twice"))
+	}()
+
+	_ = readEvent(t, ch)
+
+	resp := permission.Response{Decision: permission.Allow, Scope: permission.ScopeOnce}
+	if err := srv.RespondPrompt(sess.ID, "call-twice", resp); err != nil {
+		t.Fatalf("first RespondPrompt: %v", err)
+	}
+
+	if err := srv.RespondPrompt(sess.ID, "call-twice", resp); err == nil {
+		t.Fatal("second RespondPrompt for same call should fail")
+	}
+}
+
+func TestDetach_KeepsSessionWithPendingPrompt(t *testing.T) {
+	srv, sess := newTestServer(t, &fakeAssistant{})
+
+	ch, err := srv.Subscribe(context.Background(), sess.ID)
+	if err != nil {
+		t.Fatalf("Subscribe: %v", err)
+	}
+
+	go func() {
+		_, _ = srv.Ask(context.Background(), sess.ID, toolCall("call-pending"))
+	}()
+
+	_ = readEvent(t, ch)
+
+	srv.Unsubscribe(sess.ID, ch)
+
+	if _, ok := srv.getSessionState(sess.ID); !ok {
+		t.Fatal("session state should be kept while a prompt is pending")
+	}
+
+	if err := srv.RespondPrompt(sess.ID, "call-pending", permission.Response{Decision: permission.Allow, Scope: permission.ScopeOnce}); err != nil {
+		t.Fatalf("RespondPrompt: %v", err)
 	}
 }

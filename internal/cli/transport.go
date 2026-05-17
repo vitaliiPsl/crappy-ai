@@ -26,15 +26,15 @@ func (t *Transport) Run(ctx context.Context) error {
 		return fmt.Errorf("create session: %w", err)
 	}
 
-	ch, err := t.srv.Attach(ctx, sess.ID)
+	ch, err := t.srv.Subscribe(ctx, sess.ID)
 	if err != nil {
 		return fmt.Errorf("attach: %w", err)
 	}
 
-	defer t.srv.Detach(sess.ID, ch)
+	defer t.srv.Unsubscribe(sess.ID, ch)
 
-	if err := t.srv.RunTurn(ctx, sess.ID, t.prompt); err != nil {
-		return fmt.Errorf("run turn: %w", err)
+	if err := t.srv.Send(ctx, sess.ID, t.prompt); err != nil {
+		return fmt.Errorf("send: %w", err)
 	}
 
 	for ev := range ch {

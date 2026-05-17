@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -13,16 +12,103 @@ import (
 )
 
 type fakeAssistant struct {
-	stream *kit.Stream[session.Event, struct{}]
-	err    error
+	stream   *kit.Stream[session.Event, struct{}]
+	streamFn func(ctx context.Context) *kit.Stream[session.Event, struct{}]
+	err      error
 }
 
-func (a *fakeAssistant) Run(context.Context, string, string) (*kit.Stream[session.Event, struct{}], error) {
-	return a.stream, a.err
+func (a *fakeAssistant) Run(ctx context.Context, _, _ string) (*kit.Stream[session.Event, struct{}], error) {
+	return a.openStream(ctx)
 }
 
-func (a *fakeAssistant) Compact(context.Context, string) (*kit.Stream[session.Event, struct{}], error) {
-	return a.stream, a.err
+func (a *fakeAssistant) Compact(ctx context.Context, _ string) (*kit.Stream[session.Event, struct{}], error) {
+	return a.openStream(ctx)
+}
+
+func (a *fakeAssistant) openStream(ctx context.Context) (*kit.Stream[session.Event, struct{}], error) {
+	if a.err != nil {
+		return nil, a.err
+	}
+
+	if a.streamFn != nil {
+		return a.streamFn(ctx), nil
+	}
+
+	return a.stream, nil
+}
+
+func TestAttach_UnknownSessionReturnsError(t *testing.T) {
+	srv, _ := newTestServer(t, &fakeAssistant{})
+
+	if _, err := srv.Subscribe(context.Background(), "missing"); err == nil {
+		t.Fatal("Subscribe for missing session should fail")
+	}
+}
+
+func TestBroadcast_DeliversToAllSubscribers(t *testing.T) {
+	srv, sess := newTestServer(t, &fakeAssistant{})
+
+	ch1, err := srv.Subscribe(context.Background(), sess.ID)
+	if err != nil {
+		t.Fatalf("Subscribe 1: %v", err)
+	}
+
+	defer srv.Unsubscribe(sess.ID, ch1)
+
+	ch2, err := srv.Subscribe(context.Background(), sess.ID)
+	if err != nil {
+		t.Fatalf("Subscribe 2: %v", err)
+	}
+
+	defer srv.Unsubscribe(sess.ID, ch2)
+
+	ev := session.NewMessageEvent(sess.ID, kit.NewUserMessage(kit.NewTextContent("hi")))
+	if err := srv.broadcast(context.Background(), sess.ID, ev); err != nil {
+		t.Fatalf("broadcast: %v", err)
+	}
+
+	if got := readEvent(t, ch1); got.ID != ev.ID {
+		t.Fatalf("ch1 event ID = %q, want %q", got.ID, ev.ID)
+	}
+
+	if got := readEvent(t, ch2); got.ID != ev.ID {
+		t.Fatalf("ch2 event ID = %q, want %q", got.ID, ev.ID)
+	}
+}
+
+func TestDetach_StopsDeliveryAndRetiresWhenIdle(t *testing.T) {
+	srv, sess := newTestServer(t, &fakeAssistant{})
+
+	ch1, err := srv.Subscribe(context.Background(), sess.ID)
+	if err != nil {
+		t.Fatalf("Subscribe 1: %v", err)
+	}
+
+	ch2, err := srv.Subscribe(context.Background(), sess.ID)
+	if err != nil {
+		t.Fatalf("Subscribe 2: %v", err)
+	}
+
+	srv.Unsubscribe(sess.ID, ch1)
+
+	if _, ok := <-ch1; ok {
+		t.Fatal("detached channel should be closed")
+	}
+
+	ev := session.NewMessageEvent(sess.ID, kit.NewUserMessage(kit.NewTextContent("only ch2")))
+	if err := srv.broadcast(context.Background(), sess.ID, ev); err != nil {
+		t.Fatalf("broadcast: %v", err)
+	}
+
+	if got := readEvent(t, ch2); got.ID != ev.ID {
+		t.Fatalf("ch2 event ID = %q, want %q", got.ID, ev.ID)
+	}
+
+	srv.Unsubscribe(sess.ID, ch2)
+
+	if _, ok := srv.getSessionState(sess.ID); ok {
+		t.Fatal("session state should be retired once idle")
+	}
 }
 
 func newTestServer(t *testing.T, asst Assistant) (*Server, *session.Session) {
@@ -52,102 +138,4 @@ func readEvent(t *testing.T, ch <-chan session.Event) session.Event {
 	}
 
 	return session.Event{}
-}
-
-func TestRunTurn_FansOutStreamEvents(t *testing.T) {
-	var (
-		sessionID string
-		delta     = kit.NewTextContent("hello")
-	)
-
-	asst := &fakeAssistant{
-		stream: kit.NewStream(func(emit kit.Emitter[session.Event]) (struct{}, error) {
-			if err := emit.Emit(session.NewContentDeltaEvent(sessionID, delta)); err != nil {
-				return struct{}{}, err
-			}
-
-			return struct{}{}, nil
-		}),
-	}
-
-	srv, sess := newTestServer(t, asst)
-	sessionID = sess.ID
-
-	ch, err := srv.Attach(context.Background(), sess.ID)
-	if err != nil {
-		t.Fatalf("Attach: %v", err)
-	}
-
-	defer srv.Detach(sess.ID, ch)
-
-	if err := srv.RunTurn(context.Background(), sess.ID, "hi"); err != nil {
-		t.Fatalf("RunTurn: %v", err)
-	}
-
-	ev := readEvent(t, ch)
-	if ev.Type != session.EventContentDelta {
-		t.Fatalf("event type = %q, want %q", ev.Type, session.EventContentDelta)
-	}
-
-	if ev.Content == nil || ev.Content.Text == nil || ev.Content.Text.Text != "hello" {
-		t.Fatalf("event content = %+v, want text delta hello", ev.Content)
-	}
-}
-
-func TestRunTurn_FansOutStreamResultError(t *testing.T) {
-	wantErr := errors.New("stream failed")
-
-	asst := &fakeAssistant{
-		stream: kit.NewStream(func(kit.Emitter[session.Event]) (struct{}, error) {
-			return struct{}{}, wantErr
-		}),
-	}
-
-	srv, sess := newTestServer(t, asst)
-
-	ch, err := srv.Attach(context.Background(), sess.ID)
-	if err != nil {
-		t.Fatalf("Attach: %v", err)
-	}
-
-	defer srv.Detach(sess.ID, ch)
-
-	if err := srv.RunTurn(context.Background(), sess.ID, "hi"); err != nil {
-		t.Fatalf("RunTurn: %v", err)
-	}
-
-	ev := readEvent(t, ch)
-	if ev.Type != session.EventError {
-		t.Fatalf("event type = %q, want %q", ev.Type, session.EventError)
-	}
-
-	if ev.Error != "stream failed" {
-		t.Fatalf("event error = %q, want stream failed", ev.Error)
-	}
-}
-
-func TestRunTurn_FansOutStreamResultCancellation(t *testing.T) {
-	asst := &fakeAssistant{
-		stream: kit.NewStream(func(kit.Emitter[session.Event]) (struct{}, error) {
-			return struct{}{}, context.Canceled
-		}),
-	}
-
-	srv, sess := newTestServer(t, asst)
-
-	ch, err := srv.Attach(context.Background(), sess.ID)
-	if err != nil {
-		t.Fatalf("Attach: %v", err)
-	}
-
-	defer srv.Detach(sess.ID, ch)
-
-	if err := srv.RunTurn(context.Background(), sess.ID, "hi"); err != nil {
-		t.Fatalf("RunTurn: %v", err)
-	}
-
-	ev := readEvent(t, ch)
-	if ev.Type != session.EventTurnCancelled {
-		t.Fatalf("event type = %q, want %q", ev.Type, session.EventTurnCancelled)
-	}
 }

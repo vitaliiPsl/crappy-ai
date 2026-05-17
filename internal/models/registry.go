@@ -63,7 +63,7 @@ func buildModel(s settings.Settings, cfg config.Config) (kit.Model, error) {
 		return nil, fmt.Errorf("provider %q: no API key (set %s)", provider.Name, provider.APIKeyEnv)
 	}
 
-	modelConfig := findModelConfig(s.Models[cfg.Provider], cfg.Model)
+	modelConfig := findModel(s.Models[cfg.Provider], cfg.Model)
 
 	return adapter(apiKey, provider.BaseURL, cfg.Model, modelConfig)
 }
@@ -78,7 +78,7 @@ func findProvider(providers []settings.ProviderSettings, name string) (settings.
 	return settings.ProviderSettings{}, false
 }
 
-func findModelConfig(models []kit.ModelConfig, modelID string) kit.ModelConfig {
+func findModel(models []kit.ModelConfig, modelID string) kit.ModelConfig {
 	for _, model := range models {
 		if model.ID == modelID {
 			return model
