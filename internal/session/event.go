@@ -11,14 +11,19 @@ import (
 type EventType string
 
 const (
-	EventContentStarted EventType = "content_started"
-	EventContentDelta   EventType = "content_delta"
-	EventContentDone    EventType = "content_done"
-	EventMessage        EventType = "message"
-	EventError          EventType = "error"
-	EventTurnComplete   EventType = "turn_complete"
-	EventTurnCancelled  EventType = "turn_cancelled"
+	EventContentStarted   EventType = "content_started"
+	EventContentDelta     EventType = "content_delta"
+	EventContentDone      EventType = "content_done"
+	EventMessage          EventType = "message"
+	EventError            EventType = "error"
+	EventTurnComplete     EventType = "turn_complete"
+	EventTurnCancelled    EventType = "turn_cancelled"
+	EventPermissionPrompt EventType = "permission_prompt"
 )
+
+type PermissionPrompt struct {
+	ToolCall kit.ToolCall `json:"tool_call"`
+}
 
 type TurnStats struct {
 	Usage         kit.Usage `json:"usage"`
@@ -38,7 +43,8 @@ type Event struct {
 
 	Error string `json:"error,omitempty"`
 
-	Stats *TurnStats `json:"stats,omitempty"`
+	Stats  *TurnStats        `json:"stats,omitempty"`
+	Prompt *PermissionPrompt `json:"prompt,omitempty"`
 }
 
 func newEvent(sessionID string, t EventType) Event {
@@ -94,6 +100,13 @@ func NewTurnCompleteEvent(sessionID string, stats TurnStats) Event {
 
 func NewTurnCancelledEvent(sessionID string) Event {
 	return newEvent(sessionID, EventTurnCancelled)
+}
+
+func NewPermissionPromptEvent(sessionID string, call kit.ToolCall) Event {
+	e := newEvent(sessionID, EventPermissionPrompt)
+	e.Prompt = &PermissionPrompt{ToolCall: call}
+
+	return e
 }
 
 func FromKitEvent(sessionID string, e kit.AgentEvent) (Event, bool) {

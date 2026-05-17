@@ -79,6 +79,8 @@ func run() error {
 	asst := assistant.New(configStore, sessStore, modelRegistry, toolRegistry, permissionService)
 	srv := server.New(asst, settingsStore, configStore, sessStore, modelRegistry)
 
+	permissionService.SetHandler(srv)
+
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 

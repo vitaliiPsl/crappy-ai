@@ -1,0 +1,145 @@
+package server
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+
+	"github.com/vitaliiPsl/crappy-adk/kit"
+
+	"github.com/vitaliiPsl/crappy-ai/internal/permission"
+	"github.com/vitaliiPsl/crappy-ai/internal/session"
+)
+
+func toolCall(id string) kit.ToolCall {
+	return kit.NewToolCall(id, "read_file", map[string]any{"path": "/tmp/x"})
+}
+
+func TestAsk_DeliversPromptAndResponse(t *testing.T) {
+	srv, sess := newTestServer(t, &fakeAssistant{})
+
+	ch, err := srv.Attach(context.Background(), sess.ID)
+	if err != nil {
+		t.Fatalf("Attach: %v", err)
+	}
+
+	defer srv.Detach(sess.ID, ch)
+
+	want := permission.Response{Decision: permission.Allow, Scope: permission.ScopeOnce}
+
+	type result struct {
+		resp permission.Response
+		err  error
+	}
+
+	resultCh := make(chan result, 1)
+	go func() {
+		resp, err := srv.Ask(context.Background(), sess.ID, toolCall("call-1"))
+		resultCh <- result{resp, err}
+	}()
+
+	ev := readEvent(t, ch)
+	if ev.Type != session.EventPermissionPrompt {
+		t.Fatalf("event type = %q, want %q", ev.Type, session.EventPermissionPrompt)
+	}
+
+	if ev.Prompt == nil || ev.Prompt.ToolCall.ID != "call-1" {
+		t.Fatalf("event prompt = %+v, want tool call call-1", ev.Prompt)
+	}
+
+	if err := srv.RespondPrompt(sess.ID, "call-1", want); err != nil {
+		t.Fatalf("RespondPrompt: %v", err)
+	}
+
+	select {
+	case r := <-resultCh:
+		if r.err != nil {
+			t.Fatalf("Ask err = %v", r.err)
+		}
+
+		if r.resp != want {
+			t.Fatalf("Ask resp = %+v, want %+v", r.resp, want)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for Ask to return")
+	}
+}
+
+func TestAsk_ReturnsCtxErrorOnCancel(t *testing.T) {
+	srv, sess := newTestServer(t, &fakeAssistant{})
+
+	ch, err := srv.Attach(context.Background(), sess.ID)
+	if err != nil {
+		t.Fatalf("Attach: %v", err)
+	}
+
+	defer srv.Detach(sess.ID, ch)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	errCh := make(chan error, 1)
+	go func() {
+		_, err := srv.Ask(ctx, sess.ID, toolCall("call-2"))
+		errCh <- err
+	}()
+
+	_ = readEvent(t, ch)
+
+	cancel()
+
+	select {
+	case err := <-errCh:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("Ask err = %v, want context.Canceled", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for Ask to return after cancel")
+	}
+
+	if err := srv.RespondPrompt(sess.ID, "call-2", permission.Response{}); err == nil {
+		t.Fatal("RespondPrompt after cancel should fail")
+	}
+}
+
+func TestAttach_ReplaysPendingPrompts(t *testing.T) {
+	srv, sess := newTestServer(t, &fakeAssistant{})
+
+	primary, err := srv.Attach(context.Background(), sess.ID)
+	if err != nil {
+		t.Fatalf("Attach: %v", err)
+	}
+
+	defer srv.Detach(sess.ID, primary)
+
+	go func() {
+		_, _ = srv.Ask(context.Background(), sess.ID, toolCall("call-3"))
+	}()
+
+	_ = readEvent(t, primary)
+
+	late, err := srv.Attach(context.Background(), sess.ID)
+	if err != nil {
+		t.Fatalf("late Attach: %v", err)
+	}
+
+	defer srv.Detach(sess.ID, late)
+
+	ev := readEvent(t, late)
+	if ev.Type != session.EventPermissionPrompt || ev.Prompt == nil || ev.Prompt.ToolCall.ID != "call-3" {
+		t.Fatalf("replayed event = %+v, want prompt for call-3", ev)
+	}
+
+	if err := srv.RespondPrompt(sess.ID, "call-3", permission.Response{Decision: permission.Allow, Scope: permission.ScopeOnce}); err != nil {
+		t.Fatalf("RespondPrompt: %v", err)
+	}
+}
+
+func TestRespondPrompt_UnknownReturnsError(t *testing.T) {
+	srv, sess := newTestServer(t, &fakeAssistant{})
+
+	err := srv.RespondPrompt(sess.ID, "missing", permission.Response{})
+	if err == nil {
+		t.Fatal("RespondPrompt for missing session should fail")
+	}
+}

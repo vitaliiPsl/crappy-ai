@@ -38,12 +38,6 @@ type Server struct {
 	sessions map[string]*sessionState
 }
 
-type sessionState struct {
-	mu         sync.Mutex
-	clients    []chan session.Event
-	cancelTurn context.CancelFunc
-}
-
 func New(
 	assistant Assistant,
 	settingsStore *settings.Store,
@@ -94,67 +88,65 @@ func (s *Server) Attach(ctx context.Context, sessionID string) (<-chan session.E
 	st := s.getOrCreateSessionState(sessionID)
 	st.mu.Lock()
 	st.clients = append(st.clients, ch)
+
+	replay := make([]session.Event, 0, len(st.pending))
+	for _, p := range st.pending {
+		replay = append(replay, p.event)
+	}
 	st.mu.Unlock()
+
+	for _, ev := range replay {
+		if err := send(ctx, ch, ev); err != nil {
+			return nil, err
+		}
+	}
 
 	return ch, nil
 }
 
 func (s *Server) Detach(sessionID string, ch <-chan session.Event) {
-	s.mu.RLock()
-	st, ok := s.sessions[sessionID]
-	s.mu.RUnlock()
+	st, ok := s.getSessionState(sessionID)
+	if !ok {
+		return
+	}
 
+	if !st.removeClient(ch) {
+		return
+	}
+
+	s.retireIfIdle(sessionID)
+}
+
+func (s *Server) retireIfIdle(sessionID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	st, ok := s.sessions[sessionID]
 	if !ok {
 		return
 	}
 
 	st.mu.Lock()
-	for i, c := range st.clients {
-		if c == ch {
-			st.clients = append(st.clients[:i], st.clients[i+1:]...)
+	defer st.mu.Unlock()
 
-			close(c)
-
-			break
-		}
-	}
-
-	isEmpty := len(st.clients) == 0
-	st.mu.Unlock()
-
-	if !isEmpty {
-		return
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	st2, ok := s.sessions[sessionID]
-	if !ok {
-		return
-	}
-
-	st2.mu.Lock()
-	defer st2.mu.Unlock()
-
-	if len(st2.clients) == 0 {
+	if st.idle() {
 		delete(s.sessions, sessionID)
 	}
 }
 
 func (s *Server) RunTurn(ctx context.Context, sessionID, text string) error {
-	return s.startTurn(ctx, sessionID, func(turnCtx context.Context) (*kit.Stream[session.Event, struct{}], error) {
+	return s.callAssistant(ctx, sessionID, func(turnCtx context.Context) (*kit.Stream[session.Event, struct{}], error) {
 		return s.assistant.Run(turnCtx, sessionID, text)
 	})
 }
 
 func (s *Server) Compact(ctx context.Context, sessionID string) error {
-	return s.startTurn(ctx, sessionID, func(turnCtx context.Context) (*kit.Stream[session.Event, struct{}], error) {
+	return s.callAssistant(ctx, sessionID, func(turnCtx context.Context) (*kit.Stream[session.Event, struct{}], error) {
 		return s.assistant.Compact(turnCtx, sessionID)
 	})
 }
 
-func (s *Server) startTurn(
+func (s *Server) callAssistant(
 	ctx context.Context,
 	sessionID string,
 	open func(context.Context) (*kit.Stream[session.Event, struct{}], error),
@@ -182,12 +174,13 @@ func (s *Server) startTurn(
 		return err
 	}
 
-	go s.consumeTurnStream(sessionID, st, cancel, stream)
+	go s.consumeAssistantStream(turnCtx, sessionID, st, cancel, stream)
 
 	return nil
 }
 
-func (s *Server) consumeTurnStream(
+func (s *Server) consumeAssistantStream(
+	ctx context.Context,
 	sessionID string,
 	st *sessionState,
 	cancel context.CancelFunc,
@@ -202,11 +195,11 @@ func (s *Server) consumeTurnStream(
 	}()
 
 	for event := range stream.Iter() {
-		s.fanOut(sessionID, event)
+		_ = s.broadcast(ctx, sessionID, event)
 	}
 
 	if _, err := stream.Result(); err != nil {
-		s.fanOut(sessionID, cancelledOrError(sessionID, err))
+		_ = s.broadcast(ctx, sessionID, cancelledOrError(sessionID, err))
 	}
 }
 
@@ -219,10 +212,7 @@ func cancelledOrError(sessionID string, err error) session.Event {
 }
 
 func (s *Server) CancelTurn(sessionID string) {
-	s.mu.RLock()
-	st, ok := s.sessions[sessionID]
-	s.mu.RUnlock()
-
+	st, ok := s.getSessionState(sessionID)
 	if !ok {
 		return
 	}
@@ -235,13 +225,10 @@ func (s *Server) CancelTurn(sessionID string) {
 	}
 }
 
-func (s *Server) fanOut(sessionID string, ev session.Event) {
-	s.mu.RLock()
-	st, ok := s.sessions[sessionID]
-	s.mu.RUnlock()
-
+func (s *Server) broadcast(ctx context.Context, sessionID string, ev session.Event) error {
+	st, ok := s.getSessionState(sessionID)
 	if !ok {
-		return
+		return nil
 	}
 
 	st.mu.Lock()
@@ -250,15 +237,25 @@ func (s *Server) fanOut(sessionID string, ev session.Event) {
 	st.mu.Unlock()
 
 	for _, ch := range clients {
-		safeSend(ch, ev)
+		if err := send(ctx, ch, ev); err != nil {
+			return err
+		}
 	}
+
+	return nil
 }
 
-func safeSend(ch chan session.Event, ev session.Event) {
-	defer func() { _ = recover() }()
+func send(ctx context.Context, ch chan session.Event, ev session.Event) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = nil
+		}
+	}()
 
 	select {
 	case ch <- ev:
-	default:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }

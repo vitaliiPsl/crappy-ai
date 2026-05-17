@@ -27,25 +27,3 @@ func (s *Server) DeleteSession(ctx context.Context, id string) error {
 func (s *Server) LoadEvents(ctx context.Context, sessionID string) ([]session.Event, error) {
 	return s.sessionStore.LoadEvents(ctx, sessionID)
 }
-
-func (s *Server) getOrCreateSessionState(sessionID string) *sessionState {
-	s.mu.RLock()
-	st, ok := s.sessions[sessionID]
-	s.mu.RUnlock()
-
-	if ok {
-		return st
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if st, ok = s.sessions[sessionID]; ok {
-		return st
-	}
-
-	st = &sessionState{}
-	s.sessions[sessionID] = st
-
-	return st
-}

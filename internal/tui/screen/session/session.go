@@ -7,6 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/vitaliiPsl/crappy-ai/internal/permission"
 	"github.com/vitaliiPsl/crappy-ai/internal/server"
 	sessiondata "github.com/vitaliiPsl/crappy-ai/internal/session"
 	"github.com/vitaliiPsl/crappy-ai/internal/tui/command"
@@ -123,6 +124,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 		return m, tea.Batch(cmd, m.waitForEvent())
 
+	case permissionPromptMsg:
+		return m, m.respondPrompt(msg.ToolCallID, msg.Response)
+
 	case turnStartedMsg:
 		m.turnActive = true
 
@@ -163,7 +167,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, m.runCompact()
 
 	case tea.KeyMsg:
-		if msg.String() == "esc" && m.turnActive {
+		if msg.String() == "esc" && m.turnActive && !m.footer.HasPrompt() {
 			m.server.CancelTurn(m.sessionID())
 
 			return m, nil
@@ -171,6 +175,16 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	}
 
 	return m.updateChildren(msg)
+}
+
+func (m Model) respondPrompt(toolCallID string, resp permission.Response) tea.Cmd {
+	return func() tea.Msg {
+		if err := m.server.RespondPrompt(m.sessionID(), toolCallID, resp); err != nil {
+			return errorMsg{err: err}
+		}
+
+		return nil
+	}
 }
 
 func (m Model) runCommand(msg commandMsg) (Model, tea.Cmd) {

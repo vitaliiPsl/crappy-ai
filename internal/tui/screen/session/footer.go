@@ -7,12 +7,17 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/tui/command"
+
+	sessiondata "github.com/vitaliiPsl/crappy-ai/internal/session"
 )
 
 type footer struct {
 	turn   turnIndicator
 	input  inputBar
 	status statusBar
+	prompt *permissionPrompt
+
+	width int
 }
 
 func newFooter(registry *command.Registry, model, cwd string) footer {
@@ -28,6 +33,10 @@ func (f footer) Init() tea.Cmd {
 }
 
 func (f footer) Update(msg tea.Msg) (footer, tea.Cmd, bool) {
+	if ev, ok := msg.(sessionEventMsg); ok {
+		f.handleEvent(ev.event)
+	}
+
 	var cmds []tea.Cmd
 
 	var (
@@ -42,6 +51,29 @@ func (f footer) Update(msg tea.Msg) (footer, tea.Cmd, bool) {
 	cmds = append(cmds, cmd)
 
 	if consumed {
+		return f, tea.Batch(cmds...), true
+	}
+
+	if f.prompt != nil {
+		if _, ok := msg.(tea.KeyMsg); !ok {
+			return f, tea.Batch(cmds...), false
+		}
+
+		var (
+			promptCmd tea.Cmd
+			out       tea.Msg
+		)
+
+		*f.prompt, promptCmd, out = f.prompt.Update(msg)
+		cmds = append(cmds, promptCmd)
+
+		if pm, ok := out.(permissionPromptMsg); ok {
+			f.prompt = nil
+			f.status.SetHints("")
+
+			cmds = append(cmds, func() tea.Msg { return pm })
+		}
+
 		return f, tea.Batch(cmds...), true
 	}
 
@@ -62,7 +94,7 @@ func (f footer) View() string {
 		parts = append(parts, turn)
 	}
 
-	parts = append(parts, f.input.View())
+	parts = append(parts, f.bodyView())
 
 	if status := f.status.View(); status != "" {
 		parts = append(parts, status)
@@ -75,8 +107,43 @@ func (f footer) Height() int {
 	return lipgloss.Height(f.View())
 }
 
+func (f footer) HasPrompt() bool {
+	return f.prompt != nil
+}
+
 func (f *footer) setSize(width int) {
+	f.width = width
 	f.turn.setSize(width)
 	f.input.setSize(width)
 	f.status.setSize(width)
+
+	if f.prompt != nil {
+		f.prompt.SetWidth(width)
+	}
+}
+
+func (f footer) bodyView() string {
+	if f.prompt != nil {
+		return f.prompt.View()
+	}
+
+	return f.input.View()
+}
+
+func (f *footer) handleEvent(ev sessiondata.Event) {
+	switch ev.Type {
+	case sessiondata.EventPermissionPrompt:
+		if ev.Prompt == nil {
+			return
+		}
+
+		p := newPermissionPrompt(ev.Prompt.ToolCall)
+		p.SetWidth(f.width)
+		f.prompt = &p
+		f.status.SetHints(p.HintsText())
+
+	case sessiondata.EventTurnComplete, sessiondata.EventTurnCancelled, sessiondata.EventError:
+		f.prompt = nil
+		f.status.SetHints("")
+	}
 }

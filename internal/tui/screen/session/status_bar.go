@@ -17,12 +17,17 @@ const (
 )
 
 type statusBar struct {
-	turnActive bool
-	model      string
-	cwd        string
-	stats      *sessiondata.TurnStats
+	turnActive    bool
+	model         string
+	cwd           string
+	stats         *sessiondata.TurnStats
+	hintsOverride string
 
 	width int
+}
+
+func (s *statusBar) SetHints(text string) {
+	s.hintsOverride = text
 }
 
 func newStatusBar(model, cwd string) statusBar {
@@ -96,6 +101,10 @@ func (s statusBar) hintsView() string {
 	hints := hintsText
 	if s.turnActive {
 		hints = activeTurnHintsText
+	}
+
+	if s.hintsOverride != "" {
+		hints = s.hintsOverride
 	}
 
 	return hintsStyle.Width(s.width).Align(lipgloss.Center).Render(hints)
