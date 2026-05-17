@@ -12,11 +12,14 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/cli"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/models"
+	"github.com/vitaliiPsl/crappy-ai/internal/permission"
 	"github.com/vitaliiPsl/crappy-ai/internal/server"
-	sessionstore "github.com/vitaliiPsl/crappy-ai/internal/session/store"
 	"github.com/vitaliiPsl/crappy-ai/internal/settings"
 	"github.com/vitaliiPsl/crappy-ai/internal/tools"
 	"github.com/vitaliiPsl/crappy-ai/internal/tui"
+
+	permissionstore "github.com/vitaliiPsl/crappy-ai/internal/permission/store"
+	sessionstore "github.com/vitaliiPsl/crappy-ai/internal/session/store"
 )
 
 func main() {
@@ -65,13 +68,15 @@ func run() error {
 	modelRegistry := models.NewRegistry(settingsStore)
 	toolRegistry := tools.NewRegistry()
 
+	permissionService := permission.NewService(permissionstore.NewGlobal(configStore), nil)
+
 	go func() {
 		if err := settingsStore.RefreshModels(context.Background()); err != nil {
 			fmt.Fprintf(os.Stderr, "warning: refresh models from remote: %v\n", err)
 		}
 	}()
 
-	asst := assistant.New(configStore, sessStore, modelRegistry, toolRegistry)
+	asst := assistant.New(configStore, sessStore, modelRegistry, toolRegistry, permissionService)
 	srv := server.New(asst, settingsStore, configStore, sessStore, modelRegistry)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)

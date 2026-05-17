@@ -12,6 +12,7 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/summarization"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/models"
+	"github.com/vitaliiPsl/crappy-ai/internal/permission"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
 	"github.com/vitaliiPsl/crappy-ai/internal/tools"
 )
@@ -21,6 +22,7 @@ type Assistant struct {
 	sessionStore  session.Store
 	modelRegistry *models.Registry
 	toolRegistry  *tools.Registry
+	permissions   *permission.Service
 }
 
 func New(
@@ -28,12 +30,14 @@ func New(
 	sessionStore session.Store,
 	modelRegistry *models.Registry,
 	toolRegistry *tools.Registry,
+	permissions *permission.Service,
 ) *Assistant {
 	return &Assistant{
 		configStore:   configStore,
 		sessionStore:  sessionStore,
 		modelRegistry: modelRegistry,
 		toolRegistry:  toolRegistry,
+		permissions:   permissions,
 	}
 }
 
@@ -47,7 +51,7 @@ func (a *Assistant) Run(ctx context.Context, sessionID, text string) (*kit.Strea
 
 	mem := memory.New(a.sessionStore, sessionID)
 
-	ag, err := agent.New(model, mem, a.buildAgentOpts(cfg, model)...)
+	ag, err := agent.New(model, mem, a.buildAgentOpts(sessionID, cfg, model)...)
 	if err != nil {
 		return nil, fmt.Errorf("build agent: %w", err)
 	}
@@ -98,7 +102,7 @@ func (a *Assistant) Run(ctx context.Context, sessionID, text string) (*kit.Strea
 	}), nil
 }
 
-func (a *Assistant) buildAgentOpts(cfg config.Config, model kit.Model) []agent.Option {
+func (a *Assistant) buildAgentOpts(sessionID string, cfg config.Config, model kit.Model) []agent.Option {
 	sources := []string{cfg.SystemPrompt}
 
 	opts := []agent.Option{
@@ -110,6 +114,14 @@ func (a *Assistant) buildAgentOpts(cfg config.Config, model kit.Model) []agent.O
 	if cfg.Thinking != "" {
 		opts = append(opts, agent.WithThinking(kit.ThinkingLevel(cfg.Thinking)))
 	}
+
+	opts = append(opts, agent.WithOnToolCall(func(rc *kit.RunContext, call kit.ToolCall) (kit.ToolCall, error) {
+		if err := a.permissions.Authorize(rc.Context, sessionID, call); err != nil {
+			return call, err
+		}
+
+		return call, nil
+	}))
 
 	return opts
 }
