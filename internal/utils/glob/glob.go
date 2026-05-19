@@ -17,15 +17,15 @@ const (
 	homePrefix        = "~/"
 )
 
-// Match tells whether name matches pattern by splitting both into path
+// Match tells whether input matches pattern by splitting both into path
 // segments and comparing them with the supported wildcards (* and ? within a
 // segment, [abc] / [a-z] classes, ** as a whole segment for zero-or-more
 // segments).
-func Match(pattern, name string) bool {
+func Match(pattern, input string) bool {
 	pattern = normalize(pattern)
-	name = normalize(name)
+	input = normalize(input)
 
-	return matchSegments(split(pattern), split(name))
+	return matchSegments(split(pattern), split(input))
 }
 
 func normalize(s string) string {
@@ -66,30 +66,30 @@ func split(s string) []string {
 	return parts
 }
 
-func matchSegments(pattern, name []string) bool {
+func matchSegments(pattern, input []string) bool {
 	if len(pattern) == 0 {
-		return len(name) == 0
+		return len(input) == 0
 	}
 
 	if pattern[0] == recursiveWildcard {
-		return matchDoubleStar(pattern, name)
+		return matchDoubleStar(pattern, input)
 	}
 
-	if len(name) == 0 || !matchSegment(pattern[0], name[0]) {
+	if len(input) == 0 || !matchSegment(pattern[0], input[0]) {
 		return false
 	}
 
-	return matchSegments(pattern[1:], name[1:])
+	return matchSegments(pattern[1:], input[1:])
 }
 
-func matchDoubleStar(pattern, name []string) bool {
+func matchDoubleStar(pattern, input []string) bool {
 	rest := pattern[1:]
 	if len(rest) == 0 {
 		return true
 	}
 
-	for i := 0; i <= len(name); i++ {
-		if matchSegments(rest, name[i:]) {
+	for i := 0; i <= len(input); i++ {
+		if matchSegments(rest, input[i:]) {
 			return true
 		}
 	}
@@ -97,39 +97,39 @@ func matchDoubleStar(pattern, name []string) bool {
 	return false
 }
 
-func matchSegment(pattern, name string) bool {
-	return matchSegmentAt([]rune(pattern), []rune(name), 0, 0)
+func matchSegment(pattern, input string) bool {
+	return matchSegmentAt([]rune(pattern), []rune(input), 0, 0)
 }
 
-func matchSegmentAt(pattern, name []rune, pi, ni int) bool {
+func matchSegmentAt(pattern, input []rune, pi, ni int) bool {
 	if pi == len(pattern) {
-		return ni == len(name)
+		return ni == len(input)
 	}
 
 	switch pattern[pi] {
 	case '*':
-		for i := ni; i <= len(name); i++ {
-			if matchSegmentAt(pattern, name, pi+1, i) {
+		for i := ni; i <= len(input); i++ {
+			if matchSegmentAt(pattern, input, pi+1, i) {
 				return true
 			}
 		}
 
 		return false
 	case '?':
-		return ni < len(name) && matchSegmentAt(pattern, name, pi+1, ni+1)
+		return ni < len(input) && matchSegmentAt(pattern, input, pi+1, ni+1)
 	case '[':
-		ok, next := matchClass(pattern, name, pi, ni)
+		ok, next := matchClass(pattern, input, pi, ni)
 
-		return ok && matchSegmentAt(pattern, name, next, ni+1)
+		return ok && matchSegmentAt(pattern, input, next, ni+1)
 	default:
-		return ni < len(name) &&
-			pattern[pi] == name[ni] &&
-			matchSegmentAt(pattern, name, pi+1, ni+1)
+		return ni < len(input) &&
+			pattern[pi] == input[ni] &&
+			matchSegmentAt(pattern, input, pi+1, ni+1)
 	}
 }
 
-func matchClass(pattern, name []rune, pi, ni int) (bool, int) {
-	if ni >= len(name) {
+func matchClass(pattern, input []rune, pi, ni int) (bool, int) {
+	if ni >= len(input) {
 		return false, pi + 1
 	}
 
@@ -139,7 +139,7 @@ func matchClass(pattern, name []rune, pi, ni int) (bool, int) {
 	}
 
 	if end == len(pattern) {
-		return pattern[pi] == name[ni], pi + 1
+		return pattern[pi] == input[ni], pi + 1
 	}
 
 	negated := false
@@ -153,7 +153,7 @@ func matchClass(pattern, name []rune, pi, ni int) (bool, int) {
 	matched := false
 	for i := start; i < end; i++ {
 		if i+2 < end && pattern[i+1] == '-' {
-			if pattern[i] <= name[ni] && name[ni] <= pattern[i+2] {
+			if pattern[i] <= input[ni] && input[ni] <= pattern[i+2] {
 				matched = true
 			}
 
@@ -162,7 +162,7 @@ func matchClass(pattern, name []rune, pi, ni int) (bool, int) {
 			continue
 		}
 
-		if pattern[i] == name[ni] {
+		if pattern[i] == input[ni] {
 			matched = true
 		}
 	}
