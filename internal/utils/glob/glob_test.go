@@ -80,6 +80,29 @@ func TestMatchRecursiveDoubleStar(t *testing.T) {
 	}
 }
 
+func TestMatchSegments(t *testing.T) {
+	tests := []struct {
+		name    string
+		pattern []string
+		input   []string
+		want    bool
+	}{
+		{"star matches one segment", []string{"*", "example", "com"}, []string{"api", "example", "com"}, true},
+		{"star rejects extra segment", []string{"*", "example", "com"}, []string{"v1", "api", "example", "com"}, false},
+		{"double star matches many segments", []string{"**", "example", "com"}, []string{"v1", "api", "example", "com"}, true},
+		{"wildcard inside segment", []string{"api-*", "example", "com"}, []string{"api-v1", "example", "com"}, true},
+		{"question inside segment", []string{"ex?mple", "com"}, []string{"example", "com"}, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := MatchSegments(tt.pattern, tt.input); got != tt.want {
+				t.Errorf("MatchSegments(%v, %v) = %v, want %v", tt.pattern, tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestMatchNormalizesSeparatorsAndDotSegments(t *testing.T) {
 	tests := []struct {
 		name    string

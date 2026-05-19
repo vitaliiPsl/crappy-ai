@@ -39,3 +39,17 @@ func CompactHome(path string) string {
 
 	return path
 }
+
+func AbsPath(path string) (string, error) {
+	path = ExpandHome(path)
+	if filepath.IsAbs(path) {
+		return filepath.Clean(path), nil
+	}
+
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+
+	return abs, nil
+}

@@ -29,14 +29,21 @@ func TestMatchURL(t *testing.T) {
 		url     string
 		want    bool
 	}{
-		{pattern: "https://example.com/*", url: "https://example.com/", want: true},
-		{pattern: "https://example.com/*", url: "https://example.com/docs/intro", want: true},
-		{pattern: "https://example.com/*", url: "https://other.com/", want: false},
-		{pattern: "https://*.example.com/*", url: "https://api.example.com/v1", want: true},
-		{pattern: "https://*.example.com/*", url: "https://example.com/v1", want: false},
-		{pattern: "https://example.com/docs/*", url: "https://example.com/blog/post", want: false},
-		{pattern: "https://example.com", url: "https://example.com", want: true},
-		{pattern: "https://example.com", url: "https://example.com/", want: false},
+		{pattern: "domain:example.com", url: "https://example.com/", want: true},
+		{pattern: "domain:example.com", url: "https://example.com/docs/intro", want: true},
+		{pattern: "domain:example.com", url: "https://other.com/", want: false},
+		{pattern: "domain:example.com", url: "https://EXAMPLE.com/", want: true},
+		{pattern: "domain:example.com", url: "https://example.com:443/docs", want: true},
+		{pattern: "domain:*.example.com", url: "https://api.example.com/v1", want: true},
+		{pattern: "domain:*.example.com", url: "https://example.com/v1", want: false},
+		{pattern: "domain:*.example.com", url: "https://v1.api.example.com/", want: false},
+		{pattern: "domain:**.example.com", url: "https://v1.api.example.com/", want: true},
+		{pattern: "domain:example.*", url: "https://example.org/", want: true},
+		{pattern: "domain:api-*.example.com", url: "https://api-v1.example.com/", want: true},
+		{pattern: "domain:ex?mple.com", url: "https://example.com/", want: true},
+		{pattern: "domain:*.example.com", url: "https://evil.com/api.example.com/", want: false},
+		{pattern: "https://example.com/*", url: "https://example.com/docs", want: false},
+		{pattern: "domain:example.com", url: "not a url", want: false},
 	}
 
 	for _, tt := range tests {

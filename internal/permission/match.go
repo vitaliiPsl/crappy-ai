@@ -1,8 +1,7 @@
 package permission
 
 import (
-	"path/filepath"
-	"regexp"
+	"net/url"
 	"strings"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/utils"
@@ -28,32 +27,52 @@ func matches(rule Rule, tool, input string) bool {
 	}
 }
 
-func matchURL(pattern, rawURL string) bool {
-	escaped := regexp.QuoteMeta(pattern)
-	regex := strings.ReplaceAll(escaped, `\*`, `.*`)
-
-	re, err := regexp.Compile("^" + regex + "$")
+func matchPath(pattern, input string) bool {
+	pattern, err := utils.AbsPath(pattern)
 	if err != nil {
 		return false
 	}
 
-	return re.MatchString(rawURL)
-}
-
-func matchPath(pattern, input string) bool {
-	return glob.Match(absPath(pattern), absPath(input))
-}
-
-func absPath(path string) string {
-	path = utils.ExpandHome(path)
-	if filepath.IsAbs(path) {
-		return filepath.Clean(path)
-	}
-
-	abs, err := filepath.Abs(path)
+	input, err = utils.AbsPath(input)
 	if err != nil {
-		return filepath.Clean(path)
+		return false
 	}
 
-	return abs
+	return glob.Match(pattern, input)
+}
+
+func matchURL(pattern, rawURL string) bool {
+	domainPattern, ok := strings.CutPrefix(pattern, "domain:")
+	if !ok {
+		return false
+	}
+
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Host == "" {
+		return false
+	}
+
+	return matchDomain(domainPattern, u.Hostname())
+}
+
+func matchDomain(pattern, host string) bool {
+	pattern = normalizeDomain(pattern)
+
+	host = normalizeDomain(host)
+	if pattern == "" || host == "" {
+		return false
+	}
+
+	if pattern == "*" {
+		return true
+	}
+
+	return glob.MatchSegments(strings.Split(pattern, "."), strings.Split(host, "."))
+}
+
+func normalizeDomain(s string) string {
+	s = strings.TrimSpace(s)
+	s = strings.TrimSuffix(s, ".")
+
+	return strings.ToLower(s)
 }

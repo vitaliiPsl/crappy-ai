@@ -25,7 +25,14 @@ func Match(pattern, input string) bool {
 	pattern = normalize(pattern)
 	input = normalize(input)
 
-	return matchSegments(split(pattern), split(input))
+	return MatchSegments(split(pattern), split(input))
+}
+
+// MatchSegments tells whether input segments match pattern segments using the
+// same wildcard semantics as Match. The caller is responsible for splitting and
+// normalizing the segments for its domain.
+func MatchSegments(pattern, input []string) bool {
+	return matchSegments(pattern, input)
 }
 
 func normalize(s string) string {
