@@ -45,6 +45,10 @@ func readCall(path string) kit.ToolCall {
 	return kit.NewToolCall("call_1", "read_file", map[string]any{"path": path})
 }
 
+func bashCall(command string) kit.ToolCall {
+	return kit.NewToolCall("call_1", "bash", map[string]any{"command": command})
+}
+
 func TestService_AllowsConfiguredRule(t *testing.T) {
 	store := &memoryStore{
 		permissions: Permissions{
@@ -138,5 +142,131 @@ func TestService_AskDenyReturnsDenied(t *testing.T) {
 	err := NewService(store, h).Authorize(context.Background(), "session-1", readCall("/tmp/project/main.go"))
 	if !errors.Is(err, ErrDenied) {
 		t.Fatalf("Authorize error = %v, want ErrDenied", err)
+	}
+}
+
+func TestResolveBashAllowsExactCommand(t *testing.T) {
+	perms := Permissions{
+		Default: Ask,
+		Allow:   []Rule{{Tool: "bash", Pattern: "go test ./internal/permission"}},
+	}
+
+	got := Resolve(perms, bashCall("go test ./internal/permission"))
+	if got != Allow {
+		t.Fatalf("Resolve = %q, want %q", got, Allow)
+	}
+}
+
+func TestResolveBashAllowsWildcardCommand(t *testing.T) {
+	perms := Permissions{
+		Default: Ask,
+		Allow:   []Rule{{Tool: "bash", Pattern: "go test *"}},
+	}
+
+	got := Resolve(perms, bashCall("go test ./internal/permission"))
+	if got != Allow {
+		t.Fatalf("Resolve = %q, want %q", got, Allow)
+	}
+}
+
+func TestResolveBashAllowsCompoundOnlyWhenEveryPartAllowed(t *testing.T) {
+	perms := Permissions{
+		Default: Ask,
+		Allow: []Rule{
+			{Tool: "bash", Pattern: "go test *"},
+			{Tool: "bash", Pattern: "go vet *"},
+		},
+	}
+
+	got := Resolve(perms, bashCall("go test ./... && go vet ./..."))
+	if got != Allow {
+		t.Fatalf("Resolve = %q, want %q", got, Allow)
+	}
+}
+
+func TestResolveBashDoesNotAllowCompoundWhenOnlyOnePartAllowed(t *testing.T) {
+	perms := Permissions{
+		Default: Ask,
+		Allow:   []Rule{{Tool: "bash", Pattern: "echo *"}},
+	}
+
+	got := Resolve(perms, bashCall("echo ok && rm -rf tmp"))
+	if got != Ask {
+		t.Fatalf("Resolve = %q, want %q", got, Ask)
+	}
+}
+
+func TestResolveBashDenyMatchesCompoundPart(t *testing.T) {
+	perms := Permissions{
+		Default: Ask,
+		Deny:    []Rule{{Tool: "bash", Pattern: "rm *"}},
+		Allow:   []Rule{{Tool: "bash"}},
+	}
+
+	got := Resolve(perms, bashCall("echo ok && rm -rf tmp"))
+	if got != Deny {
+		t.Fatalf("Resolve = %q, want %q", got, Deny)
+	}
+}
+
+func TestResolveBashSubstitutionSkipsAllow(t *testing.T) {
+	perms := Permissions{
+		Default: Ask,
+		Allow:   []Rule{{Tool: "bash", Pattern: "git *"}},
+	}
+
+	got := Resolve(perms, bashCall("git $(rm -rf /)"))
+	if got != Ask {
+		t.Fatalf("Resolve = %q, want %q", got, Ask)
+	}
+}
+
+func TestResolveBashSubstitutionStillDenied(t *testing.T) {
+	perms := Permissions{
+		Default: Ask,
+		Deny:    []Rule{{Tool: "bash", Pattern: "git *"}},
+	}
+
+	got := Resolve(perms, bashCall("git $(rm -rf /)"))
+	if got != Deny {
+		t.Fatalf("Resolve = %q, want %q", got, Deny)
+	}
+}
+
+func TestResolveBashDenyMatchesCommandInsideSubstitution(t *testing.T) {
+	perms := Permissions{
+		Default: Ask,
+		Deny:    []Rule{{Tool: "bash", Pattern: "rm *"}},
+		Allow:   []Rule{{Tool: "bash"}},
+	}
+
+	got := Resolve(perms, bashCall("echo $(rm -rf /)"))
+	if got != Deny {
+		t.Fatalf("Resolve = %q, want %q", got, Deny)
+	}
+}
+
+func TestResolveBashAskMatchesCommandInsideProcessSubstitution(t *testing.T) {
+	perms := Permissions{
+		Default: Allow,
+		Ask:     []Rule{{Tool: "bash", Pattern: "ls *"}},
+	}
+
+	got := Resolve(perms, bashCall("diff <(ls a) <(ls b)"))
+	if got != Ask {
+		t.Fatalf("Resolve = %q, want %q", got, Ask)
+	}
+}
+
+func TestResolveBashAllowsExactCompoundCommand(t *testing.T) {
+	command := "echo ok && rm -rf tmp"
+	perms := Permissions{
+		Default: Ask,
+		Allow:   []Rule{{Tool: "bash", Pattern: command}},
+	}
+
+	got := Resolve(perms, bashCall(command))
+	if got != Allow {
+		t.Fatalf("Resolve = %q, want %q", got, Allow)
 	}
 }

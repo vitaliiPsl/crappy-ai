@@ -48,6 +48,9 @@ func (p *Permissions) Add(decision Decision, rule Rule) {
 
 func Resolve(permissions Permissions, call kit.ToolCall) Decision {
 	input := ExtractInput(call)
+	if call.Name == "bash" {
+		return resolveBash(permissions, input)
+	}
 
 	for _, rule := range permissions.Deny {
 		if matches(rule, call.Name, input) {

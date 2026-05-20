@@ -20,6 +20,8 @@ func matches(rule Rule, tool, input string) bool {
 	switch tool {
 	case "web_fetch":
 		return matchURL(rule.Pattern, input)
+	case "bash":
+		return matchBash(rule.Pattern, input)
 	case "read_file", "write_file", "edit_file", "list":
 		return matchPath(rule.Pattern, input)
 	default:

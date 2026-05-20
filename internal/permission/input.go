@@ -8,6 +8,7 @@ var toolInputKey = map[string]string{
 	"write_file": "path",
 	"edit_file":  "path",
 	"web_fetch":  "url",
+	"bash":       "command",
 }
 
 func ExtractInput(call kit.ToolCall) string {
