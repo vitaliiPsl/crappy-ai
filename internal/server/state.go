@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/vitaliiPsl/crappy-ai/internal/permission"
+	"github.com/vitaliiPsl/crappy-ai/internal/permission/model"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
 )
 
@@ -17,7 +17,7 @@ type sessionState struct {
 
 type pendingPrompt struct {
 	event    session.Event
-	response chan permission.Response
+	response chan model.AskResponse
 }
 
 func (st *sessionState) subscribe(ctx context.Context) (*subscriber, error) {

@@ -7,7 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/vitaliiPsl/crappy-ai/internal/permission"
+	"github.com/vitaliiPsl/crappy-ai/internal/permission/model"
 	"github.com/vitaliiPsl/crappy-ai/internal/server"
 	sessiondata "github.com/vitaliiPsl/crappy-ai/internal/session"
 	"github.com/vitaliiPsl/crappy-ai/internal/tui/command"
@@ -177,7 +177,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	return m.updateChildren(msg)
 }
 
-func (m Model) respondPrompt(toolCallID string, resp permission.Response) tea.Cmd {
+func (m Model) respondPrompt(toolCallID string, resp model.AskResponse) tea.Cmd {
 	return func() tea.Msg {
 		if err := m.server.RespondPrompt(m.sessionID(), toolCallID, resp); err != nil {
 			return errorMsg{err: err}

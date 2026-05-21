@@ -1,6 +1,6 @@
 package config
 
-import "github.com/vitaliiPsl/crappy-ai/internal/permission"
+import "github.com/vitaliiPsl/crappy-ai/internal/permission/model"
 
 const (
 	EnvProvider = "CRAPPY_PROVIDER"
@@ -14,7 +14,7 @@ type Config struct {
 	Model        string `yaml:"model"`
 	Thinking     string `yaml:"thinking,omitempty"`
 
-	Permissions permission.Permissions `yaml:"permissions,omitempty"`
+	Permissions model.Permissions `yaml:"permissions,omitempty"`
 
 	Cwd string `yaml:"-"`
 }
@@ -43,7 +43,7 @@ func merge(base, overlay Config) Config {
 		base.Thinking = overlay.Thinking
 	}
 
-	base.Permissions = permission.Merge(base.Permissions, overlay.Permissions)
+	base.Permissions = model.Merge(base.Permissions, overlay.Permissions)
 
 	if overlay.Cwd != "" {
 		base.Cwd = overlay.Cwd

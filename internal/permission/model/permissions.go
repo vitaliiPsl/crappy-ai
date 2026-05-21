@@ -1,27 +1,4 @@
-package permission
-
-import "github.com/vitaliiPsl/crappy-adk/kit"
-
-type Decision string
-
-const (
-	Allow Decision = "allow"
-	Deny  Decision = "deny"
-	Ask   Decision = "ask"
-)
-
-type Scope string
-
-const (
-	ScopeOnce   Scope = "once"
-	ScopeGlobal Scope = "global"
-)
-
-type Response struct {
-	Decision Decision
-	Scope    Scope
-	Pattern  string
-}
+package model
 
 type Rule struct {
 	Tool    string `yaml:"tool" json:"tool"`
@@ -44,33 +21,6 @@ func (p *Permissions) Add(decision Decision, rule Rule) {
 	case Allow:
 		p.Allow = append(p.Allow, rule)
 	}
-}
-
-func Resolve(permissions Permissions, call kit.ToolCall) Decision {
-	input := ExtractInput(call)
-	if call.Name == "bash" {
-		return resolveBash(permissions, input)
-	}
-
-	for _, rule := range permissions.Deny {
-		if matches(rule, call.Name, input) {
-			return Deny
-		}
-	}
-
-	for _, rule := range permissions.Ask {
-		if matches(rule, call.Name, input) {
-			return Ask
-		}
-	}
-
-	for _, rule := range permissions.Allow {
-		if matches(rule, call.Name, input) {
-			return Allow
-		}
-	}
-
-	return permissions.Default
 }
 
 func Merge(list ...Permissions) Permissions {

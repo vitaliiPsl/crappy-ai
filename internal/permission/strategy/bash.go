@@ -1,38 +1,130 @@
-package permission
+package strategy
 
 import (
 	"regexp"
 	"strings"
 
 	"mvdan.cc/sh/v3/syntax"
+
+	"github.com/vitaliiPsl/crappy-adk/kit"
+
+	"github.com/vitaliiPsl/crappy-ai/internal/permission/model"
 )
 
-func resolveBash(permissions Permissions, command string) Decision {
-	command = strings.TrimSpace(command)
-	parts, hasSubstitution := analyzeBashCommand(command)
+type bashStrategy struct{}
+
+var (
+	commandNamePattern       = regexp.MustCompile(`^[a-z][a-z0-9._-]*$`)
+	commandSubcommandPattern = regexp.MustCompile(`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`)
+)
+
+var unsafePatternCommands = map[string]bool{
+	"sh":         true,
+	"bash":       true,
+	"zsh":        true,
+	"fish":       true,
+	"csh":        true,
+	"tcsh":       true,
+	"ksh":        true,
+	"dash":       true,
+	"cmd":        true,
+	"powershell": true,
+	"pwsh":       true,
+	"env":        true,
+	"xargs":      true,
+	"nice":       true,
+	"stdbuf":     true,
+	"nohup":      true,
+	"timeout":    true,
+	"time":       true,
+	"sudo":       true,
+	"doas":       true,
+	"pkexec":     true,
+}
+
+func (bashStrategy) Resolve(permissions model.Permissions, call kit.ToolCall) model.ResolveResult {
+	input := extractInput(call)
+	command := strings.TrimSpace(input)
+	parts, hasSubstitution := parseBashCommand(command)
 
 	for _, rule := range permissions.Deny {
 		if bashRuleMatchesAny(rule, command, parts) {
-			return Deny
+			return resolveResult(model.Deny, call, input, nil)
 		}
 	}
 
+	options := bashOptions(call.Name, command, parts, hasSubstitution)
 	for _, rule := range permissions.Ask {
 		if bashRuleMatchesAny(rule, command, parts) {
-			return Ask
+			return resolveResult(model.Ask, call, input, options)
 		}
 	}
 
 	if bashAllowed(permissions.Allow, command, parts, hasSubstitution) {
-		return Allow
+		return resolveResult(model.Allow, call, input, nil)
 	}
 
-	return permissions.Default
+	return resolveResult(permissions.Default, call, input, options)
 }
 
-func bashAllowed(rules []Rule, command string, parts []string, hasSubstitution bool) bool {
+func bashOptions(tool, command string, parts []string, hasSubstitution bool) []model.AskOption {
+	if command == "" {
+		return nil
+	}
+
+	options := []model.AskOption{
+		{
+			ID:       model.OptionAllowExact,
+			Label:    "Allow exact command",
+			Decision: model.Allow,
+			Scope:    model.ScopeGlobal,
+			Rule:     &model.Rule{Tool: tool, Pattern: command},
+		},
+	}
+
+	if !hasSubstitution {
+		if pattern, ok := bashCommandPattern(command, parts); ok {
+			options = append(options, model.AskOption{
+				ID:       model.OptionAllowPattern,
+				Label:    "Allow command pattern",
+				Decision: model.Allow,
+				Scope:    model.ScopeGlobal,
+				Rule:     &model.Rule{Tool: tool, Pattern: pattern},
+			})
+		}
+	}
+
+	return options
+}
+
+func bashCommandPattern(command string, parts []string) (string, bool) {
+	if len(parts) != 1 || parts[0] != command {
+		return "", false
+	}
+
+	fields := strings.Fields(command)
+	if len(fields) < 2 {
+		return "", false
+	}
+
+	if !commandNamePattern.MatchString(fields[0]) {
+		return "", false
+	}
+
+	if unsafePatternCommands[fields[0]] {
+		return "", false
+	}
+
+	if !commandSubcommandPattern.MatchString(fields[1]) {
+		return "", false
+	}
+
+	return fields[0] + " " + fields[1] + " *", true
+}
+
+func bashAllowed(rules []model.Rule, command string, parts []string, hasSubstitution bool) bool {
 	for _, rule := range rules {
-		if rule.Tool != "bash" {
+		if rule.Tool != ToolBash {
 			continue
 		}
 
@@ -58,9 +150,9 @@ func bashAllowed(rules []Rule, command string, parts []string, hasSubstitution b
 	return true
 }
 
-func bashPartAllowed(rules []Rule, command string) bool {
+func bashPartAllowed(rules []model.Rule, command string) bool {
 	for _, rule := range rules {
-		if rule.Tool == "bash" && matchBash(rule.Pattern, command) {
+		if rule.Tool == ToolBash && matchBash(rule.Pattern, command) {
 			return true
 		}
 	}
@@ -68,8 +160,8 @@ func bashPartAllowed(rules []Rule, command string) bool {
 	return false
 }
 
-func bashRuleMatchesAny(rule Rule, command string, parts []string) bool {
-	if rule.Tool != "bash" {
+func bashRuleMatchesAny(rule model.Rule, command string, parts []string) bool {
+	if rule.Tool != ToolBash {
 		return false
 	}
 
@@ -99,7 +191,7 @@ func matchBash(pattern, command string) bool {
 
 func matchCommandPattern(pattern, command string) bool {
 	if !hasCommandWildcard(pattern) {
-		return unescapeCommandPattern(pattern) == command
+		return pattern == command
 	}
 
 	re, err := regexp.Compile("^" + commandPatternRegex(pattern) + "$")
@@ -111,47 +203,12 @@ func matchCommandPattern(pattern, command string) bool {
 }
 
 func hasCommandWildcard(pattern string) bool {
-	for i := 0; i < len(pattern); i++ {
-		if pattern[i] == '\\' {
-			i++
-
-			continue
-		}
-
-		if pattern[i] == '*' || pattern[i] == '?' {
-			return true
-		}
-	}
-
-	return false
-}
-
-func unescapeCommandPattern(pattern string) string {
-	var out strings.Builder
-	for i := 0; i < len(pattern); i++ {
-		if pattern[i] == '\\' && i+1 < len(pattern) {
-			out.WriteByte(pattern[i+1])
-			i++
-
-			continue
-		}
-
-		out.WriteByte(pattern[i])
-	}
-
-	return out.String()
+	return strings.ContainsAny(pattern, "*?")
 }
 
 func commandPatternRegex(pattern string) string {
 	var out strings.Builder
 	for i := 0; i < len(pattern); i++ {
-		if pattern[i] == '\\' && i+1 < len(pattern) {
-			out.WriteString(regexp.QuoteMeta(pattern[i+1 : i+2]))
-			i++
-
-			continue
-		}
-
 		switch pattern[i] {
 		case '*':
 			out.WriteString(".*")
@@ -165,14 +222,14 @@ func commandPatternRegex(pattern string) string {
 	return out.String()
 }
 
-// analyzeBashCommand parses command and returns the simple commands it runs
+// parseBashCommand parses command and returns the simple commands it runs
 // (for per-part rule matching) along with whether it contains command or
 // process substitution ($(...), `...`, <(...), >(...)) — code whose contents
 // should not be auto-allowed by broad per-part rules. Substitution contents are
 // still included in parts so deny and ask rules can see them. An unparseable
 // command is reported as containing substitution so it can never be auto-allowed
 // per part.
-func analyzeBashCommand(command string) (parts []string, hasSubstitution bool) {
+func parseBashCommand(command string) (parts []string, hasSubstitution bool) {
 	file, err := syntax.NewParser().Parse(strings.NewReader(command), "")
 	if err != nil {
 		return nil, true

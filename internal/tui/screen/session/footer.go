@@ -137,7 +137,7 @@ func (f *footer) handleEvent(ev sessiondata.Event) {
 			return
 		}
 
-		p := newPermissionPrompt(ev.Prompt.ToolCall)
+		p := newPermissionPrompt(ev.Prompt.Request)
 		p.SetWidth(f.width)
 		f.prompt = &p
 		f.status.SetHints(p.HintsText())

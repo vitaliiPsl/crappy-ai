@@ -9,28 +9,27 @@ import (
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
 
-	"github.com/vitaliiPsl/crappy-ai/internal/permission"
+	"github.com/vitaliiPsl/crappy-ai/internal/permission/model"
 	"github.com/vitaliiPsl/crappy-ai/internal/tui/theme"
 )
 
 const (
 	promptPaddingX    = 1
-	promptHintsText   = "y Once • g Global • n Deny"
 	promptLabelMaxLen = 60
 )
 
 type permissionPromptMsg struct {
 	ToolCallID string
-	Response   permission.Response
+	Response   model.AskResponse
 }
 
 type permissionPrompt struct {
-	call  kit.ToolCall
-	width int
+	request model.AskRequest
+	width   int
 }
 
-func newPermissionPrompt(call kit.ToolCall) permissionPrompt {
-	return permissionPrompt{call: call}
+func newPermissionPrompt(request model.AskRequest) permissionPrompt {
+	return permissionPrompt{request: request}
 }
 
 func (p permissionPrompt) Update(msg tea.Msg) (permissionPrompt, tea.Cmd, tea.Msg) {
@@ -41,11 +40,13 @@ func (p permissionPrompt) Update(msg tea.Msg) (permissionPrompt, tea.Cmd, tea.Ms
 
 	switch key.String() {
 	case "y", "enter":
-		return p, nil, p.emit(permission.Allow, permission.ScopeOnce)
+		return p, nil, p.emit(model.OptionAllowOnce)
+	case "e":
+		return p, nil, p.emit(model.OptionAllowExact)
 	case "g":
-		return p, nil, p.emit(permission.Allow, permission.ScopeGlobal)
+		return p, nil, p.emit(model.OptionAllowPattern)
 	case "n", "esc":
-		return p, nil, p.emit(permission.Deny, permission.ScopeOnce)
+		return p, nil, p.emit(model.OptionDenyOnce)
 	}
 
 	return p, nil, nil
@@ -63,7 +64,7 @@ func (p permissionPrompt) View() string {
 		lipgloss.NewStyle().
 			Foreground(thm.Warning).
 			Background(thm.SurfaceAlt).
-			Render(fmt.Sprintf("Allow %s?", toolLabel(p.call))),
+			Render(fmt.Sprintf("Allow %s?", toolLabel(p.request.Call))),
 	)
 
 	box := lipgloss.NewStyle().
@@ -75,7 +76,34 @@ func (p permissionPrompt) View() string {
 }
 
 func (p permissionPrompt) HintsText() string {
-	return promptHintsText
+	hints := []string{"y Once"}
+	if _, ok := p.request.Option(model.OptionAllowExact); ok {
+		hints = append(hints, "e Exact")
+	}
+
+	if option, ok := p.request.Option(model.OptionAllowPattern); ok {
+		hints = append(hints, p.patternHint(option, hints))
+	}
+
+	hints = append(hints, "n Deny")
+
+	return strings.Join(hints, " • ")
+}
+
+func (p permissionPrompt) patternHint(option model.AskOption, previous []string) string {
+	const label = "g Pattern"
+	if option.Rule == nil || option.Rule.Pattern == "" {
+		return label
+	}
+
+	prefix := label + ": "
+
+	available := p.width - lipgloss.Width(strings.Join(append(append([]string{}, previous...), prefix, "n Deny"), " • "))
+	if available <= len(titleEllipsis) {
+		return label
+	}
+
+	return prefix + truncateWidth(option.Rule.Pattern, available)
 }
 
 func (p permissionPrompt) Height() int {
@@ -86,10 +114,14 @@ func (p *permissionPrompt) SetWidth(width int) {
 	p.width = width
 }
 
-func (p permissionPrompt) emit(decision permission.Decision, scope permission.Scope) tea.Msg {
+func (p permissionPrompt) emit(optionID string) tea.Msg {
+	if _, ok := p.request.Option(optionID); !ok {
+		return nil
+	}
+
 	return permissionPromptMsg{
-		ToolCallID: p.call.ID,
-		Response:   permission.Response{Decision: decision, Scope: scope},
+		ToolCallID: p.request.Call.ID,
+		Response:   model.AskResponse{OptionID: optionID},
 	}
 }
 
@@ -118,4 +150,27 @@ func truncateLabel(s string) string {
 	}
 
 	return s[:promptLabelMaxLen] + titleEllipsis
+}
+
+func truncateWidth(s string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+
+	if lipgloss.Width(s) <= width {
+		return s
+	}
+
+	if width <= len(titleEllipsis) {
+		return titleEllipsis[:width]
+	}
+
+	runes := []rune(s)
+
+	limit := width - len(titleEllipsis)
+	if limit > len(runes) {
+		limit = len(runes)
+	}
+
+	return string(runes[:limit]) + titleEllipsis
 }

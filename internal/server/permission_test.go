@@ -8,12 +8,22 @@ import (
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
 
-	"github.com/vitaliiPsl/crappy-ai/internal/permission"
+	"github.com/vitaliiPsl/crappy-ai/internal/permission/model"
+	"github.com/vitaliiPsl/crappy-ai/internal/permission/strategy"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
 )
 
 func toolCall(id string) kit.ToolCall {
 	return kit.NewToolCall(id, "read_file", map[string]any{"path": "/tmp/x"})
+}
+
+func askRequest(id string) model.AskRequest {
+	result := strategy.Resolve(model.Permissions{Default: model.Ask}, toolCall(id))
+	if result.AskRequest == nil {
+		panic("ask request is nil")
+	}
+
+	return *result.AskRequest
 }
 
 func TestAsk_DeliversPromptAndResponse(t *testing.T) {
@@ -26,16 +36,16 @@ func TestAsk_DeliversPromptAndResponse(t *testing.T) {
 
 	defer srv.Unsubscribe(sess.ID, ch)
 
-	want := permission.Response{Decision: permission.Allow, Scope: permission.ScopeOnce}
+	want := model.AskResponse{OptionID: model.OptionAllowOnce}
 
 	type result struct {
-		resp permission.Response
+		resp model.AskResponse
 		err  error
 	}
 
 	resultCh := make(chan result, 1)
 	go func() {
-		resp, err := srv.Ask(context.Background(), sess.ID, toolCall("call-1"))
+		resp, err := srv.Ask(context.Background(), sess.ID, askRequest("call-1"))
 		resultCh <- result{resp, err}
 	}()
 
@@ -46,6 +56,10 @@ func TestAsk_DeliversPromptAndResponse(t *testing.T) {
 
 	if ev.Prompt == nil || ev.Prompt.ToolCall.ID != "call-1" {
 		t.Fatalf("event prompt = %+v, want tool call call-1", ev.Prompt)
+	}
+
+	if ev.Prompt.Request.Call.ID != "call-1" || len(ev.Prompt.Request.Options) == 0 {
+		t.Fatalf("event request = %+v, want populated request for call-1", ev.Prompt.Request)
 	}
 
 	if err := srv.RespondPrompt(sess.ID, "call-1", want); err != nil {
@@ -80,7 +94,7 @@ func TestAsk_ReturnsCtxErrorOnCancel(t *testing.T) {
 
 	errCh := make(chan error, 1)
 	go func() {
-		_, err := srv.Ask(ctx, sess.ID, toolCall("call-2"))
+		_, err := srv.Ask(ctx, sess.ID, askRequest("call-2"))
 		errCh <- err
 	}()
 
@@ -97,7 +111,7 @@ func TestAsk_ReturnsCtxErrorOnCancel(t *testing.T) {
 		t.Fatal("timed out waiting for Ask to return after cancel")
 	}
 
-	if err := srv.RespondPrompt(sess.ID, "call-2", permission.Response{}); err == nil {
+	if err := srv.RespondPrompt(sess.ID, "call-2", model.AskResponse{}); err == nil {
 		t.Fatal("RespondPrompt after cancel should fail")
 	}
 }
@@ -113,7 +127,7 @@ func TestAttach_ReplaysPendingPrompts(t *testing.T) {
 	defer srv.Unsubscribe(sess.ID, primary)
 
 	go func() {
-		_, _ = srv.Ask(context.Background(), sess.ID, toolCall("call-3"))
+		_, _ = srv.Ask(context.Background(), sess.ID, askRequest("call-3"))
 	}()
 
 	_ = readEvent(t, primary)
@@ -130,7 +144,7 @@ func TestAttach_ReplaysPendingPrompts(t *testing.T) {
 		t.Fatalf("replayed event = %+v, want prompt for call-3", ev)
 	}
 
-	if err := srv.RespondPrompt(sess.ID, "call-3", permission.Response{Decision: permission.Allow, Scope: permission.ScopeOnce}); err != nil {
+	if err := srv.RespondPrompt(sess.ID, "call-3", model.AskResponse{OptionID: model.OptionAllowOnce}); err != nil {
 		t.Fatalf("RespondPrompt: %v", err)
 	}
 }
@@ -138,7 +152,7 @@ func TestAttach_ReplaysPendingPrompts(t *testing.T) {
 func TestRespondPrompt_UnknownReturnsError(t *testing.T) {
 	srv, sess := newTestServer(t, &fakeAssistant{})
 
-	err := srv.RespondPrompt(sess.ID, "missing", permission.Response{})
+	err := srv.RespondPrompt(sess.ID, "missing", model.AskResponse{})
 	if err == nil {
 		t.Fatal("RespondPrompt for missing session should fail")
 	}
@@ -155,12 +169,12 @@ func TestRespondPrompt_TwiceReturnsError(t *testing.T) {
 	defer srv.Unsubscribe(sess.ID, ch)
 
 	go func() {
-		_, _ = srv.Ask(context.Background(), sess.ID, toolCall("call-twice"))
+		_, _ = srv.Ask(context.Background(), sess.ID, askRequest("call-twice"))
 	}()
 
 	_ = readEvent(t, ch)
 
-	resp := permission.Response{Decision: permission.Allow, Scope: permission.ScopeOnce}
+	resp := model.AskResponse{OptionID: model.OptionAllowOnce}
 	if err := srv.RespondPrompt(sess.ID, "call-twice", resp); err != nil {
 		t.Fatalf("first RespondPrompt: %v", err)
 	}
@@ -179,7 +193,7 @@ func TestDetach_KeepsSessionWithPendingPrompt(t *testing.T) {
 	}
 
 	go func() {
-		_, _ = srv.Ask(context.Background(), sess.ID, toolCall("call-pending"))
+		_, _ = srv.Ask(context.Background(), sess.ID, askRequest("call-pending"))
 	}()
 
 	_ = readEvent(t, ch)
@@ -190,7 +204,7 @@ func TestDetach_KeepsSessionWithPendingPrompt(t *testing.T) {
 		t.Fatal("session state should be kept while a prompt is pending")
 	}
 
-	if err := srv.RespondPrompt(sess.ID, "call-pending", permission.Response{Decision: permission.Allow, Scope: permission.ScopeOnce}); err != nil {
+	if err := srv.RespondPrompt(sess.ID, "call-pending", model.AskResponse{OptionID: model.OptionAllowOnce}); err != nil {
 		t.Fatalf("RespondPrompt: %v", err)
 	}
 }

@@ -6,6 +6,8 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
+
+	"github.com/vitaliiPsl/crappy-ai/internal/permission/model"
 )
 
 type EventType string
@@ -22,7 +24,8 @@ const (
 )
 
 type PermissionPrompt struct {
-	ToolCall kit.ToolCall `json:"tool_call"`
+	ToolCall kit.ToolCall     `json:"tool_call"`
+	Request  model.AskRequest `json:"request"`
 }
 
 type TurnStats struct {
@@ -101,9 +104,9 @@ func NewTurnCancelledEvent(sessionID string) Event {
 	return newEvent(sessionID, EventTurnCancelled)
 }
 
-func NewPermissionPromptEvent(sessionID string, call kit.ToolCall) Event {
+func NewPermissionPromptEvent(sessionID string, request model.AskRequest) Event {
 	e := newEvent(sessionID, EventPermissionPrompt)
-	e.Prompt = &PermissionPrompt{ToolCall: call}
+	e.Prompt = &PermissionPrompt{ToolCall: request.Call, Request: request}
 
 	return e
 }

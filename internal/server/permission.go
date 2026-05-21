@@ -4,37 +4,35 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/vitaliiPsl/crappy-adk/kit"
-
-	"github.com/vitaliiPsl/crappy-ai/internal/permission"
+	"github.com/vitaliiPsl/crappy-ai/internal/permission/model"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
 )
 
-func (s *Server) Ask(ctx context.Context, sessionID string, call kit.ToolCall) (permission.Response, error) {
-	respCh := make(chan permission.Response, 1)
-	event := session.NewPermissionPromptEvent(sessionID, call)
+func (s *Server) Ask(ctx context.Context, sessionID string, request model.AskRequest) (model.AskResponse, error) {
+	respCh := make(chan model.AskResponse, 1)
+	event := session.NewPermissionPromptEvent(sessionID, request)
 
 	st := s.getOrCreateSessionState(sessionID)
 
 	st.mu.Lock()
-	st.pending[call.ID] = &pendingPrompt{event: event, response: respCh}
+	st.pending[request.Call.ID] = &pendingPrompt{event: event, response: respCh}
 	st.mu.Unlock()
 
-	defer s.removePending(sessionID, call.ID)
+	defer s.removePending(sessionID, request.Call.ID)
 
 	if err := s.broadcast(ctx, sessionID, event); err != nil {
-		return permission.Response{}, err
+		return model.AskResponse{}, err
 	}
 
 	select {
 	case resp := <-respCh:
 		return resp, nil
 	case <-ctx.Done():
-		return permission.Response{}, ctx.Err()
+		return model.AskResponse{}, ctx.Err()
 	}
 }
 
-func (s *Server) RespondPrompt(sessionID, toolCallID string, resp permission.Response) error {
+func (s *Server) RespondPrompt(sessionID, toolCallID string, resp model.AskResponse) error {
 	st, ok := s.getSessionState(sessionID)
 	if !ok {
 		return fmt.Errorf("no pending prompts for session %q", sessionID)

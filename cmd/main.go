@@ -17,7 +17,6 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/tools"
 	"github.com/vitaliiPsl/crappy-ai/internal/tui"
 
-	permissionstore "github.com/vitaliiPsl/crappy-ai/internal/permission/store"
 	sessionstore "github.com/vitaliiPsl/crappy-ai/internal/session/store"
 )
 
@@ -66,7 +65,7 @@ func run() error {
 	modelRegistry := models.NewRegistry(settingsStore)
 	toolRegistry := tools.NewRegistry()
 
-	permissionService := permission.NewService(permissionstore.NewGlobal(configStore), nil)
+	permissionService := permission.NewService(permission.NewStore(configStore), nil)
 
 	go func() {
 		if err := settingsStore.RefreshModels(context.Background()); err != nil {
