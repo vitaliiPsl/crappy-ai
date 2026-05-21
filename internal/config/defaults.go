@@ -1,6 +1,9 @@
 package config
 
-import "github.com/vitaliiPsl/crappy-ai/internal/permission/model"
+import (
+	permissionmodel "github.com/vitaliiPsl/crappy-ai/internal/permission/model"
+	settingsmodels "github.com/vitaliiPsl/crappy-ai/internal/settings/models"
+)
 
 const DefaultSystemPrompt = `You are Crappy, an AI assistant for software development work.
 
@@ -30,11 +33,11 @@ Communication:
 func defaults() Config {
 	return Config{
 		SystemPrompt: DefaultSystemPrompt,
-		Provider:     "google",
-		Model:        "gemini-3-flash-preview",
+		Provider:     settingsmodels.ProviderGoogle,
+		Model:        "gemini-3.1-flash-lite",
 		Thinking:     "medium",
-		Permissions: model.Permissions{
-			Allow: []model.Rule{
+		Permissions: permissionmodel.Permissions{
+			Allow: []permissionmodel.Rule{
 				{Tool: "list", Pattern: "./**"},
 				{Tool: "read_file", Pattern: "./**"},
 			},
