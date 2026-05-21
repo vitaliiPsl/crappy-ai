@@ -1,5 +1,7 @@
 package model
 
+import "slices"
+
 type Rule struct {
 	Tool    string `yaml:"tool" json:"tool"`
 	Pattern string `yaml:"pattern,omitempty" json:"pattern,omitempty"`
@@ -15,11 +17,11 @@ type Permissions struct {
 func (p *Permissions) Add(decision Decision, rule Rule) {
 	switch decision {
 	case Deny:
-		p.Deny = append(p.Deny, rule)
+		p.Deny = appendRule(p.Deny, rule)
 	case Ask:
-		p.Ask = append(p.Ask, rule)
+		p.Ask = appendRule(p.Ask, rule)
 	case Allow:
-		p.Allow = append(p.Allow, rule)
+		p.Allow = appendRule(p.Allow, rule)
 	}
 }
 
@@ -30,10 +32,26 @@ func Merge(list ...Permissions) Permissions {
 			out.Default = permissions.Default
 		}
 
-		out.Deny = append(out.Deny, permissions.Deny...)
-		out.Ask = append(out.Ask, permissions.Ask...)
-		out.Allow = append(out.Allow, permissions.Allow...)
+		out.Deny = appendRules(out.Deny, permissions.Deny...)
+		out.Ask = appendRules(out.Ask, permissions.Ask...)
+		out.Allow = appendRules(out.Allow, permissions.Allow...)
 	}
 
 	return out
+}
+
+func appendRules(rules []Rule, next ...Rule) []Rule {
+	for _, rule := range next {
+		rules = appendRule(rules, rule)
+	}
+
+	return rules
+}
+
+func appendRule(rules []Rule, next Rule) []Rule {
+	if slices.Contains(rules, next) {
+		return rules
+	}
+
+	return append(rules, next)
 }

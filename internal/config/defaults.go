@@ -1,5 +1,7 @@
 package config
 
+import "github.com/vitaliiPsl/crappy-ai/internal/permission/model"
+
 const DefaultSystemPrompt = `You are Crappy, an AI assistant for software development work.
 
 Your job is to help the user complete real work in the codebase: build features, analyze code, answer technical questions, make edits, and verify results.
@@ -31,5 +33,11 @@ func defaults() Config {
 		Provider:     "google",
 		Model:        "gemini-3-flash-preview",
 		Thinking:     "medium",
+		Permissions: model.Permissions{
+			Allow: []model.Rule{
+				{Tool: "list", Pattern: "./**"},
+				{Tool: "read_file", Pattern: "./**"},
+			},
+		},
 	}
 }
