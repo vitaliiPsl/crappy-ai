@@ -87,7 +87,7 @@ func (a *Assistant) Run(ctx context.Context, sessionID, text string) (*kit.Strea
 		if runErr != nil {
 			ev, err = a.handleRunError(ctx, sessionID, runErr)
 		} else {
-			ev, err = a.handleRunResult(ctx, sessionID, model.Config(), resp.Usage)
+			ev, err = a.handleRunResult(ctx, sessionID, model.Config(), resp.Usage, resp.LastUsage)
 		}
 
 		if err != nil {
@@ -131,6 +131,7 @@ func (a *Assistant) handleRunResult(
 	sessionID string,
 	modelConfig kit.ModelConfig,
 	usage kit.Usage,
+	lastUsage kit.Usage,
 ) (session.Event, error) {
 	sess, err := a.sessionStore.Get(ctx, sessionID)
 	if err != nil {
@@ -145,7 +146,7 @@ func (a *Assistant) handleRunResult(
 
 	return session.NewTurnCompleteEvent(sess.ID, session.TurnStats{
 		Usage:         sess.Usage,
-		ContextUsed:   usage.InputTokens,
+		ContextUsed:   lastUsage.InputTokens,
 		ContextWindow: int64(modelConfig.InputLimit),
 	}), nil
 }

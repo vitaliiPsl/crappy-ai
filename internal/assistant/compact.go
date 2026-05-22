@@ -33,7 +33,7 @@ func (a *Assistant) Compact(ctx context.Context, sessionID string) (*kit.Stream[
 		if runErr != nil {
 			ev, handlerErr = a.handleRunError(ctx, sessionID, runErr)
 		} else {
-			ev, handlerErr = a.handleRunResult(ctx, sessionID, model.Config(), result.Usage)
+			ev, handlerErr = a.handleRunResult(ctx, sessionID, model.Config(), result.Usage, result.Usage)
 		}
 
 		if handlerErr != nil {
