@@ -7,6 +7,7 @@ import (
 
 	"github.com/vitaliiPsl/crappy-adk/agent"
 	"github.com/vitaliiPsl/crappy-adk/kit"
+	"github.com/vitaliiPsl/crappy-adk/x/guard"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/memory"
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/summarization"
@@ -15,6 +16,11 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/permission"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
 	"github.com/vitaliiPsl/crappy-ai/internal/tools"
+)
+
+const (
+	toolLoopMaxRepeats = 3
+	toolLoopWindow     = 5
 )
 
 type Assistant struct {
@@ -109,6 +115,7 @@ func (a *Assistant) buildAgentOpts(sessionID string, cfg config.Config, model ki
 		agent.WithInstructions(sources...),
 		agent.WithTools(a.toolRegistry.GetTools()...),
 		summarization.New(model),
+		guard.WithRepeatedToolCallLimit(toolLoopMaxRepeats, toolLoopWindow),
 	}
 
 	if cfg.Thinking != "" {

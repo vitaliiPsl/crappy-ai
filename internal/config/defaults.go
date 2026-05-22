@@ -37,6 +37,7 @@ func defaults() Config {
 		Model:        "gemini-3.1-flash-lite",
 		Thinking:     "medium",
 		Permissions: permissionmodel.Permissions{
+			Default: permissionmodel.Ask,
 			Allow: []permissionmodel.Rule{
 				{Tool: "list", Pattern: "./**"},
 				{Tool: "read_file", Pattern: "./**"},
