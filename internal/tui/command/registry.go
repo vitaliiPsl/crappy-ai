@@ -10,7 +10,15 @@ type Registry struct {
 }
 
 func NewRegistry() *Registry {
-	return &Registry{commands: make(map[string]Command)}
+	r := &Registry{commands: make(map[string]Command)}
+
+	r.Register(NewNewCommand())
+	r.Register(NewSessionsCommand())
+	r.Register(NewSettingsCommand())
+	r.Register(NewCompactCommand())
+	r.Register(NewHelpCommand(r))
+
+	return r
 }
 
 func (r *Registry) Register(cmd Command) {

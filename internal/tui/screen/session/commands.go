@@ -53,7 +53,7 @@ func newCommandPicker(registry *command.Registry) commandPicker {
 	}
 }
 
-func (c *commandPicker) Update(value string) {
+func (c *commandPicker) Sync(value string) {
 	if !strings.HasPrefix(value, "/") || strings.ContainsAny(value, " \t\r\n") {
 		c.active = false
 
@@ -72,28 +72,24 @@ func (c commandPicker) View() string {
 	return c.selector.View()
 }
 
+func (c commandPicker) Active() bool {
+	return c.active && !c.selector.Empty()
+}
+
 func (c *commandPicker) Clear() {
 	c.active = false
 }
 
-func (c *commandPicker) Previous() bool {
-	if !c.Active() {
-		return false
+func (c *commandPicker) Previous() {
+	if c.Active() {
+		c.selector.Previous()
 	}
-
-	return c.selector.Previous()
 }
 
-func (c *commandPicker) Next() bool {
-	if !c.Active() {
-		return false
+func (c *commandPicker) Next() {
+	if c.Active() {
+		c.selector.Next()
 	}
-
-	return c.selector.Next()
-}
-
-func (c commandPicker) Active() bool {
-	return c.active && !c.selector.Empty()
 }
 
 func (c commandPicker) Completion(value string) (string, bool) {

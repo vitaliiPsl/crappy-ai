@@ -50,17 +50,6 @@ func (r *Registry) GetTools() []kit.Tool {
 	return tools
 }
 
-func registerTools(entries map[string]kit.Tool, tools ...kit.Tool) {
-	for _, tool := range tools {
-		name := tool.Definition().Name
-		if _, exists := entries[name]; exists {
-			panic(fmt.Sprintf("tool %q already registered", name))
-		}
-
-		entries[name] = tool
-	}
-}
-
 func (r *Registry) names() []string {
 	names := make([]string, 0, len(r.entries))
 	for name := range r.entries {
@@ -70,4 +59,15 @@ func (r *Registry) names() []string {
 	sort.Strings(names)
 
 	return names
+}
+
+func registerTools(entries map[string]kit.Tool, tools ...kit.Tool) {
+	for _, tool := range tools {
+		name := tool.Definition().Name
+		if _, exists := entries[name]; exists {
+			panic(fmt.Sprintf("tool %q already registered", name))
+		}
+
+		entries[name] = tool
+	}
 }

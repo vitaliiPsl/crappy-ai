@@ -2,34 +2,33 @@ package session
 
 import (
 	"context"
-	"fmt"
-	"strings"
 
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
-	"github.com/vitaliiPsl/crappy-ai/internal/permission/model"
 	"github.com/vitaliiPsl/crappy-ai/internal/server"
 	sessiondata "github.com/vitaliiPsl/crappy-ai/internal/session"
 	"github.com/vitaliiPsl/crappy-ai/internal/tui/command"
 )
 
-const (
-	titleMaxLen   = 30
-	titleEllipsis = "..."
-)
+const followBottomGrip = 2
 
 type Model struct {
 	ctx    context.Context
 	server *server.Server
-	sess   *sessiondata.Session
-	reg    *command.Registry
 
-	conversation conversation
-	footer       footer
-	eventChan    <-chan sessiondata.Event
+	state    State
+	events   <-chan sessiondata.Event
+	registry *command.Registry
 
-	err       error
-	runActive bool
+	viewport viewport.Model
+	spinner  spinner.Model
+	input    inputBar
+
+	showThinking   bool
+	showToolResult bool
 
 	width  int
 	height int
@@ -37,322 +36,160 @@ type Model struct {
 
 func New(ctx context.Context, srv *server.Server, sessionID string) Model {
 	cfg := srv.GetConfig()
-	reg := newCommandRegistry()
-
-	sess, eventChan, initErr := openInitialSession(ctx, srv, sessionID)
-
-	cwd := cfg.Cwd
-	if sess != nil && sess.Cwd != "" {
-		cwd = sess.Cwd
-	}
-
-	return Model{
-		ctx:          ctx,
-		server:       srv,
-		reg:          reg,
-		conversation: newConversation(cfg.Provider, cfg.Model),
-		footer:       newFooter(reg, cfg.Model, cwd),
-		sess:         sess,
-		eventChan:    eventChan,
-		err:          initErr,
-	}
-}
-
-func newCommandRegistry() *command.Registry {
 	registry := command.NewRegistry()
-	registry.Register(command.NewNewCommand())
-	registry.Register(command.NewSessionsCommand())
-	registry.Register(command.NewSettingsCommand())
-	registry.Register(command.NewCompactCommand())
-	registry.Register(command.NewHelpCommand(registry))
 
-	return registry
-}
+	vp := viewport.New()
+	vp.SoftWrap = true
 
-func openInitialSession(
-	ctx context.Context,
-	srv *server.Server,
-	sessionID string,
-) (*sessiondata.Session, <-chan sessiondata.Event, error) {
+	sp := spinner.New()
+	sp.Spinner = spinner.MiniDot
+	sp.Style = spinnerStyle
+
+	m := Model{
+		ctx:      ctx,
+		server:   srv,
+		state:    NewState(cfg),
+		registry: registry,
+		viewport: vp,
+		spinner:  sp,
+		input:    newInputBar(registry),
+	}
+
 	if sessionID == "" {
-		return nil, nil, nil
+		return m
 	}
 
 	sess, err := srv.GetSession(ctx, sessionID)
 	if err != nil {
-		return nil, nil, err
+		m.state = m.state.SetError(err)
+
+		return m
 	}
 
-	eventChan, err := srv.Subscribe(ctx, sessionID)
+	ch, err := srv.Subscribe(ctx, sessionID)
 	if err != nil {
-		return sess, nil, err
+		m.state = m.state.SetError(err)
+
+		return m
 	}
 
-	return sess, eventChan, nil
+	m.state = m.state.WithSession(sess)
+	m.events = ch
+
+	return m
 }
 
 func (m Model) Init() tea.Cmd {
-	cmds := []tea.Cmd{m.footer.Init()}
+	cmds := []tea.Cmd{m.input.Init()}
 
-	if m.sessionID() != "" {
-		cmds = append(cmds, m.loadHistory(), m.waitForEvent())
+	if m.state.ID != "" {
+		cmds = append(cmds, loadHistoryCmd(m.ctx, m.server, m.state.ID), waitForEventCmd(m.events))
 	}
 
 	return tea.Batch(cmds...)
 }
 
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
+	var cmd tea.Cmd
+
 	switch msg := msg.(type) {
-	case historyLoadedMsg:
-		if msg.err != nil {
-			m.err = msg.err
+	case tea.WindowSizeMsg:
+		m.SetSize(msg.Width, msg.Height)
 
-			return m, nil
-		}
+		return m, nil
 
-		return m.updateChildren(msg)
+	case spinner.TickMsg:
+		return m.tickSpinner(msg)
 
 	case sessionEventMsg:
-		switch msg.event.Type {
-		case sessiondata.EventTurnComplete, sessiondata.EventTurnCancelled, sessiondata.EventError:
-			m.runActive = false
-		}
+		return m.applyEvent(msg.event)
 
-		var cmd tea.Cmd
-
-		m, cmd = m.updateChildren(msg)
-
-		return m, tea.Batch(cmd, m.waitForEvent())
-
-	case permissionPromptMsg:
-		return m, m.respondPrompt(msg.ToolCallID, msg.Response)
-
-	case runStartedMsg:
-		m.runActive = true
-
-		return m.updateChildren(msg)
-
-	case errorMsg:
-		m.runActive = false
-		m.err = msg.err
-
-		return m.updateChildren(runStoppedMsg{})
+	case historyLoadedMsg:
+		return m.applyHistory(msg)
 
 	case submitMsg:
-		if m.runActive {
-			return m, nil
-		}
-
-		return m.handleSubmit(msg.Text)
+		m, cmd = m.handleSubmit(msg.Text)
 
 	case commandMsg:
-		if m.runActive {
-			return m, nil
-		}
-
-		return m.runCommand(msg)
+		m, cmd = m.handleCommand(msg)
 
 	case command.SystemMsg:
-		var cmd tea.Cmd
-
-		m, cmd = m.updateChildren(systemMessageMsg{Text: msg.Text})
-
-		return m, cmd
+		m.state = m.state.AppendSystem(msg.Text)
 
 	case command.CompactSessionMsg:
-		if m.runActive || m.sessionID() == "" {
-			return m, nil
-		}
+		m, cmd = m.handleCompact()
 
-		return m, m.runCompact()
+	case effectErrorMsg:
+		m.state = m.state.SetError(msg.err)
 
 	case tea.KeyMsg:
-		if msg.String() == "esc" && m.runActive && !m.footer.HasPrompt() {
-			m.server.CancelRun(m.sessionID())
+		m, cmd = m.handleKey(msg)
 
-			return m, nil
-		}
+	default:
+		m.viewport, cmd = m.viewport.Update(msg)
+
+		return m, cmd
 	}
 
-	return m.updateChildren(msg)
-}
+	m.refresh()
 
-func (m Model) respondPrompt(toolCallID string, resp model.AskResponse) tea.Cmd {
-	return func() tea.Msg {
-		if err := m.server.RespondPrompt(m.sessionID(), toolCallID, resp); err != nil {
-			return errorMsg{err: err}
-		}
-
-		return nil
-	}
-}
-
-func (m Model) runCommand(msg commandMsg) (Model, tea.Cmd) {
-	m.err = nil
-
-	cmd, ok := m.reg.Get(msg.Name)
-	if !ok {
-		m, updateCmd := m.updateChildren(systemMessageMsg{Text: fmt.Sprintf("Unknown command: /%s", msg.Name)})
-
-		return m, updateCmd
-	}
-
-	return m, cmd.Execute(m.ctx, command.Request{SessionID: m.sessionID(), Args: msg.Args})
+	return m, cmd
 }
 
 func (m Model) View() string {
-	errView := ""
-	if m.err != nil {
-		errView = errorStyle.Render(fmt.Sprintf("Error: %v", m.err)) + "\n"
-	}
-
-	return m.conversation.View() + "\n" + errView + m.footer.View()
-}
-
-func (m Model) updateChildren(msg tea.Msg) (Model, tea.Cmd) {
-	var cmds []tea.Cmd
-
-	var (
-		cmd      tea.Cmd
-		consumed bool
-	)
-
-	m.footer, cmd, consumed = m.footer.Update(msg)
-	cmds = append(cmds, cmd)
-
-	if !consumed {
-		m.conversation, cmd = m.conversation.Update(msg)
-		cmds = append(cmds, cmd)
-	}
-
-	m.SetSize(m.width, m.height)
-
-	return m, tea.Batch(cmds...)
+	return m.viewport.View() + "\n" + m.renderFooterView()
 }
 
 func (m *Model) SetSize(width, height int) {
 	m.width = width
 	m.height = height
-	m.footer.setSize(width)
-
-	footerHeight := m.footer.Height()
-	convHeight := max(height-footerHeight, 1)
-	m.conversation.setSize(width, convHeight)
+	m.viewport.SetWidth(width)
+	m.input.SetWidth(width)
+	m.refresh()
 }
 
 func (m *Model) Cleanup() {
-	if m.eventChan != nil {
-		m.server.Unsubscribe(m.sessionID(), m.eventChan)
-		m.eventChan = nil
+	if m.events == nil {
+		return
 	}
+
+	m.server.Unsubscribe(m.state.ID, m.events)
+	m.events = nil
 }
 
-func (m Model) sessionID() string {
-	if m.sess == nil {
-		return ""
+func (m *Model) refresh() {
+	footerHeight := lipgloss.Height(m.renderFooterView())
+	bodyHeight := max(m.height-footerHeight, 1)
+	m.viewport.SetHeight(bodyHeight)
+
+	if isConversationEmpty(&m.state) {
+		m.viewport.SetContent(renderEmpty(&m.state, m.width, bodyHeight))
+
+		return
 	}
 
-	return m.sess.ID
+	opts := ConvOpts{
+		Width:          m.width,
+		ShowThinking:   m.showThinking,
+		ShowToolResult: m.showToolResult,
+	}
+
+	m.viewport.SetContent(renderConversation(&m.state, opts))
 }
 
-func (m Model) loadHistory() tea.Cmd {
-	return func() tea.Msg {
-		events, err := m.server.LoadEvents(m.ctx, m.sessionID())
-
-		return historyLoadedMsg{events: events, err: err}
-	}
+func (m Model) renderFooterView() string {
+	return renderFooter(&m.state, FooterOpts{
+		Width:   m.width,
+		Spinner: m.spinner.View(),
+		Input:   m.input.View(),
+	})
 }
 
-func (m Model) waitForEvent() tea.Cmd {
-	ch := m.eventChan
-	if ch == nil {
-		return nil
+func (m Model) isNearBottom() bool {
+	total := m.viewport.TotalLineCount()
+	if total <= m.viewport.Height() {
+		return true
 	}
 
-	return func() tea.Msg {
-		ev, ok := <-ch
-		if !ok {
-			return nil
-		}
-
-		return sessionEventMsg{event: ev}
-	}
-}
-
-func (m Model) startRun(text string) tea.Cmd {
-	return tea.Batch(
-		func() tea.Msg { return runStartedMsg{} },
-		func() tea.Msg {
-			if err := m.server.Send(m.ctx, m.sessionID(), text); err != nil {
-				return errorMsg{err: err}
-			}
-
-			return nil
-		},
-	)
-}
-
-func (m Model) runCompact() tea.Cmd {
-	return tea.Batch(
-		func() tea.Msg { return runStartedMsg{} },
-		func() tea.Msg {
-			if err := m.server.Compact(m.ctx, m.sessionID()); err != nil {
-				return errorMsg{err: err}
-			}
-
-			return nil
-		},
-	)
-}
-
-func (m Model) handleSubmit(text string) (Model, tea.Cmd) {
-	m.err = nil
-
-	var cmds []tea.Cmd
-	if m.sessionID() == "" {
-		sess, ch, err := m.createSession(deriveTitle(text))
-		if err != nil {
-			m.err = err
-
-			return m, nil
-		}
-
-		m.sess = sess
-		m.eventChan = ch
-
-		cmds = append(cmds, func() tea.Msg { return CreatedMsg{SessionID: sess.ID} })
-		cmds = append(cmds, m.waitForEvent())
-	}
-
-	cmds = append(cmds, m.startRun(text))
-
-	return m, tea.Batch(cmds...)
-}
-
-func (m Model) createSession(title string) (*sessiondata.Session, <-chan sessiondata.Event, error) {
-	sess, err := m.server.CreateSession(m.ctx, title)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	ch, err := m.server.Subscribe(m.ctx, sess.ID)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return sess, ch, nil
-}
-
-func deriveTitle(text string) string {
-	text = strings.TrimSpace(text)
-	if len(text) <= titleMaxLen {
-		return text
-	}
-
-	trimmed := text[:titleMaxLen]
-	if idx := strings.LastIndex(trimmed, " "); idx > 0 {
-		trimmed = trimmed[:idx]
-	}
-
-	return trimmed + titleEllipsis
+	return m.viewport.YOffset()+m.viewport.Height() >= total-followBottomGrip
 }

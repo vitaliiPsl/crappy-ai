@@ -9,6 +9,13 @@ import (
 var (
 	sessionTheme = theme.Default
 
+	textStyle       = lipgloss.NewStyle().Foreground(sessionTheme.Text)
+	subtleTextStyle = lipgloss.NewStyle().Foreground(sessionTheme.SubtleText)
+	errorStyle      = lipgloss.NewStyle().Foreground(sessionTheme.Error)
+	hintsStyle      = lipgloss.NewStyle().Foreground(sessionTheme.SubtleText)
+	systemStyle     = lipgloss.NewStyle().Foreground(sessionTheme.Muted)
+	thinkingStyle   = lipgloss.NewStyle().Foreground(sessionTheme.Muted)
+
 	thinkingHeaderStyle = lipgloss.NewStyle().
 				Foreground(sessionTheme.Muted).
 				Italic(true).
@@ -19,24 +26,28 @@ var (
 	toolBlockBase = lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), false, false, false, true).
 			PaddingLeft(1)
-
 	toolBlockPending = toolBlockBase.BorderForeground(sessionTheme.Warning)
 	toolBlockDone    = toolBlockBase.BorderForeground(sessionTheme.Success)
 	toolBlockError   = toolBlockBase.BorderForeground(sessionTheme.Error)
-
-	textStyle       = lipgloss.NewStyle().Foreground(sessionTheme.Text)
-	subtleTextStyle = lipgloss.NewStyle().Foreground(sessionTheme.SubtleText)
-	thinkingStyle   = lipgloss.NewStyle().Foreground(sessionTheme.Muted)
-	errorStyle      = lipgloss.NewStyle().Foreground(sessionTheme.Error)
-	hintsStyle      = lipgloss.NewStyle().Foreground(sessionTheme.SubtleText)
-	systemStyle     = lipgloss.NewStyle().Foreground(sessionTheme.Muted)
 
 	userMessageStyle = lipgloss.NewStyle().
 				Background(sessionTheme.SurfaceAlt).
 				Padding(0, 1)
 
-	assistantMessageStyle = lipgloss.NewStyle().
-				Padding(0, 1)
+	assistantMessageStyle = lipgloss.NewStyle().Padding(0, 1)
+
+	runIndicatorStyle = lipgloss.NewStyle().Foreground(sessionTheme.SubtleText)
+	spinnerStyle      = lipgloss.NewStyle().Foreground(sessionTheme.Primary)
+
+	promptBoxStyle = lipgloss.NewStyle().
+			Background(sessionTheme.SurfaceAlt).
+			Padding(0, 1)
+	promptPrefixStyle = lipgloss.NewStyle().
+				Foreground(sessionTheme.Primary).
+				Background(sessionTheme.SurfaceAlt)
+	promptQuestionStyle = lipgloss.NewStyle().
+				Foreground(sessionTheme.Warning).
+				Background(sessionTheme.SurfaceAlt)
 
 	emptyCenterStyle = lipgloss.NewStyle().Align(lipgloss.Center)
 )
