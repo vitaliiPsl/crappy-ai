@@ -23,70 +23,24 @@ func (a *Assistant) Compact(ctx context.Context, sessionID string) (*kit.Stream[
 	summarizer := summarization.NewSummarizer(model)
 
 	return kit.NewStream(func(emit kit.Emitter[session.Event]) (struct{}, error) {
-		result, runErr := a.compactSession(ctx, sessionID, mem, summarizer, emit)
+		result, runErr := summarizer.Summarize(ctx, mem, sessionEventEmitter(sessionID, emit))
 
-		var (
-			ev         session.Event
-			handlerErr error
-		)
-
-		if runErr != nil {
-			ev, handlerErr = a.handleRunError(ctx, sessionID, runErr)
-		} else {
-			ev, handlerErr = a.handleRunResult(ctx, sessionID, model.Config(), result.Usage, result.Usage)
+		var usage kit.Usage
+		if result != nil {
+			usage = result.Usage
 		}
 
-		if handlerErr != nil {
-			return struct{}{}, handlerErr
-		}
-
-		if err := emit.Emit(ev); err != nil {
-			return struct{}{}, err
-		}
-
-		return struct{}{}, nil
+		return struct{}{}, a.handleResult(ctx, sessionID, model.Config(), usage, usage, runErr, emit)
 	}), nil
 }
 
-func (a *Assistant) compactSession(
-	ctx context.Context,
-	sessionID string,
-	mem kit.Memory,
-	summarizer *summarization.Summarizer,
-	emit kit.Emitter[session.Event],
-) (summarization.Result, error) {
-	messages, err := mem.Context(ctx)
-	if err != nil {
-		return summarization.Result{}, fmt.Errorf("compact: read memory context: %w", err)
+func sessionEventEmitter(sessionID string, emit kit.Emitter[session.Event]) func(kit.AgentEvent) error {
+	return func(ev kit.AgentEvent) error {
+		sessEv, ok := session.FromKitEvent(sessionID, ev)
+		if !ok {
+			return nil
+		}
+
+		return emit.Emit(sessEv)
 	}
-
-	if len(messages) == 0 {
-		return summarization.Result{}, nil
-	}
-
-	if err := emit.Emit(session.NewContentStartedEvent(sessionID, kit.NewSummaryContent(""))); err != nil {
-		return summarization.Result{}, err
-	}
-
-	result, err := summarizer.Summarize(ctx, messages)
-	if err != nil {
-		return summarization.Result{}, err
-	}
-
-	content := kit.NewSummaryContent(result.Text)
-	summary := kit.NewUserMessage(content)
-
-	if err := mem.Record(ctx, summary); err != nil {
-		return summarization.Result{}, fmt.Errorf("compact: record summary: %w", err)
-	}
-
-	if err := emit.Emit(session.NewContentDoneEvent(sessionID, content)); err != nil {
-		return result, err
-	}
-
-	if err := emit.Emit(session.NewMessageEvent(sessionID, summary)); err != nil {
-		return result, err
-	}
-
-	return result, nil
 }

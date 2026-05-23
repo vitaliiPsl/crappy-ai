@@ -47,6 +47,12 @@ func run() error {
 		return fmt.Errorf("load settings: %w", err)
 	}
 
+	go func() {
+		if err := settingsStore.RefreshModels(context.Background()); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: refresh models from remote: %v\n", err)
+		}
+	}()
+
 	configStore, err := config.Load(settingsStore.Get().ConfigPath, config.Flags{
 		Cwd:      cwd,
 		Provider: *provider,
@@ -66,12 +72,6 @@ func run() error {
 	toolRegistry := tools.NewRegistry()
 
 	permissionService := permission.NewService(permission.NewStore(configStore), nil)
-
-	go func() {
-		if err := settingsStore.RefreshModels(context.Background()); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: refresh models from remote: %v\n", err)
-		}
-	}()
 
 	asst := assistant.New(configStore, sessStore, modelRegistry, toolRegistry, permissionService)
 	srv := server.New(asst, settingsStore, configStore, sessStore, modelRegistry)

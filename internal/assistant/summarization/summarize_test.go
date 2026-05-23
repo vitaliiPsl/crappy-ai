@@ -18,22 +18,21 @@ func TestSummarize_ReturnsModelTextAndUsage(t *testing.T) {
 		},
 	})
 
-	s := NewSummarizer(model)
-
-	result, err := s.Summarize(
+	text, usage, err := generateSummary(
 		context.Background(),
+		model,
 		[]kit.Message{kit.NewUserMessage(kit.NewTextContent("hi"))},
 	)
 	if err != nil {
-		t.Fatalf("Summarize: %v", err)
+		t.Fatalf("summarize: %v", err)
 	}
 
-	if result.Text != "compact summary" {
-		t.Fatalf("Text = %q, want compact summary", result.Text)
+	if text != "compact summary" {
+		t.Fatalf("text = %q, want compact summary", text)
 	}
 
-	if result.Usage.InputTokens != 12 || result.Usage.OutputTokens != 4 {
-		t.Fatalf("Usage = %+v, want input=12 output=4", result.Usage)
+	if usage.InputTokens != 12 || usage.OutputTokens != 4 {
+		t.Fatalf("usage = %+v, want input=12 output=4", usage)
 	}
 }
 
@@ -49,8 +48,8 @@ func TestSummarize_SendsPromptAndSingleUserMessage(t *testing.T) {
 		kit.NewModelMessage(kit.NewTextContent("second")),
 	}
 
-	if _, err := NewSummarizer(model).Summarize(context.Background(), messages); err != nil {
-		t.Fatalf("Summarize: %v", err)
+	if _, _, err := generateSummary(context.Background(), model, messages); err != nil {
+		t.Fatalf("summarize: %v", err)
 	}
 
 	req := model.CallAt(0)
@@ -81,8 +80,8 @@ func TestSummarize_FlattensRolesIntoTranscript(t *testing.T) {
 		kit.NewModelMessage(kit.NewTextContent("hi back")),
 	}
 
-	if _, err := NewSummarizer(model).Summarize(context.Background(), messages); err != nil {
-		t.Fatalf("Summarize: %v", err)
+	if _, _, err := generateSummary(context.Background(), model, messages); err != nil {
+		t.Fatalf("summarize: %v", err)
 	}
 
 	transcript := model.CallAt(0).Messages[0].Content[0].Text.Text
@@ -109,8 +108,8 @@ func TestSummarize_OmitsThinkingFromTranscript(t *testing.T) {
 		),
 	}
 
-	if _, err := NewSummarizer(model).Summarize(context.Background(), messages); err != nil {
-		t.Fatalf("Summarize: %v", err)
+	if _, _, err := generateSummary(context.Background(), model, messages); err != nil {
+		t.Fatalf("summarize: %v", err)
 	}
 
 	transcript := model.CallAt(0).Messages[0].Content[0].Text.Text
@@ -137,8 +136,8 @@ func TestSummarize_RendersToolCallsAndResults(t *testing.T) {
 		kit.NewToolMessage(kit.NewToolResultContent(kit.NewToolResult(call, "file.go", nil))),
 	}
 
-	if _, err := NewSummarizer(model).Summarize(context.Background(), messages); err != nil {
-		t.Fatalf("Summarize: %v", err)
+	if _, _, err := generateSummary(context.Background(), model, messages); err != nil {
+		t.Fatalf("summarize: %v", err)
 	}
 
 	transcript := model.CallAt(0).Messages[0].Content[0].Text.Text
@@ -168,8 +167,8 @@ func TestSummarize_RendersToolError(t *testing.T) {
 		kit.NewToolMessage(kit.NewToolResultContent(result)),
 	}
 
-	if _, err := NewSummarizer(model).Summarize(context.Background(), messages); err != nil {
-		t.Fatalf("Summarize: %v", err)
+	if _, _, err := generateSummary(context.Background(), model, messages); err != nil {
+		t.Fatalf("summarize: %v", err)
 	}
 
 	transcript := model.CallAt(0).Messages[0].Content[0].Text.Text
@@ -189,8 +188,8 @@ func TestSummarize_RendersPriorSummary(t *testing.T) {
 		kit.NewUserMessage(kit.NewTextContent("new question")),
 	}
 
-	if _, err := NewSummarizer(model).Summarize(context.Background(), messages); err != nil {
-		t.Fatalf("Summarize: %v", err)
+	if _, _, err := generateSummary(context.Background(), model, messages); err != nil {
+		t.Fatalf("summarize: %v", err)
 	}
 
 	transcript := model.CallAt(0).Messages[0].Content[0].Text.Text
@@ -209,8 +208,9 @@ func TestSummarize_PropagatesModelError(t *testing.T) {
 
 	model := kittest.NewModel(t, kittest.ModelResult{Error: wantErr})
 
-	_, err := NewSummarizer(model).Summarize(
+	_, _, err := generateSummary(
 		context.Background(),
+		model,
 		[]kit.Message{kit.NewUserMessage(kit.NewTextContent("hi"))},
 	)
 	if !errors.Is(err, wantErr) {
@@ -223,8 +223,9 @@ func TestSummarize_ErrorsOnMissingTextContent(t *testing.T) {
 		Response: kit.ModelResponse{Message: kit.NewModelMessage()},
 	})
 
-	_, err := NewSummarizer(model).Summarize(
+	_, _, err := generateSummary(
 		context.Background(),
+		model,
 		[]kit.Message{kit.NewUserMessage(kit.NewTextContent("hi"))},
 	)
 	if err == nil {
@@ -239,8 +240,9 @@ func TestSummarize_ErrorsOnEmptyText(t *testing.T) {
 		},
 	})
 
-	_, err := NewSummarizer(model).Summarize(
+	_, _, err := generateSummary(
 		context.Background(),
+		model,
 		[]kit.Message{kit.NewUserMessage(kit.NewTextContent("hi"))},
 	)
 	if err == nil {

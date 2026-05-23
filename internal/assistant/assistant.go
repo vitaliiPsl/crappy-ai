@@ -85,26 +85,7 @@ func (a *Assistant) Run(ctx context.Context, sessionID, text string) (*kit.Strea
 
 		resp, runErr := stream.Result()
 
-		var (
-			ev  session.Event
-			err error
-		)
-
-		if runErr != nil {
-			ev, err = a.handleRunError(ctx, sessionID, runErr)
-		} else {
-			ev, err = a.handleRunResult(ctx, sessionID, model.Config(), resp.Usage, resp.LastUsage)
-		}
-
-		if err != nil {
-			return struct{}{}, err
-		}
-
-		if err := emit.Emit(ev); err != nil {
-			return struct{}{}, err
-		}
-
-		return struct{}{}, nil
+		return struct{}{}, a.handleResult(ctx, sessionID, model.Config(), resp.Usage, resp.LastUsage, runErr, emit)
 	}), nil
 }
 
@@ -133,44 +114,41 @@ func (a *Assistant) buildAgentOpts(sessionID string, cfg config.Config, model ki
 	return opts
 }
 
-func (a *Assistant) handleRunResult(
+func (a *Assistant) handleResult(
 	ctx context.Context,
 	sessionID string,
 	modelConfig kit.ModelConfig,
-	usage kit.Usage,
-	lastUsage kit.Usage,
-) (session.Event, error) {
+	usage, lastUsage kit.Usage,
+	runErr error,
+	emit kit.Emitter[session.Event],
+) error {
+	if runErr != nil {
+		if errors.Is(runErr, context.Canceled) || errors.Is(runErr, context.DeadlineExceeded) {
+			return emit.Emit(session.NewTurnCancelledEvent(sessionID))
+		}
+
+		ev := session.NewErrorEvent(sessionID, runErr)
+		if err := a.sessionStore.AppendEvents(ctx, sessionID, ev); err != nil {
+			return fmt.Errorf("append error event: %w", err)
+		}
+
+		return emit.Emit(ev)
+	}
+
 	sess, err := a.sessionStore.Get(ctx, sessionID)
 	if err != nil {
-		return session.Event{}, fmt.Errorf("get session error: %w", err)
+		return fmt.Errorf("get session: %w", err)
 	}
 
 	sess.Usage.Add(usage)
 
 	if err := a.sessionStore.Save(ctx, sess); err != nil {
-		return session.Event{}, fmt.Errorf("save session error: %w", err)
+		return fmt.Errorf("save session: %w", err)
 	}
 
-	return session.NewTurnCompleteEvent(sess.ID, session.TurnStats{
+	return emit.Emit(session.NewTurnCompleteEvent(sess.ID, session.TurnStats{
 		Usage:         sess.Usage,
 		ContextUsed:   lastUsage.InputTokens,
 		ContextWindow: int64(modelConfig.InputLimit),
-	}), nil
-}
-
-func (a *Assistant) handleRunError(
-	ctx context.Context,
-	sessionID string,
-	runErr error,
-) (session.Event, error) {
-	if errors.Is(runErr, context.Canceled) || errors.Is(runErr, context.DeadlineExceeded) {
-		return session.NewTurnCancelledEvent(sessionID), nil
-	}
-
-	ev := session.NewErrorEvent(sessionID, runErr)
-	if appendErr := a.sessionStore.AppendEvents(ctx, sessionID, ev); appendErr != nil {
-		return session.Event{}, fmt.Errorf("append error event: %v", appendErr)
-	}
-
-	return ev, nil
+	}))
 }
