@@ -67,7 +67,9 @@ func (conv *conversation) refreshContent() {
 	}
 
 	if conv.runActive || conv.hasDraft() {
+		b.WriteByte('\n')
 		b.WriteString(conv.renderAssistantMessage(conv.draft))
+		b.WriteByte('\n')
 	}
 
 	conv.viewport.SetContent(b.String())
@@ -132,7 +134,7 @@ func (conv *conversation) renderAssistantMessage(msg chatMessage) string {
 	contentWidth := max(0, conv.width-messagePadding)
 
 	if msg.thinking != "" {
-		b.WriteString(renderThinking(msg.thinking, conv.showThinking, contentWidth))
+		b.WriteString(renderThinking(strings.TrimSpace(msg.thinking), conv.showThinking, contentWidth))
 		b.WriteString("\n\n")
 	}
 
