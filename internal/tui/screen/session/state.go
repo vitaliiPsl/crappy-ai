@@ -26,6 +26,16 @@ const (
 	RoleSystem
 )
 
+type Activity int
+
+const (
+	ActivityNone Activity = iota
+	ActivityThinking
+	ActivityGenerating
+	ActivityToolCall
+	ActivityCompacting
+)
+
 type ToolUse struct {
 	ID        string
 	Name      string
@@ -53,9 +63,10 @@ type State struct {
 	Messages  []Message
 	Streaming *Message
 
-	Phase  Phase
-	Stats  *sessiondata.TurnStats
-	Prompt *model.AskRequest
+	Phase    Phase
+	Activity Activity
+	Stats    *sessiondata.TurnStats
+	Prompt   *model.AskRequest
 
 	LastError   string
 	LastEventAt time.Time

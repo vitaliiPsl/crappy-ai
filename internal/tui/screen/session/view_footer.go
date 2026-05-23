@@ -14,7 +14,9 @@ const (
 	hintsIdle    = "PgUp/PgDn Scroll • Enter Submit • Ctrl+o Thinking • Ctrl+t Tools"
 	hintsRunning = "Esc Cancel • PgUp/PgDn Scroll • Ctrl+o Thinking • Ctrl+t Tools"
 
-	runLabelRunning    = "Generating..."
+	runLabelThinking   = "Thinking..."
+	runLabelGenerating = "Generating..."
+	runLabelWorking    = "Working..."
 	runLabelCompacting = "Compacting context..."
 )
 
@@ -57,21 +59,30 @@ func renderBody(s *State, opts FooterOpts) string {
 }
 
 func renderRunLine(s *State, opts FooterOpts) string {
-	label := ""
-	switch s.Phase {
-	case PhaseRunning:
-		label = runLabelRunning
-	case PhaseCompacting:
-		label = runLabelCompacting
-	default:
+	if s.Phase != PhaseRunning && s.Phase != PhaseCompacting {
 		return ""
 	}
 
-	if active := s.ActiveTool(); active != nil {
-		label = fmt.Sprintf("%s · %s", label, activeToolLabel(active))
-	}
+	label := runLabel(s)
 
 	return runIndicatorStyle.Width(opts.Width).Render(opts.Spinner + " " + label)
+}
+
+func runLabel(s *State) string {
+	if active := s.ActiveTool(); active != nil {
+		return "Running " + activeToolLabel(active)
+	}
+
+	switch s.Activity {
+	case ActivityThinking:
+		return runLabelThinking
+	case ActivityGenerating:
+		return runLabelGenerating
+	case ActivityCompacting:
+		return runLabelCompacting
+	default:
+		return runLabelWorking
+	}
 }
 
 func renderErrorLine(s *State, width int) string {

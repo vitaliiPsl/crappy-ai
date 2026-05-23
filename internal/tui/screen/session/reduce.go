@@ -46,6 +46,7 @@ func reduceContentStarted(s State, c *kit.Content) State {
 		s.Phase = PhaseRunning
 	}
 
+	s.Activity = activityFor(c.Type)
 	s.Prompt = nil
 
 	return s
@@ -61,6 +62,8 @@ func reduceContentDelta(s State, c *kit.Content) State {
 	if s.Phase != PhaseCompacting {
 		s.Phase = PhaseRunning
 	}
+
+	s.Activity = activityFor(c.Type)
 
 	draft := ensureDraft(&s)
 
@@ -122,6 +125,8 @@ func reduceContentDone(s State, c *kit.Content) State {
 			return s
 		}
 
+		s.Activity = ActivityToolCall
+
 		return addOrUpdateDraftTool(s, *c.ToolCall)
 
 	case kit.ContentTypeToolResult:
@@ -129,7 +134,12 @@ func reduceContentDone(s State, c *kit.Content) State {
 			return s
 		}
 
-		return mergeToolResult(s, *c.ToolResult)
+		s = mergeToolResult(s, *c.ToolResult)
+		if s.ActiveTool() == nil {
+			s.Activity = ActivityNone
+		}
+
+		return s
 	}
 
 	return s
@@ -190,10 +200,26 @@ func reduceErrorEvent(s State, errText string) State {
 
 func clearTurn(s State) State {
 	s.Phase = PhaseIdle
+	s.Activity = ActivityNone
 	s.Streaming = nil
 	s.Prompt = nil
 
 	return s
+}
+
+func activityFor(t kit.ContentType) Activity {
+	switch t {
+	case kit.ContentTypeThinking:
+		return ActivityThinking
+	case kit.ContentTypeText:
+		return ActivityGenerating
+	case kit.ContentTypeSummary:
+		return ActivityCompacting
+	case kit.ContentTypeToolCall:
+		return ActivityToolCall
+	}
+
+	return ActivityNone
 }
 
 func ensureDraft(s *State) *Message {
