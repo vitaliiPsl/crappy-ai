@@ -59,6 +59,7 @@ type State struct {
 	Cwd      string
 	Model    string
 	Provider string
+	Mode     config.Mode
 
 	Messages  []Message
 	Streaming *Message
@@ -77,6 +78,7 @@ func NewState(cfg config.Config) State {
 		Cwd:      cfg.Cwd,
 		Model:    cfg.Model,
 		Provider: cfg.Provider,
+		Mode:     cfg.Mode,
 	}
 }
 

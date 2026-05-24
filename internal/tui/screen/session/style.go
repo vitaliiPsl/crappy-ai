@@ -38,6 +38,7 @@ var (
 
 	runIndicatorStyle = lipgloss.NewStyle().Foreground(sessionTheme.SubtleText)
 	spinnerStyle      = lipgloss.NewStyle().Foreground(sessionTheme.Primary)
+	yoloModeStyle     = lipgloss.NewStyle().Foreground(sessionTheme.Warning).Bold(true)
 
 	promptBoxStyle = lipgloss.NewStyle().
 			Background(sessionTheme.SurfaceAlt).

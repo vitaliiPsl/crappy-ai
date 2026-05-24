@@ -7,6 +7,7 @@ import (
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
 
+	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/permission/model"
 	sessiondata "github.com/vitaliiPsl/crappy-ai/internal/session"
 )
@@ -236,6 +237,23 @@ func TestStartTurn_SetsRunningAndClearsError(t *testing.T) {
 
 	if s.LastError != "" {
 		t.Fatalf("LastError = %q, want empty", s.LastError)
+	}
+}
+
+func TestNewState_RecordsMode(t *testing.T) {
+	s := NewState(config.Config{Mode: config.ModeYolo})
+
+	if s.Mode != config.ModeYolo {
+		t.Fatalf("Mode = %q, want %q", s.Mode, config.ModeYolo)
+	}
+}
+
+func TestModeMetaLabel_IncludesModelAndMode(t *testing.T) {
+	got := modeMetaLabel(&State{Model: "gpt-test", Mode: config.ModeYolo})
+	want := "gpt-test · yolo"
+
+	if got != want {
+		t.Fatalf("modeMetaLabel = %q, want %q", got, want)
 	}
 }
 

@@ -34,24 +34,3 @@ func truncateLeft(text string, maxWidth int) string {
 
 	return ellipsis + text[len(text)-(maxWidth-1):]
 }
-
-func placeSegment(row []rune, text string, start int) {
-	if text == "" || start >= len(row) {
-		return
-	}
-
-	runes := []rune(text)
-	if start < 0 {
-		runes = runes[-start:]
-		start = 0
-	}
-
-	for i, r := range runes {
-		pos := start + i
-		if pos >= len(row) {
-			break
-		}
-
-		row[pos] = r
-	}
-}

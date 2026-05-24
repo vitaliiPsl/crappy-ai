@@ -7,6 +7,7 @@ import (
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/permission/model"
 	sessiondata "github.com/vitaliiPsl/crappy-ai/internal/session"
 	"github.com/vitaliiPsl/crappy-ai/internal/tui/command"
@@ -49,6 +50,9 @@ func (m Model) handleKey(key tea.KeyMsg) (Model, tea.Cmd) {
 		m.showToolResult = !m.showToolResult
 
 		return m, nil
+
+	case "tab":
+		return m.toggleMode()
 
 	case "up", "down":
 		if m.input.PickerActive() {
@@ -97,6 +101,25 @@ func (m Model) handleCommand(msg commandMsg) (Model, tea.Cmd) {
 	}
 
 	return m, cmdDef.Execute(m.ctx, command.Request{SessionID: m.state.ID, Args: msg.Args})
+}
+
+func (m Model) toggleMode() (Model, tea.Cmd) {
+	switch m.state.Mode {
+	case config.ModeYolo:
+		return m, updateModeCmd(m.server, config.ModeDefault)
+	default:
+		return m, updateModeCmd(m.server, config.ModeYolo)
+	}
+}
+
+func (m Model) handleModeUpdated(msg modeUpdatedMsg) Model {
+	if msg.err != nil {
+		return m.setConfigError(msg.err)
+	}
+
+	m.state.Mode = msg.mode
+
+	return m
 }
 
 func (m Model) handleCompact() (Model, tea.Cmd) {
@@ -211,6 +234,12 @@ func (m Model) tickSpinner(msg spinner.TickMsg) (Model, tea.Cmd) {
 	m.spinner, cmd = m.spinner.Update(msg)
 
 	return m, cmd
+}
+
+func (m Model) setConfigError(err error) Model {
+	m.state = m.state.SetError(fmt.Errorf("update config: %w", err))
+
+	return m
 }
 
 func (m Model) openNewSession(title string) (*sessiondata.Session, <-chan sessiondata.Event, error) {

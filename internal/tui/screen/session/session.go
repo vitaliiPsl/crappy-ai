@@ -119,6 +119,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	case command.CompactSessionMsg:
 		m, cmd = m.handleCompact()
 
+	case modeUpdatedMsg:
+		m = m.handleModeUpdated(msg)
+
 	case effectErrorMsg:
 		m.state = m.state.SetError(msg.err)
 

@@ -5,6 +5,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/permission/model"
 	"github.com/vitaliiPsl/crappy-ai/internal/server"
 	sessiondata "github.com/vitaliiPsl/crappy-ai/internal/session"
@@ -60,5 +61,18 @@ func respondPromptCmd(srv *server.Server, sessionID, toolCallID string, resp mod
 		}
 
 		return nil
+	}
+}
+
+func updateModeCmd(srv *server.Server, mode config.Mode) tea.Cmd {
+	return func() tea.Msg {
+		cfg := srv.GetConfig()
+		cfg.Mode = mode
+
+		if err := srv.UpdateConfig(cfg); err != nil {
+			return modeUpdatedMsg{err: err}
+		}
+
+		return modeUpdatedMsg{mode: mode}
 	}
 }

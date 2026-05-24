@@ -1,6 +1,7 @@
 package session
 
 import (
+	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	sessiondata "github.com/vitaliiPsl/crappy-ai/internal/session"
 )
 
@@ -28,4 +29,9 @@ type commandMsg struct {
 
 type effectErrorMsg struct {
 	err error
+}
+
+type modeUpdatedMsg struct {
+	mode config.Mode
+	err  error
 }

@@ -6,13 +6,14 @@ import (
 
 	"charm.land/lipgloss/v2"
 
+	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	sessiondata "github.com/vitaliiPsl/crappy-ai/internal/session"
 	"github.com/vitaliiPsl/crappy-ai/internal/utils"
 )
 
 const (
-	hintsIdle    = "Enter Submit • Ctrl+o Show thinking • Ctrl+t Show tools"
-	hintsRunning = "Esc Cancel • Ctrl+o Show thinking • Ctrl+t Show tools"
+	hintsIdle    = "Enter Submit • Tab Mode • Ctrl+o Thinking • Ctrl+t Tools"
+	hintsRunning = "Esc Cancel • Tab Mode • Ctrl+o Thinking • Ctrl+t Tools"
 
 	runLabelThinking   = "Thinking..."
 	runLabelGenerating = "Generating..."
@@ -98,21 +99,31 @@ func renderMetaRow(s *State, width int) string {
 		return ""
 	}
 
-	segWidth := max(width/3, 1)
-	left := truncateLeft(utils.CompactHome(s.Cwd), segWidth)
+	if width < 3 {
+		return modeMetaView(s, width)
+	}
+
+	leftWidth, centerWidth, rightWidth := metaWidths(width)
+	left := truncateLeft(utils.CompactHome(s.Cwd), leftWidth)
 	center := statsLabel(s.Stats)
-	right := truncateLeft(s.Model, segWidth)
+	right := modeMetaLabel(s)
 
 	if left == "" && center == "" && right == "" {
 		return ""
 	}
 
-	row := []rune(strings.Repeat(" ", width))
-	placeSegment(row, left, 0)
-	placeSegment(row, center, max((width-lipgloss.Width(center))/2, 0))
-	placeSegment(row, right, max(width-lipgloss.Width(right), 0))
+	return lipgloss.JoinHorizontal(
+		lipgloss.Top,
+		subtleTextStyle.Width(leftWidth).Render(left),
+		subtleTextStyle.Width(centerWidth).Align(lipgloss.Center).Render(truncateInline(center, centerWidth)),
+		lipgloss.NewStyle().Width(rightWidth).Align(lipgloss.Right).Render(modeMetaView(s, rightWidth)),
+	)
+}
 
-	return subtleTextStyle.Render(strings.TrimRight(string(row), " "))
+func metaWidths(width int) (int, int, int) {
+	side := width / 3
+
+	return side, width - side*2, side
 }
 
 func renderHints(s *State, width int) string {
@@ -157,4 +168,37 @@ func statsLabel(stats *sessiondata.TurnStats) string {
 	}
 
 	return strings.Join(parts, " · ")
+}
+
+func modeMetaLabel(s *State) string {
+	mode := string(s.Mode)
+	if s.Model == "" {
+		return mode
+	}
+
+	return s.Model + " · " + mode
+}
+
+func modeMetaView(s *State, width int) string {
+	if width <= 0 {
+		return ""
+	}
+
+	mode := string(s.Mode)
+	if s.Mode != config.ModeYolo {
+		return subtleTextStyle.Render(truncateLeft(modeMetaLabel(s), width))
+	}
+
+	if width <= lipgloss.Width(mode) || s.Model == "" {
+		return yoloModeStyle.Render(truncateLeft(mode, width))
+	}
+
+	sep := " · "
+
+	modelWidth := width - lipgloss.Width(sep) - lipgloss.Width(mode)
+	if modelWidth <= 0 {
+		return yoloModeStyle.Render(truncateLeft(mode, width))
+	}
+
+	return subtleTextStyle.Render(truncateLeft(s.Model, modelWidth)+sep) + yoloModeStyle.Render(mode)
 }
