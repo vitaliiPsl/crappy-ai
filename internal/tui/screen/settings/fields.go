@@ -183,25 +183,12 @@ func (m Model) modelOptions() []kit.ModelConfig {
 		return nil
 	}
 
-	for _, key := range m.modelCatalogKeys() {
-		models := m.settings.Models[key]
-		if len(models) > 0 {
-			return models
-		}
+	models := m.settings.Models[m.cfg.Provider]
+	if len(models) > 0 {
+		return models
 	}
 
 	return nil
-}
-
-func (m Model) modelCatalogKeys() []string {
-	provider := m.provider()
-
-	keys := []string{m.cfg.Provider}
-	if provider.API != "" && provider.API != m.cfg.Provider {
-		keys = append(keys, provider.API)
-	}
-
-	return keys
 }
 
 func (m *Model) cycleOption(field fieldDef, delta int) {

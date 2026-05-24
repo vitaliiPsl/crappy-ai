@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	hintsIdle    = "PgUp/PgDn Scroll • Enter Submit • Ctrl+o Thinking • Ctrl+t Tools"
-	hintsRunning = "Esc Cancel • PgUp/PgDn Scroll • Ctrl+o Thinking • Ctrl+t Tools"
+	hintsIdle    = "Enter Submit • Ctrl+o Show thinking • Ctrl+t Show tools"
+	hintsRunning = "Esc Cancel • Ctrl+o Show thinking • Ctrl+t Show tools"
 
 	runLabelThinking   = "Thinking..."
 	runLabelGenerating = "Generating..."

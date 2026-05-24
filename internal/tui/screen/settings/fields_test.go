@@ -9,9 +9,29 @@ import (
 	appsettings "github.com/vitaliiPsl/crappy-ai/internal/settings"
 )
 
-func TestModelOptionsFallsBackToProviderAPI(t *testing.T) {
+func TestModelOptionsUsesProviderName(t *testing.T) {
 	m := Model{
 		cfg: config.Config{Provider: "local", Model: "gpt-local"},
+		settings: appsettings.Settings{
+			Providers: []appsettings.ProviderSettings{
+				{Name: "local", API: "openai"},
+			},
+			Models: map[string][]kit.ModelConfig{
+				"local":  {{ID: "gpt-local"}},
+				"openai": {{ID: "gpt-5"}},
+			},
+		},
+	}
+
+	got := m.modelOptions()
+	if len(got) != 1 || got[0].ID != "gpt-local" {
+		t.Fatalf("modelOptions = %+v, want local provider catalog", got)
+	}
+}
+
+func TestModelOptionsDoesNotFallBackToProviderAPI(t *testing.T) {
+	m := Model{
+		cfg: config.Config{Provider: "local", Model: "llama3.1:8b"},
 		settings: appsettings.Settings{
 			Providers: []appsettings.ProviderSettings{
 				{Name: "local", API: "openai"},
@@ -22,9 +42,8 @@ func TestModelOptionsFallsBackToProviderAPI(t *testing.T) {
 		},
 	}
 
-	got := m.modelOptions()
-	if len(got) != 1 || got[0].ID != "gpt-5" {
-		t.Fatalf("modelOptions = %+v, want openai catalog fallback", got)
+	if got := m.modelOptions(); got != nil {
+		t.Fatalf("modelOptions = %+v, want nil without local provider catalog", got)
 	}
 }
 
@@ -72,5 +91,51 @@ func TestSetActiveProviderPreservesKnownModel(t *testing.T) {
 
 	if m.cfg.Model != "shared-model" {
 		t.Fatalf("Model = %q, want shared-model preserved", m.cfg.Model)
+	}
+}
+
+func TestPickModelIDUsesTypedValueWhenNoModelMatches(t *testing.T) {
+	m := Model{
+		modelPicker: newModelPicker([]kit.ModelConfig{
+			{ID: "gpt-5.5"},
+			{ID: "gpt-5.5-pro"},
+		}),
+	}
+
+	m.modelPicker.SetModels([]kit.ModelConfig{
+		{ID: "gpt-5.5"},
+		{ID: "gpt-5.5-pro"},
+	}, "")
+	m.modelPicker.Update("llama3.1:8b")
+
+	got, ok := m.pickModelID("llama3.1:8b")
+	if !ok {
+		t.Fatal("pickModelID returned ok=false, want true")
+	}
+
+	if got != "llama3.1:8b" {
+		t.Fatalf("pickModelID = %q, want typed model id", got)
+	}
+}
+
+func TestPickModelIDPrefersSelectedCatalogModel(t *testing.T) {
+	m := Model{
+		modelPicker: newModelPicker([]kit.ModelConfig{
+			{ID: "gpt-5.5"},
+		}),
+	}
+
+	m.modelPicker.SetModels([]kit.ModelConfig{
+		{ID: "gpt-5.5"},
+	}, "")
+	m.modelPicker.Update("gpt")
+
+	got, ok := m.pickModelID("gpt")
+	if !ok {
+		t.Fatal("pickModelID returned ok=false, want true")
+	}
+
+	if got != "gpt-5.5" {
+		t.Fatalf("pickModelID = %q, want selected catalog model", got)
 	}
 }

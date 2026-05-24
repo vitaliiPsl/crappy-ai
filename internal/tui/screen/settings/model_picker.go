@@ -13,7 +13,7 @@ const (
 	modelPickerWindow      = 7
 	modelPickerPrompt      = "> "
 	modelPickerPlaceholder = "Filter models..."
-	modelPickerEmpty       = "No matching models"
+	modelPickerEmpty       = "No matching models. Press Enter to use the typed model ID."
 	modelPickerSep         = "  "
 )
 

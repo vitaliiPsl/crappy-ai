@@ -1,6 +1,8 @@
 package settings
 
 import (
+	"strings"
+
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/tui/component"
@@ -79,8 +81,8 @@ func (m Model) updatePickingModel(msg tea.Msg) (Model, tea.Cmd) {
 			return m, nil
 
 		case "enter":
-			if model, ok := m.modelPicker.Selected(); ok {
-				m.cfg.Model = model.ID
+			if modelID, ok := m.pickModelID(m.input.Value()); ok {
+				m.cfg.Model = modelID
 				m.state = stateDirty
 				m.saveErr = nil
 			}
@@ -104,8 +106,8 @@ func (m Model) updatePickingModel(msg tea.Msg) (Model, tea.Cmd) {
 	case component.CancelMsg:
 		m.state = m.returnState
 	case component.ConfirmMsg:
-		if model, ok := m.modelPicker.Selected(); ok {
-			m.cfg.Model = model.ID
+		if modelID, ok := m.pickModelID(m.input.Value()); ok {
+			m.cfg.Model = modelID
 			m.state = stateDirty
 			m.saveErr = nil
 		}
@@ -135,4 +137,17 @@ func (m Model) startModelPicking() (Model, tea.Cmd) {
 	m.refreshContent()
 
 	return m, m.input.Focus()
+}
+
+func (m Model) pickModelID(input string) (string, bool) {
+	if model, ok := m.modelPicker.Selected(); ok {
+		return model.ID, true
+	}
+
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return "", false
+	}
+
+	return input, true
 }
