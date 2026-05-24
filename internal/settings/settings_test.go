@@ -31,6 +31,9 @@ func TestMergeProvidersPreservesDefaultsForPartialOverride(t *testing.T) {
 		Models: map[string][]kit.ModelConfig{
 			models.ProviderOpenAI: {{ID: "gpt-5"}},
 		},
+		ModelConfigs: map[string][]kit.ModelConfig{
+			"openai-local": {{ID: "llama3.1:8b"}},
+		},
 	}
 	overlay := Settings{
 		Providers: []ProviderSettings{
@@ -43,6 +46,9 @@ func TestMergeProvidersPreservesDefaultsForPartialOverride(t *testing.T) {
 				API:     models.ProviderOpenAI,
 				BaseURL: "http://localhost:11434",
 			},
+		},
+		ModelConfigs: map[string][]kit.ModelConfig{
+			"openai-local": {{ID: "gemma4"}},
 		},
 	}
 
@@ -80,6 +86,10 @@ func TestMergeProvidersPreservesDefaultsForPartialOverride(t *testing.T) {
 	if len(got.Models[models.ProviderOpenAI]) != 1 || got.Models[models.ProviderOpenAI][0].ID != "gpt-5" {
 		t.Fatalf("Models = %+v, want gpt-5 metadata preserved", got.Models[models.ProviderOpenAI])
 	}
+
+	if len(got.ModelConfigs["openai-local"]) != 2 {
+		t.Fatalf("ModelConfigs = %+v, want merged local models", got.ModelConfigs["openai-local"])
+	}
 }
 
 func TestWriteFileUsesPrivatePermissions(t *testing.T) {
@@ -88,6 +98,9 @@ func TestWriteFileUsesPrivatePermissions(t *testing.T) {
 	if err := writeFile(path, Settings{
 		Providers: []ProviderSettings{
 			{Name: models.ProviderOpenAI, APIKey: "secret"},
+		},
+		ModelConfigs: map[string][]kit.ModelConfig{
+			"openai-local": {{ID: "gemma4"}},
 		},
 		Models: map[string][]kit.ModelConfig{
 			models.ProviderOpenAI: {{ID: "gpt-5"}},
@@ -112,5 +125,63 @@ func TestWriteFileUsesPrivatePermissions(t *testing.T) {
 
 	if string(data) == "" || strings.Contains(string(data), "gpt-5") {
 		t.Fatalf("settings file should not persist available models, got:\n%s", data)
+	}
+
+	if !strings.Contains(string(data), "gemma4") {
+		t.Fatalf("settings file should persist configured models, got:\n%s", data)
+	}
+}
+
+func TestLoadMergesConfiguredModelsIntoCatalog(t *testing.T) {
+	dir := t.TempDir()
+	settingsPath := filepath.Join(dir, "settings.yaml")
+
+	data := []byte(`
+models_path: ` + filepath.Join(dir, "models.json") + `
+providers:
+  - name: openai-local
+    api: openai
+    base_url: http://localhost:11434/v1
+    api_key: local
+models:
+  openai-local:
+    - id: gemma4
+      context_window: 131072
+      output_limit: 8192
+      capabilities:
+        text: true
+        tools: true
+        streaming: true
+`)
+
+	if err := os.WriteFile(settingsPath, data, 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	t.Setenv(EnvSettingsPath, settingsPath)
+	t.Setenv(EnvModelsPath, "")
+	t.Setenv(EnvSessionsDir, "")
+
+	store, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	got := store.Get().Models["openai-local"]
+	if len(got) != 1 {
+		t.Fatalf("len(Models[openai-local]) = %d, want 1", len(got))
+	}
+
+	model := got[0]
+	if model.ID != "gemma4" || model.Provider != "openai-local" {
+		t.Fatalf("model identity = %+v, want gemma4 for openai-local", model)
+	}
+
+	if model.ContextWindow != 131072 || model.InputLimit != 131072 || model.OutputLimit != 8192 {
+		t.Fatalf("model limits = %+v", model)
+	}
+
+	if !model.Capabilities.Text || !model.Capabilities.Tools || !model.Capabilities.Streaming {
+		t.Fatalf("capabilities = %+v", model.Capabilities)
 	}
 }

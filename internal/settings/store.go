@@ -49,7 +49,7 @@ func (s *Store) RefreshModels(ctx context.Context) error {
 	}
 
 	s.mu.Lock()
-	s.settings.Models = fresh
+	s.settings.Models = models.Merge(fresh, s.settings.ModelConfigs)
 	s.mu.Unlock()
 
 	return nil

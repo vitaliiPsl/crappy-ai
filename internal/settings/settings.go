@@ -20,8 +20,9 @@ type Settings struct {
 	SessionsDir string `yaml:"sessions_dir,omitempty"`
 	ModelsPath  string `yaml:"models_path,omitempty"`
 
-	Providers []ProviderSettings           `yaml:"providers,omitempty"`
-	Models    map[string][]kit.ModelConfig `yaml:"-"`
+	Providers    []ProviderSettings           `yaml:"providers,omitempty"`
+	ModelConfigs map[string][]kit.ModelConfig `yaml:"models,omitempty"`
+	Models       map[string][]kit.ModelConfig `yaml:"-"`
 }
 
 func defaults() Settings {

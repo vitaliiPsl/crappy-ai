@@ -30,7 +30,7 @@ func Load() (*Store, error) {
 	settings.SessionsDir = utils.ExpandHome(settings.SessionsDir)
 	settings.ModelsPath = utils.ExpandHome(settings.ModelsPath)
 
-	settings.Models = models.Load(settings.ModelsPath)
+	settings.Models = models.Merge(models.Load(settings.ModelsPath), settings.ModelConfigs)
 
 	return NewStore(settings, expandedPath), nil
 }
@@ -50,6 +50,10 @@ func merge(base, overlay Settings) Settings {
 
 	if len(overlay.Providers) > 0 {
 		base.Providers = mergeProviders(base.Providers, overlay.Providers)
+	}
+
+	if len(overlay.ModelConfigs) > 0 {
+		base.ModelConfigs = models.Merge(base.ModelConfigs, overlay.ModelConfigs)
 	}
 
 	return base

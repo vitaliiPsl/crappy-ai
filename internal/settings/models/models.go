@@ -36,6 +36,15 @@ func Load(path string) map[string][]kit.ModelConfig {
 	return out
 }
 
+func Merge(base, overlay map[string][]kit.ModelConfig) map[string][]kit.ModelConfig {
+	out := clone(base)
+	for provider, entries := range overlay {
+		out[provider] = mergeModels(provider, out[provider], entries)
+	}
+
+	return out
+}
+
 func read(path string) (map[string][]kit.ModelConfig, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -62,6 +71,42 @@ func read(path string) (map[string][]kit.ModelConfig, error) {
 	}
 
 	return out, nil
+}
+
+func clone(src map[string][]kit.ModelConfig) map[string][]kit.ModelConfig {
+	out := make(map[string][]kit.ModelConfig, len(src))
+	for provider, entries := range src {
+		out[provider] = append([]kit.ModelConfig(nil), entries...)
+	}
+
+	return out
+}
+
+func mergeModels(provider string, base, overlay []kit.ModelConfig) []kit.ModelConfig {
+	if len(overlay) == 0 {
+		return base
+	}
+
+	out := append([]kit.ModelConfig(nil), base...)
+
+	byID := make(map[string]int, len(out))
+	for i, model := range out {
+		byID[model.ID] = i
+	}
+
+	for _, model := range overlay {
+		model = normalizeModelConfig(provider, model)
+		if i, ok := byID[model.ID]; ok {
+			out[i] = model
+
+			continue
+		}
+
+		byID[model.ID] = len(out)
+		out = append(out, model)
+	}
+
+	return out
 }
 
 func write(path string, providers map[string][]kit.ModelConfig) error {
