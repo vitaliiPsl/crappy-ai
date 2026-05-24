@@ -9,6 +9,7 @@ import (
 	"github.com/vitaliiPsl/crappy-adk/kit"
 	"github.com/vitaliiPsl/crappy-adk/x/guard"
 
+	"github.com/vitaliiPsl/crappy-ai/internal/assistant/instructions"
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/memory"
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/summarization"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
@@ -90,10 +91,8 @@ func (a *Assistant) Run(ctx context.Context, sessionID, text string) (*kit.Strea
 }
 
 func (a *Assistant) buildAgentOpts(sessionID string, cfg config.Config, model kit.Model) []agent.Option {
-	sources := []string{cfg.SystemPrompt}
-
 	opts := []agent.Option{
-		agent.WithInstructions(sources...),
+		agent.WithInstructions(cfg.SystemPrompt, instructions.Env(cfg.Cwd)),
 		agent.WithTools(a.toolRegistry.GetTools()...),
 		summarization.New(model),
 		guard.WithRepeatedToolCallLimit(toolLoopMaxRepeats, toolLoopWindow),

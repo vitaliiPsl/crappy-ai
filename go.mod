@@ -2,14 +2,12 @@ module github.com/vitaliiPsl/crappy-ai
 
 go 1.26.2
 
-replace github.com/vitaliiPsl/crappy-adk => ../crappy-adk
-
 require (
 	charm.land/bubbles/v2 v2.1.0
 	charm.land/bubbletea/v2 v2.0.6
 	charm.land/lipgloss/v2 v2.0.3
 	github.com/google/uuid v1.6.0
-	github.com/vitaliiPsl/crappy-adk v0.0.0-00010101000000-000000000000
+	github.com/vitaliiPsl/crappy-adk v0.7.0
 	gopkg.in/yaml.v3 v3.0.1
 	mvdan.cc/sh/v3 v3.13.1
 )
