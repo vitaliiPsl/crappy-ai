@@ -25,6 +25,7 @@ Run the Go tests for the permission package.
 By default, Crappy can list and read files in the directory where it was started.
 
 ```yaml
+mode: default
 permissions:
   default: ask
   allow:

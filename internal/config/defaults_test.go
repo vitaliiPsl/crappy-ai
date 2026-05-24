@@ -8,7 +8,17 @@ import (
 )
 
 func TestDefaultsAllowWorkspaceReads(t *testing.T) {
-	got := defaults().Permissions.Allow
+	cfg := defaults()
+	if cfg.Mode != ModeDefault {
+		t.Fatalf("mode = %q, want %q", cfg.Mode, ModeDefault)
+	}
+
+	perms := cfg.Permissions
+	if perms.Default != model.Ask {
+		t.Fatalf("permission default = %q, want %q", perms.Default, model.Ask)
+	}
+
+	got := perms.Allow
 	want := []model.Rule{
 		{Tool: "list", Pattern: "./**"},
 		{Tool: "read_file", Pattern: "./**"},

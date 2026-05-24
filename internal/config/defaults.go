@@ -13,6 +13,7 @@ var DefaultSystemPrompt string
 func defaults() Config {
 	return Config{
 		SystemPrompt: DefaultSystemPrompt,
+		Mode:         ModeDefault,
 		Provider:     settingsmodels.ProviderGoogle,
 		Model:        "gemini-3.1-flash-lite",
 		Thinking:     "medium",

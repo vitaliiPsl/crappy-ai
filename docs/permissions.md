@@ -15,6 +15,7 @@ Permissions are enforced by Crappy. Instructions can guide what the assistant tr
 Use the `permissions` config to set a default and then override specific tools or patterns. By default, Crappy stores config in `~/.crappy-ai/config.yaml`.
 
 ```yaml
+mode: default
 permissions:
   default: ask
   deny:
@@ -37,6 +38,7 @@ Rules have a `tool` and an optional `pattern`. A rule without a pattern, or with
 The default config sets `default: ask` and allows read-only exploration in the directory where Crappy was started:
 
 ```yaml
+mode: default
 permissions:
   default: ask
   allow:
@@ -48,11 +50,41 @@ permissions:
 
 That means Crappy can list and read files under the current working directory without prompting, while edits, shell commands, and web fetches ask first unless you add rules for them.
 
+## Modes
+
+Permission modes control how rules are applied.
+
+```yaml
+mode: default
+```
+
+`default` uses your configured permission rules.
+
+```yaml
+mode: yolo
+```
+
+`yolo` allows all tool calls without prompting. Use it only when you trust the assistant and the workspace.
+
+You can use yolo mode for a single run:
+
+```sh
+crappy -mode yolo
+```
+
+Or through an environment variable:
+
+```sh
+CRAPPY_MODE=yolo
+```
+
 ## Configuration
 
 You can allow, ask, or deny a whole tool:
 
 ```yaml
+mode: default
+
 permissions:
   default: ask
   allow:

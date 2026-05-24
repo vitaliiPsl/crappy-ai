@@ -29,6 +29,7 @@ func fromEnv() Config {
 		Provider: os.Getenv(EnvProvider),
 		Model:    os.Getenv(EnvModel),
 		Thinking: os.Getenv(EnvThinking),
+		Mode:     Mode(os.Getenv(EnvMode)),
 	}
 }
 
@@ -37,6 +38,7 @@ func fromFlags(f Flags) Config {
 		Provider: f.Provider,
 		Model:    f.Model,
 		Thinking: f.Thinking,
+		Mode:     Mode(f.Mode),
 		Cwd:      f.Cwd,
 	}
 }

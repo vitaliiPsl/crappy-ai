@@ -12,6 +12,7 @@ Use config for things you may change often while working:
 - active provider
 - active model
 - thinking level
+- mode
 - permissions
 
 Use settings for things that describe your local installation:
@@ -42,6 +43,7 @@ system_prompt: |
 provider: anthropic
 model: claude-sonnet-4-6
 thinking: medium
+mode: default
 
 permissions:
   default: ask
@@ -62,6 +64,8 @@ permissions:
 - `high`
 
 `system_prompt` changes the assistant's behavior.
+
+`mode` controls the assistant's permission behavior. Use `default` for normal permission rules or `yolo` to allow all tool calls without prompting.
 
 `permissions` control which tools can run automatically, which ones ask first, and which ones are blocked.
 
@@ -128,6 +132,7 @@ See [Models and Providers](models.md) for provider APIs, custom providers, and c
 Permissions live in config because they affect what the assistant can do while working.
 
 ```yaml
+mode: default
 permissions:
   default: ask
   allow:
@@ -140,16 +145,19 @@ permissions:
       pattern: "rm *"
 ```
 
-See [Permissions](permissions.md) for rule syntax and examples.
+Set `mode` to `yolo` to allow all tool calls without prompting.
+
+See [Permissions](permissions.md) for modes, rule syntax, and examples.
 
 ## Environment Variables
 
-Environment variables can override the active model settings:
+Environment variables can override active model and permission settings:
 
 ```sh
 CRAPPY_PROVIDER=openai
 CRAPPY_MODEL=gpt-5.5
 CRAPPY_THINKING=high
+CRAPPY_MODE=yolo
 ```
 
 They can also change where Crappy stores settings and session data:
@@ -164,10 +172,11 @@ Provider API keys use the environment variable named by `api_key_env`, such as `
 
 ## CLI Overrides
 
-Override model settings for a single run with CLI flags:
+Override model and permission settings for a single run with CLI flags:
 
 ```sh
 crappy -provider openai -model gpt-5.5 -thinking high
+crappy -mode yolo
 ```
 
 CLI flags override environment variables and config values.

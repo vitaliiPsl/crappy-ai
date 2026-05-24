@@ -32,6 +32,7 @@ func run() error {
 		provider = flag.String("provider", "", "active provider name")
 		model    = flag.String("model", "", "active model id")
 		thinking = flag.String("thinking", "", "thinking level (disabled|low|medium|high)")
+		mode     = flag.String("mode", "", "permission mode (default|yolo)")
 		prompt   = flag.String("prompt", "", "if set, run a single turn with this prompt and exit")
 	)
 
@@ -58,6 +59,7 @@ func run() error {
 		Provider: *provider,
 		Model:    *model,
 		Thinking: *thinking,
+		Mode:     *mode,
 	})
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
@@ -71,7 +73,7 @@ func run() error {
 	modelRegistry := models.NewRegistry(settingsStore)
 	toolRegistry := tools.NewRegistry()
 
-	permissionService := permission.NewService(permission.NewStore(configStore), nil)
+	permissionService := permission.NewService(configStore, nil)
 
 	asst := assistant.New(configStore, sessStore, modelRegistry, toolRegistry, permissionService)
 	srv := server.New(asst, settingsStore, configStore, sessStore, modelRegistry)
