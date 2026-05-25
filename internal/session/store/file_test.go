@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -383,5 +384,190 @@ func TestLoadEvents_RoundTripsKitContent(t *testing.T) {
 
 	if calls[0].Name != "tool" || calls[0].Arguments["k"] != "v" {
 		t.Errorf("tool call corrupted: %+v", calls[0])
+	}
+}
+
+type testArtifact struct {
+	Title string   `json:"title"`
+	Items []string `json:"items"`
+}
+
+func saveTestArtifact(t *testing.T, st *FileStore, id, name string, value testArtifact) {
+	t.Helper()
+
+	if err := st.SaveArtifact(context.Background(), id, name, value); err != nil {
+		t.Fatalf("SaveArtifact(%q): %v", name, err)
+	}
+}
+
+func loadTestArtifact(t *testing.T, st *FileStore, id, name string) (testArtifact, bool) {
+	t.Helper()
+
+	var got testArtifact
+
+	ok, err := st.LoadArtifact(context.Background(), id, name, &got)
+	if err != nil {
+		t.Fatalf("LoadArtifact(%q): %v", name, err)
+	}
+
+	return got, ok
+}
+
+func TestSaveArtifact_RoundTripsAcrossStores(t *testing.T) {
+	st, dir := newTestStore(t)
+	sess, _ := st.Create(context.Background(), "t", "")
+
+	want := testArtifact{
+		Title: "current work",
+		Items: []string{"one", "two"},
+	}
+
+	saveTestArtifact(t, st, sess.ID, "plan", want)
+
+	if _, err := os.Stat(filepath.Join(dir, sess.ID, "artifacts", "plan.json")); err != nil {
+		t.Fatalf("artifact file was not written: %v", err)
+	}
+
+	st2, err := NewFileStore(dir)
+	if err != nil {
+		t.Fatalf("NewFileStore: %v", err)
+	}
+
+	got, ok := loadTestArtifact(t, st2, sess.ID, "plan")
+	if !ok {
+		t.Fatal("LoadArtifact ok = false, want true")
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("artifact = %+v, want %+v", got, want)
+	}
+}
+
+func TestLoadArtifact_Missing(t *testing.T) {
+	st, _ := newTestStore(t)
+	sess, _ := st.Create(context.Background(), "t", "")
+
+	got := testArtifact{Title: "unchanged"}
+
+	ok, err := st.LoadArtifact(context.Background(), sess.ID, "missing", &got)
+	if err != nil {
+		t.Fatalf("LoadArtifact: %v", err)
+	}
+
+	if ok {
+		t.Fatal("LoadArtifact ok = true, want false")
+	}
+
+	if got.Title != "unchanged" {
+		t.Fatalf("artifact target was mutated: %+v", got)
+	}
+}
+
+func TestListArtifacts_ReturnsSortedNames(t *testing.T) {
+	st, dir := newTestStore(t)
+	sess, _ := st.Create(context.Background(), "t", "")
+
+	saveTestArtifact(t, st, sess.ID, "zeta", testArtifact{})
+	saveTestArtifact(t, st, sess.ID, "alpha", testArtifact{})
+
+	artifactDir := filepath.Join(dir, sess.ID, "artifacts")
+	if err := os.WriteFile(filepath.Join(artifactDir, "ignored.tmp"), []byte("{}"), 0o600); err != nil {
+		t.Fatalf("write ignored artifact: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(artifactDir, "also.ignored.json"), []byte("{}"), 0o600); err != nil {
+		t.Fatalf("write invalid artifact: %v", err)
+	}
+
+	if err := os.Mkdir(filepath.Join(artifactDir, "nested.json"), 0o700); err != nil {
+		t.Fatalf("mkdir ignored artifact: %v", err)
+	}
+
+	got, err := st.ListArtifacts(context.Background(), sess.ID)
+	if err != nil {
+		t.Fatalf("ListArtifacts: %v", err)
+	}
+
+	if len(got) != 2 || got[0] != "alpha" || got[1] != "zeta" {
+		t.Fatalf("ListArtifacts = %#v, want [alpha zeta]", got)
+	}
+}
+
+func TestListArtifacts_MissingDir(t *testing.T) {
+	st, _ := newTestStore(t)
+	sess, _ := st.Create(context.Background(), "t", "")
+
+	got, err := st.ListArtifacts(context.Background(), sess.ID)
+	if err != nil {
+		t.Fatalf("ListArtifacts: %v", err)
+	}
+
+	if got != nil {
+		t.Fatalf("ListArtifacts = %#v, want nil", got)
+	}
+}
+
+func TestDeleteArtifact_RemovesArtifact(t *testing.T) {
+	st, _ := newTestStore(t)
+	sess, _ := st.Create(context.Background(), "t", "")
+
+	saveTestArtifact(t, st, sess.ID, "plan", testArtifact{Title: "x"})
+
+	if err := st.DeleteArtifact(context.Background(), sess.ID, "plan"); err != nil {
+		t.Fatalf("DeleteArtifact: %v", err)
+	}
+
+	_, ok := loadTestArtifact(t, st, sess.ID, "plan")
+	if ok {
+		t.Fatal("LoadArtifact ok = true after delete, want false")
+	}
+}
+
+func TestDeleteArtifact_MissingIsNoop(t *testing.T) {
+	st, _ := newTestStore(t)
+	sess, _ := st.Create(context.Background(), "t", "")
+
+	if err := st.DeleteArtifact(context.Background(), sess.ID, "missing"); err != nil {
+		t.Fatalf("DeleteArtifact: %v", err)
+	}
+}
+
+func TestSaveArtifact_BumpsUpdatedAt(t *testing.T) {
+	st, _ := newTestStore(t)
+	ctx := context.Background()
+	sess, _ := st.Create(ctx, "t", "")
+	before := sess.UpdatedAt
+
+	time.Sleep(5 * time.Millisecond)
+
+	saveTestArtifact(t, st, sess.ID, "plan", testArtifact{Title: "x"})
+
+	got, err := st.Get(ctx, sess.ID)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+
+	if !got.UpdatedAt.After(before) {
+		t.Errorf("UpdatedAt = %v, want after %v", got.UpdatedAt, before)
+	}
+}
+
+func TestArtifactMethods_RejectInvalidNames(t *testing.T) {
+	st, _ := newTestStore(t)
+	sess, _ := st.Create(context.Background(), "t", "")
+
+	names := []string{"", "../plan", "plan.json", "nested/plan", "white space"}
+	for _, name := range names {
+		if err := st.SaveArtifact(context.Background(), sess.ID, name, testArtifact{}); err == nil {
+			t.Fatalf("SaveArtifact(%q): want error, got nil", name)
+		}
+	}
+}
+
+func TestSaveArtifact_MissingSession(t *testing.T) {
+	st, _ := newTestStore(t)
+
+	if err := st.SaveArtifact(context.Background(), "missing", "plan", testArtifact{}); err == nil {
+		t.Fatal("SaveArtifact on missing session: want error, got nil")
 	}
 }

@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,8 +22,14 @@ import (
 const (
 	sessionFile   = "session.json"
 	eventsFile    = "events.jsonl"
+	artifactsDir  = "artifacts"
+	artifactExt   = ".json"
 	scannerBuffer = 1 << 20
 )
+
+var artifactNamePattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+
+var _ session.ArtifactStore = (*FileStore)(nil)
 
 type FileStore struct {
 	mu    sync.RWMutex
@@ -163,21 +171,9 @@ func (st *FileStore) Save(_ context.Context, sess *session.Session) error {
 }
 
 func (st *FileStore) AppendEvents(_ context.Context, id string, events ...session.Event) error {
-	st.mu.RLock()
-	sess, ok := st.cache[id]
-	st.mu.RUnlock()
-
-	if !ok {
-		s, err := st.readSessionFile(id)
-		if err != nil {
-			return fmt.Errorf("session %q not found: %w", id, err)
-		}
-
-		st.mu.Lock()
-		st.cache[id] = s
-		st.mu.Unlock()
-
-		sess = s
+	sess, err := st.ensureSession(id)
+	if err != nil {
+		return fmt.Errorf("session %q not found: %w", id, err)
 	}
 
 	dir := st.sessionDir(id)
@@ -203,9 +199,7 @@ func (st *FileStore) AppendEvents(_ context.Context, id string, events ...sessio
 		}
 	}
 
-	sess.UpdatedAt = time.Now()
-
-	return st.writeSessionFile(sess)
+	return st.touch(sess)
 }
 
 func (st *FileStore) LoadEvents(_ context.Context, id string) ([]session.Event, error) {
@@ -239,6 +233,111 @@ func (st *FileStore) LoadEvents(_ context.Context, id string) ([]session.Event, 
 	return events, scanner.Err()
 }
 
+func (st *FileStore) SaveArtifact(_ context.Context, id, name string, value any) error {
+	path, err := st.artifactPath(id, name)
+	if err != nil {
+		return err
+	}
+
+	sess, err := st.ensureSession(id)
+	if err != nil {
+		return fmt.Errorf("session %q not found: %w", id, err)
+	}
+
+	if err := os.MkdirAll(st.artifactsDir(id), 0o700); err != nil {
+		return fmt.Errorf("create artifacts dir: %w", err)
+	}
+
+	if err := writeJSONFile(path, value); err != nil {
+		return fmt.Errorf("save artifact %q: %w", name, err)
+	}
+
+	return st.touch(sess)
+}
+
+func (st *FileStore) LoadArtifact(_ context.Context, id, name string, value any) (bool, error) {
+	path, err := st.artifactPath(id, name)
+	if err != nil {
+		return false, err
+	}
+
+	if _, err := st.ensureSession(id); err != nil {
+		return false, fmt.Errorf("session %q not found: %w", id, err)
+	}
+
+	f, err := os.Open(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+
+		return false, fmt.Errorf("open artifact %q: %w", name, err)
+	}
+
+	defer func() { _ = f.Close() }()
+
+	if err := json.NewDecoder(f).Decode(value); err != nil {
+		return false, fmt.Errorf("decode artifact %q: %w", name, err)
+	}
+
+	return true, nil
+}
+
+func (st *FileStore) DeleteArtifact(_ context.Context, id, name string) error {
+	path, err := st.artifactPath(id, name)
+	if err != nil {
+		return err
+	}
+
+	sess, err := st.ensureSession(id)
+	if err != nil {
+		return fmt.Errorf("session %q not found: %w", id, err)
+	}
+
+	if err := os.Remove(path); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+
+		return fmt.Errorf("delete artifact %q: %w", name, err)
+	}
+
+	return st.touch(sess)
+}
+
+func (st *FileStore) ListArtifacts(_ context.Context, id string) ([]string, error) {
+	if _, err := st.ensureSession(id); err != nil {
+		return nil, fmt.Errorf("session %q not found: %w", id, err)
+	}
+
+	entries, err := os.ReadDir(st.artifactsDir(id))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+
+		return nil, fmt.Errorf("read artifacts dir: %w", err)
+	}
+
+	var names []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		name, ok := artifactName(entry.Name())
+		if !ok {
+			continue
+		}
+
+		names = append(names, name)
+	}
+
+	sort.Strings(names)
+
+	return names, nil
+}
+
 func (st *FileStore) readSessionFile(id string) (*session.Session, error) {
 	f, err := os.Open(filepath.Join(st.sessionDir(id), sessionFile))
 	if err != nil {
@@ -261,19 +360,83 @@ func (st *FileStore) writeSessionFile(s *session.Session) error {
 		return fmt.Errorf("create session dir: %w", err)
 	}
 
-	data, err := json.MarshalIndent(s, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshal session: %w", err)
-	}
-
-	tmp := filepath.Join(dir, sessionFile+".tmp")
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
-		return err
-	}
-
-	return os.Rename(tmp, filepath.Join(dir, sessionFile))
+	return writeJSONFile(filepath.Join(dir, sessionFile), s)
 }
 
 func (st *FileStore) sessionDir(id string) string {
 	return filepath.Join(st.dir, id)
+}
+
+func (st *FileStore) artifactsDir(id string) string {
+	return filepath.Join(st.sessionDir(id), artifactsDir)
+}
+
+func (st *FileStore) artifactPath(id, name string) (string, error) {
+	if err := validateArtifactName(name); err != nil {
+		return "", err
+	}
+
+	return filepath.Join(st.artifactsDir(id), name+artifactExt), nil
+}
+
+func (st *FileStore) touch(sess *session.Session) error {
+	sess.UpdatedAt = time.Now()
+
+	return st.writeSessionFile(sess)
+}
+
+func (st *FileStore) ensureSession(id string) (*session.Session, error) {
+	st.mu.RLock()
+	sess, ok := st.cache[id]
+	st.mu.RUnlock()
+
+	if ok {
+		return sess, nil
+	}
+
+	sess, err := st.readSessionFile(id)
+	if err != nil {
+		return nil, err
+	}
+
+	st.mu.Lock()
+	st.cache[id] = sess
+	st.mu.Unlock()
+
+	return sess, nil
+}
+
+func validateArtifactName(name string) error {
+	if !artifactNamePattern.MatchString(name) {
+		return fmt.Errorf("invalid artifact name %q", name)
+	}
+
+	return nil
+}
+
+func artifactName(filename string) (string, bool) {
+	name, ok := strings.CutSuffix(filename, artifactExt)
+	if !ok || validateArtifactName(name) != nil {
+		return "", false
+	}
+
+	return name, true
+}
+
+func writeJSONFile(path string, value any) error {
+	data, err := json.MarshalIndent(value, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal json: %w", err)
+	}
+
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o600); err != nil {
+		return fmt.Errorf("write file: %w", err)
+	}
+
+	if err := os.Rename(tmp, path); err != nil {
+		return fmt.Errorf("rename file: %w", err)
+	}
+
+	return nil
 }
