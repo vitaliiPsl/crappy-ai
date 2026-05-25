@@ -123,6 +123,12 @@ func renderSystemBlock(name, text string, width int) string {
 }
 
 func renderTool(tool *ToolUse, showResult bool) string {
+	if tool.Name == planToolName {
+		if rendered := renderPlanTool(tool); rendered != "" {
+			return rendered
+		}
+	}
+
 	var b strings.Builder
 
 	head := toolNameStyle.Render(tool.Name)
