@@ -75,7 +75,7 @@ func run() error {
 
 	permissionService := permission.NewService(configStore, nil)
 
-	asst := assistant.New(configStore, sessStore, modelRegistry, toolRegistry, permissionService)
+	asst := assistant.New(configStore, sessStore, sessStore, modelRegistry, toolRegistry, permissionService)
 	srv := server.New(asst, settingsStore, configStore, sessStore, modelRegistry)
 
 	permissionService.SetHandler(srv)

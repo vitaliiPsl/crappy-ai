@@ -7,11 +7,8 @@ import (
 
 	"github.com/vitaliiPsl/crappy-adk/agent"
 	"github.com/vitaliiPsl/crappy-adk/kit"
-	"github.com/vitaliiPsl/crappy-adk/x/guard"
 
-	"github.com/vitaliiPsl/crappy-ai/internal/assistant/instructions"
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/memory"
-	"github.com/vitaliiPsl/crappy-ai/internal/assistant/summarization"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/models"
 	"github.com/vitaliiPsl/crappy-ai/internal/permission"
@@ -19,14 +16,10 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/tools"
 )
 
-const (
-	toolLoopMaxRepeats = 3
-	toolLoopWindow     = 5
-)
-
 type Assistant struct {
 	configStore   *config.Store
 	sessionStore  session.Store
+	artifactStore session.ArtifactStore
 	modelRegistry *models.Registry
 	toolRegistry  *tools.Registry
 	permissions   *permission.Service
@@ -35,6 +28,7 @@ type Assistant struct {
 func New(
 	configStore *config.Store,
 	sessionStore session.Store,
+	artifactStore session.ArtifactStore,
 	modelRegistry *models.Registry,
 	toolRegistry *tools.Registry,
 	permissions *permission.Service,
@@ -42,6 +36,7 @@ func New(
 	return &Assistant{
 		configStore:   configStore,
 		sessionStore:  sessionStore,
+		artifactStore: artifactStore,
 		modelRegistry: modelRegistry,
 		toolRegistry:  toolRegistry,
 		permissions:   permissions,
@@ -88,29 +83,6 @@ func (a *Assistant) Run(ctx context.Context, sessionID, text string) (*kit.Strea
 
 		return struct{}{}, a.handleResult(ctx, sessionID, model.Config(), resp.Usage, resp.LastUsage, runErr, emit)
 	}), nil
-}
-
-func (a *Assistant) buildAgentOpts(sessionID string, cfg config.Config, model kit.Model) []agent.Option {
-	opts := []agent.Option{
-		agent.WithInstructions(cfg.SystemPrompt, instructions.Env(cfg.Cwd)),
-		agent.WithTools(a.toolRegistry.GetTools()...),
-		summarization.New(model),
-		guard.WithRepeatedToolCallLimit(toolLoopMaxRepeats, toolLoopWindow),
-	}
-
-	if cfg.Thinking != "" {
-		opts = append(opts, agent.WithThinking(kit.ThinkingLevel(cfg.Thinking)))
-	}
-
-	opts = append(opts, agent.WithOnToolCall(func(rc *kit.RunContext, call kit.ToolCall) (kit.ToolCall, error) {
-		if err := a.permissions.Authorize(rc.Context, sessionID, call); err != nil {
-			return call, err
-		}
-
-		return call, nil
-	}))
-
-	return opts
 }
 
 func (a *Assistant) handleResult(
