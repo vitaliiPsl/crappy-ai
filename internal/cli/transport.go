@@ -59,8 +59,23 @@ func (t *Transport) Run(ctx context.Context) error {
 			fmt.Fprintf(os.Stderr, "\n[error] %s\n", ev.Error)
 
 			return nil
+		case session.EventPermissionPrompt:
+			t.srv.CancelRun(sess.ID)
+
+			return permissionPromptError(ev)
 		}
 	}
 
 	return nil
+}
+
+func permissionPromptError(ev session.Event) error {
+	if ev.Prompt == nil {
+		return fmt.Errorf("permission required in non-interactive CLI mode; use the TUI or rerun with -mode yolo")
+	}
+
+	return fmt.Errorf(
+		"permission required for tool %q in non-interactive CLI mode; use the TUI or rerun with -mode yolo",
+		ev.Prompt.ToolCall.Name,
+	)
 }
