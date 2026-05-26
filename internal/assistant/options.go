@@ -18,7 +18,11 @@ const (
 
 func (a *Assistant) buildAgentOpts(sessionID string, cfg config.Config, model kit.Model) []agent.Option {
 	opts := []agent.Option{
-		agent.WithInstructions(cfg.SystemPrompt, instructions.Env(cfg.Cwd)),
+		agent.WithInstructions(
+			cfg.SystemPrompt,
+			instructions.Env(cfg.Cwd),
+			instructions.Files(cfg.Cwd),
+		),
 		agent.WithTools(a.toolRegistry.GetTools()...),
 		guard.WithRepeatedToolCallLimit(toolLoopMaxRepeats, toolLoopWindow),
 		summarization.New(model),

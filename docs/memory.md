@@ -25,6 +25,14 @@ Before each turn, Crappy loads the session's message history and sends it to the
 
 Only conversation messages are used as model context. Other session activity, such as streaming progress, errors, and permission prompts, is kept in the session history but is not the main memory sent back to the model.
 
+## Instruction Files
+
+Crappy also reads `AGENTS.md` and `CLAUDE.md` files from the working directory and its ancestors. These files are included with the model instructions on each turn.
+
+Use them for persistent guidance such as coding standards, build and test commands, project layout notes, and workflow preferences.
+
+Instruction files are not session memory. They come from files on disk, are re-read for each run, and apply to any session started from the same directory tree.
+
 ## Compaction
 
 Long sessions can become expensive or exceed the model's context window.
