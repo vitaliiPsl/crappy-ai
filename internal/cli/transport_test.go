@@ -87,6 +87,102 @@ func TestTransport_TurnCompleteWithZeroStatsPrintsUsage(t *testing.T) {
 	}
 }
 
+func TestTransport_PrintsToolStartAndErrorToStderr(t *testing.T) {
+	call := kit.NewToolCall("call-1", "bash", map[string]any{"command": "go test ./..."})
+	result := kit.NewToolResult(call, "", errors.New("exit status 1"))
+
+	srv := newTestServer(t, fakeAssistant{
+		streamFn: func(_ context.Context, sessionID string) *kit.Stream[session.Event, struct{}] {
+			return eventStream(
+				session.NewContentDoneEvent(sessionID, kit.NewToolCallContent(call)),
+				session.NewContentDoneEvent(sessionID, kit.NewToolResultContent(result)),
+				session.NewTurnCompleteEvent(sessionID, session.TurnStats{}),
+			)
+		},
+	})
+
+	stdout, stderr, err := captureOutput(t, func() error {
+		return NewTransport(srv, "test").Run(context.Background())
+	})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if stdout != "\n" {
+		t.Fatalf("stdout = %q, want completion newline only", stdout)
+	}
+
+	for _, want := range []string{
+		"[tool] bash go test ./...\n",
+		"[tool:error] bash exit status 1\n",
+		"[usage: in=0 out=0]\n",
+	} {
+		if !strings.Contains(stderr, want) {
+			t.Fatalf("stderr = %q, want it to contain %q", stderr, want)
+		}
+	}
+}
+
+func TestTransport_OmitsSuccessfulToolResultOutput(t *testing.T) {
+	call := kit.NewToolCall("call-1", "read_file", map[string]any{"path": "internal/cli/transport.go"})
+	result := kit.NewToolResult(call, "file contents", nil)
+
+	srv := newTestServer(t, fakeAssistant{
+		streamFn: func(_ context.Context, sessionID string) *kit.Stream[session.Event, struct{}] {
+			return eventStream(
+				session.NewContentDoneEvent(sessionID, kit.NewToolCallContent(call)),
+				session.NewContentDoneEvent(sessionID, kit.NewToolResultContent(result)),
+				session.NewTurnCompleteEvent(sessionID, session.TurnStats{}),
+			)
+		},
+	})
+
+	_, stderr, err := captureOutput(t, func() error {
+		return NewTransport(srv, "read").Run(context.Background())
+	})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if strings.Contains(stderr, "file contents") {
+		t.Fatalf("stderr = %q, want successful tool output omitted", stderr)
+	}
+
+	if !strings.Contains(stderr, "[tool] read_file internal/cli/transport.go\n") {
+		t.Fatalf("stderr = %q, want tool start", stderr)
+	}
+}
+
+func TestTransport_TruncatesMultilineToolArguments(t *testing.T) {
+	call := kit.NewToolCall("call-1", "bash", map[string]any{
+		"command": strings.Repeat("x", maxToolArgLen+10) + "\necho hidden",
+	})
+
+	srv := newTestServer(t, fakeAssistant{
+		streamFn: func(_ context.Context, sessionID string) *kit.Stream[session.Event, struct{}] {
+			return eventStream(
+				session.NewContentDoneEvent(sessionID, kit.NewToolCallContent(call)),
+				session.NewTurnCompleteEvent(sessionID, session.TurnStats{}),
+			)
+		},
+	})
+
+	_, stderr, err := captureOutput(t, func() error {
+		return NewTransport(srv, "run").Run(context.Background())
+	})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if strings.Contains(stderr, "echo hidden") {
+		t.Fatalf("stderr = %q, want multiline argument trimmed", stderr)
+	}
+
+	if !strings.Contains(stderr, strings.Repeat("x", maxToolArgLen-3)+"...") {
+		t.Fatalf("stderr = %q, want truncated argument", stderr)
+	}
+}
+
 func TestTransport_PrintsCancelledAndReturnsNil(t *testing.T) {
 	srv := newTestServer(t, fakeAssistant{
 		streamFn: func(_ context.Context, sessionID string) *kit.Stream[session.Event, struct{}] {
@@ -140,6 +236,7 @@ func TestTransport_ReturnsErrorOnPermissionPromptAndCancelsRun(t *testing.T) {
 		streamFn: func(ctx context.Context, sessionID string) *kit.Stream[session.Event, struct{}] {
 			return kit.NewStream(func(emit kit.Emitter[session.Event]) (struct{}, error) {
 				call := kit.NewToolCall("call-1", "bash", map[string]any{"command": "go test ./..."})
+
 				req := model.NewAskRequest(call, "go test ./...", nil)
 				if err := emit.Emit(session.NewPermissionPromptEvent(sessionID, req)); err != nil {
 					return struct{}{}, err

@@ -33,7 +33,7 @@ func run() error {
 		model    = flag.String("model", "", "active model id")
 		thinking = flag.String("thinking", "", "thinking level (disabled|low|medium|high)")
 		mode     = flag.String("mode", "", "permission mode (default|yolo)")
-		prompt   = flag.String("prompt", "", "if set, run a single turn with this prompt and exit")
+		prompt   = flag.String("prompt", "", "if set, run a single cli turn with this prompt and exit")
 	)
 
 	flag.Parse()

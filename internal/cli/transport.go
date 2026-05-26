@@ -4,12 +4,15 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/server"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
 )
+
+const maxToolArgLen = 160
 
 type Transport struct {
 	srv    *server.Server
@@ -40,15 +43,11 @@ func (t *Transport) Run(ctx context.Context) error {
 	for ev := range ch {
 		switch ev.Type {
 		case session.EventContentDelta:
-			if ev.Content != nil && ev.Content.Type == kit.ContentTypeText && ev.Content.Text != nil {
-				fmt.Print(ev.Content.Text.Text)
-			}
+			renderContentDelta(ev.Content)
+		case session.EventContentDone:
+			renderContentDone(ev.Content)
 		case session.EventTurnComplete:
-			fmt.Println()
-
-			if ev.Stats != nil {
-				fmt.Fprintf(os.Stderr, "[usage: in=%d out=%d]\n", ev.Stats.Usage.InputTokens, ev.Stats.Usage.OutputTokens)
-			}
+			renderTurnComplete(ev.Stats)
 
 			return nil
 		case session.EventTurnCancelled:
@@ -67,6 +66,82 @@ func (t *Transport) Run(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func renderContentDelta(content *kit.Content) {
+	if content == nil || content.Type != kit.ContentTypeText || content.Text == nil {
+		return
+	}
+
+	fmt.Print(content.Text.Text)
+}
+
+func renderContentDone(content *kit.Content) {
+	if content == nil {
+		return
+	}
+
+	switch content.Type {
+	case kit.ContentTypeToolCall:
+		if content.ToolCall != nil {
+			renderToolCall(*content.ToolCall)
+		}
+	case kit.ContentTypeToolResult:
+		if content.ToolResult != nil {
+			renderToolResult(*content.ToolResult)
+		}
+	}
+}
+
+func renderTurnComplete(stats *session.TurnStats) {
+	fmt.Println()
+
+	if stats == nil {
+		return
+	}
+
+	fmt.Fprintf(os.Stderr, "[usage: in=%d out=%d]\n", stats.Usage.InputTokens, stats.Usage.OutputTokens)
+}
+
+func renderToolCall(call kit.ToolCall) {
+	if arg := toolInlineArg(call.Arguments); arg != "" {
+		fmt.Fprintf(os.Stderr, "[tool] %s %s\n", call.Name, arg)
+
+		return
+	}
+
+	fmt.Fprintf(os.Stderr, "[tool] %s\n", call.Name)
+}
+
+func renderToolResult(result kit.ToolResult) {
+	if result.Error == "" {
+		return
+	}
+
+	fmt.Fprintf(os.Stderr, "[tool:error] %s %s\n", result.Call.Name, result.Error)
+}
+
+func toolInlineArg(args map[string]any) string {
+	for _, key := range []string{"command", "path", "url", "description"} {
+		if value, _ := args[key].(string); value != "" {
+			return truncateInline(value)
+		}
+	}
+
+	return ""
+}
+
+func truncateInline(value string) string {
+	value = strings.TrimSpace(value)
+	if before, _, ok := strings.Cut(value, "\n"); ok {
+		value = before
+	}
+
+	if len(value) <= maxToolArgLen {
+		return value
+	}
+
+	return value[:maxToolArgLen-3] + "..."
 }
 
 func permissionPromptError(ev session.Event) error {
