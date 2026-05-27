@@ -21,7 +21,7 @@ func Reduce(s State, ev sessiondata.Event) State {
 	case sessiondata.EventContentDone:
 		return reduceContentDone(s, ev.Content)
 	case sessiondata.EventMessage:
-		return reduceMessage(s, ev.Message)
+		return reduceMessage(s, ev.Message, ev.Skill)
 	case sessiondata.EventPermissionPrompt:
 		return reducePermissionPrompt(s, ev.Prompt)
 	case sessiondata.EventTurnComplete:
@@ -145,7 +145,7 @@ func reduceContentDone(s State, c *kit.Content) State {
 	return s
 }
 
-func reduceMessage(s State, msg *kit.Message) State {
+func reduceMessage(s State, msg *kit.Message, skill *sessiondata.SkillInvocation) State {
 	if msg == nil {
 		return s
 	}
@@ -160,7 +160,12 @@ func reduceMessage(s State, msg *kit.Message) State {
 		return mergeToolMessage(s, *msg)
 	}
 
-	s.Messages = append(cloneMessages(s.Messages), kitToMessage(*msg))
+	rendered := kitToMessage(*msg)
+	if skill != nil && msg.Role == kit.RoleUser {
+		rendered.Text = skill.String()
+	}
+
+	s.Messages = append(cloneMessages(s.Messages), rendered)
 	s.Streaming = nil
 
 	return s

@@ -51,33 +51,24 @@ func New(
 func (a *Assistant) Run(ctx context.Context, sessionID string, req RunRequest) (*kit.Stream[session.Event, struct{}], error) {
 	cfg := a.configStore.Get()
 
+	mem := memory.New(a.sessionStore, sessionID)
+
 	model, err := a.modelRegistry.Build(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("build model: %w", err)
 	}
-
-	text := req.Text
-	if req.Skill != nil {
-		skill, err := a.skillRegistry.GetSkill(req.Skill.Name)
-		if err != nil {
-			return nil, fmt.Errorf("load skill %q: %w", req.Skill.Name, err)
-		}
-
-		text = coreskills.FormatLoaded(skill, strings.Join(req.Skill.Args, " "))
-	}
-
-	mem := memory.New(a.sessionStore, sessionID)
 
 	ag, err := agent.New(model, mem, a.buildAgentOpts(sessionID, cfg, model)...)
 	if err != nil {
 		return nil, fmt.Errorf("build agent: %w", err)
 	}
 
-	userMsg := kit.NewUserMessage(kit.NewTextContent(text))
+	userMsg, userEvent, err := a.buildUserInput(sessionID, req)
+	if err != nil {
+		return nil, err
+	}
 
 	return kit.NewStream(func(emit kit.Emitter[session.Event]) (struct{}, error) {
-		userEvent := session.NewMessageEvent(sessionID, userMsg)
-
 		if err := emit.Emit(userEvent); err != nil {
 			return struct{}{}, err
 		}
@@ -98,6 +89,30 @@ func (a *Assistant) Run(ctx context.Context, sessionID string, req RunRequest) (
 
 		return struct{}{}, a.handleResult(ctx, sessionID, model.Config(), resp.Usage, resp.LastUsage, runErr, emit)
 	}), nil
+}
+
+func (a *Assistant) buildUserInput(sessionID string, req RunRequest) (kit.Message, session.Event, error) {
+	text := req.Text
+	if req.Skill != nil {
+		skill, err := a.skillRegistry.GetSkill(req.Skill.Name)
+		if err != nil {
+			return kit.Message{}, session.Event{}, fmt.Errorf("load skill %q: %w", req.Skill.Name, err)
+		}
+
+		text = coreskills.FormatLoaded(skill, strings.Join(req.Skill.Args, " "))
+	}
+
+	msg := kit.NewUserMessage(kit.NewTextContent(text))
+
+	event := session.NewMessageEvent(sessionID, msg)
+	if req.Skill != nil {
+		event = session.NewSkillMessageEvent(sessionID, msg, session.SkillInvocation{
+			Name: req.Skill.Name,
+			Args: req.Skill.Args,
+		})
+	}
+
+	return msg, event, nil
 }
 
 func (a *Assistant) handleResult(

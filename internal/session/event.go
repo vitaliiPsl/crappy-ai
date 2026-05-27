@@ -1,6 +1,7 @@
 package session
 
 import (
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -28,6 +29,19 @@ type PermissionPrompt struct {
 	Request  model.AskRequest `json:"request"`
 }
 
+type SkillInvocation struct {
+	Name string   `json:"name"`
+	Args []string `json:"args,omitempty"`
+}
+
+func (s SkillInvocation) String() string {
+	if len(s.Args) == 0 {
+		return "/" + s.Name
+	}
+
+	return "/" + s.Name + " " + strings.Join(s.Args, " ")
+}
+
 type TurnStats struct {
 	Usage         kit.Usage `json:"usage"`
 	ContextUsed   int64     `json:"context_used"`
@@ -47,6 +61,7 @@ type Event struct {
 
 	Stats  *TurnStats        `json:"stats,omitempty"`
 	Prompt *PermissionPrompt `json:"prompt,omitempty"`
+	Skill  *SkillInvocation  `json:"skill,omitempty"`
 }
 
 func newEvent(sessionID string, t EventType) Event {
@@ -82,6 +97,13 @@ func NewContentDoneEvent(sessionID string, content kit.Content) Event {
 func NewMessageEvent(sessionID string, msg kit.Message) Event {
 	e := newEvent(sessionID, EventMessage)
 	e.Message = &msg
+
+	return e
+}
+
+func NewSkillMessageEvent(sessionID string, msg kit.Message, skill SkillInvocation) Event {
+	e := NewMessageEvent(sessionID, msg)
+	e.Skill = &skill
 
 	return e
 }
