@@ -6,7 +6,7 @@ import (
 	coreskills "github.com/vitaliiPsl/crappy-ai/internal/skills"
 )
 
-const Instructions = `# Skills
+const instructions = `# Skills
 
 You have a use_skill tool that loads reusable local workflows.
 
@@ -24,13 +24,13 @@ Available skills:
 `
 
 func New(registry *coreskills.Registry) agent.Option {
-	listing := formatListing(registry.GetSkills())
+	listing := coreskills.FormatListing(registry.GetSkills())
 	if listing == "" {
 		return agent.WithExtensions()
 	}
 
 	return agent.WithExtensions(
-		agent.WithInstructions(Instructions+"\n"+listing),
+		agent.WithInstructions(instructions+"\n"+listing),
 		agent.WithTools(newTool(registry)),
 	)
 }

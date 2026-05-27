@@ -36,7 +36,7 @@ type Model struct {
 
 func New(ctx context.Context, srv *server.Server, sessionID string) Model {
 	cfg := srv.GetConfig()
-	registry := command.NewRegistry()
+	registry := command.NewRegistry(srv)
 
 	vp := viewport.New()
 	vp.SoftWrap = true
@@ -115,6 +115,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case command.SystemMsg:
 		m.state = m.state.AppendSystem(msg.Text)
+
+	case command.SubmitTextMsg:
+		m, cmd = m.handleSubmit(msg.Text)
 
 	case command.CompactSessionMsg:
 		m, cmd = m.handleCompact()

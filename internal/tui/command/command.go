@@ -6,9 +6,17 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
+type Kind int
+
+const (
+	KindBuiltin Kind = iota
+	KindSkill
+)
+
 type Definition struct {
 	Name        string
 	Description string
+	Kind        Kind
 }
 
 type Command interface {
@@ -22,6 +30,10 @@ type Request struct {
 }
 
 type SystemMsg struct {
+	Text string
+}
+
+type SubmitTextMsg struct {
 	Text string
 }
 

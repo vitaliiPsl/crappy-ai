@@ -36,7 +36,7 @@ func newTool(registry *coreskills.Registry) kit.Tool {
 				return "", err
 			}
 
-			return formatLoadedSkill(skill, input.Args), nil
+			return coreskills.FormatLoaded(skill, input.Args), nil
 		},
 	)
 }

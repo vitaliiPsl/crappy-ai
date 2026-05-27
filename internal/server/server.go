@@ -10,6 +10,7 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/models"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
 	"github.com/vitaliiPsl/crappy-ai/internal/settings"
+	"github.com/vitaliiPsl/crappy-ai/internal/skills"
 )
 
 type Transport interface {
@@ -25,10 +26,11 @@ type Server struct {
 	assistant  Assistant
 	transports []Transport
 
-	settingsStore *settings.Store
-	configStore   *config.Store
-	sessionStore  session.Store
-	registry      *models.Registry
+	settingsStore  *settings.Store
+	configStore    *config.Store
+	sessionStore   session.Store
+	modelsRegistry *models.Registry
+	skillRegistry  *skills.Registry
 
 	mu       sync.RWMutex
 	sessions map[string]*sessionState
@@ -39,15 +41,17 @@ func New(
 	settingsStore *settings.Store,
 	configStore *config.Store,
 	sessionStore session.Store,
-	registry *models.Registry,
+	modelsRegistry *models.Registry,
+	skillRegistry *skills.Registry,
 ) *Server {
 	return &Server{
-		assistant:     assistant,
-		settingsStore: settingsStore,
-		configStore:   configStore,
-		sessionStore:  sessionStore,
-		registry:      registry,
-		sessions:      make(map[string]*sessionState),
+		assistant:      assistant,
+		settingsStore:  settingsStore,
+		configStore:    configStore,
+		sessionStore:   sessionStore,
+		modelsRegistry: modelsRegistry,
+		skillRegistry:  skillRegistry,
+		sessions:       make(map[string]*sessionState),
 	}
 }
 

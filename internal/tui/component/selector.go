@@ -8,11 +8,14 @@ type SelectorMatcher[T any] func(item T, query string) bool
 
 type SelectorRenderer[T any] func(item T, selected bool) string
 
+type SelectorSection[T any] func(item T) string
+
 type SelectorConfig[T any] struct {
-	Items  []T
-	Match  SelectorMatcher[T]
-	Render SelectorRenderer[T]
-	Window int
+	Items   []T
+	Match   SelectorMatcher[T]
+	Render  SelectorRenderer[T]
+	Section SelectorSection[T]
+	Window  int
 }
 
 type Selector[T any] struct {
@@ -22,8 +25,9 @@ type Selector[T any] struct {
 	query    string
 	window   int
 
-	match  SelectorMatcher[T]
-	render SelectorRenderer[T]
+	match   SelectorMatcher[T]
+	render  SelectorRenderer[T]
+	section SelectorSection[T]
 }
 
 func NewSelector[T any](cfg SelectorConfig[T]) Selector[T] {
@@ -33,10 +37,11 @@ func NewSelector[T any](cfg SelectorConfig[T]) Selector[T] {
 	}
 
 	s := Selector[T]{
-		items:  cfg.Items,
-		match:  cfg.Match,
-		render: cfg.Render,
-		window: window,
+		items:   cfg.Items,
+		match:   cfg.Match,
+		render:  cfg.Render,
+		section: cfg.Section,
+		window:  window,
 	}
 
 	return s
@@ -49,8 +54,23 @@ func (s Selector[T]) View() string {
 
 	start, end := s.visibleRange()
 
-	lines := make([]string, 0, end-start)
+	var (
+		lines   []string
+		prevSec string
+		hasPrev bool
+	)
+
 	for idx := start; idx < end; idx++ {
+		if s.section != nil {
+			sec := s.section(s.matches[idx])
+			if sec != "" && (!hasPrev || sec != prevSec) {
+				lines = append(lines, sec)
+			}
+
+			prevSec = sec
+			hasPrev = true
+		}
+
 		lines = append(lines, s.render(s.matches[idx], idx == s.selected))
 	}
 

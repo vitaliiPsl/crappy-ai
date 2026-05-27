@@ -23,6 +23,7 @@ func newCommandPicker(registry *command.Registry) commandPicker {
 	selected := lipgloss.NewStyle().Foreground(sessionTheme.Primary).Bold(true)
 	normal := lipgloss.NewStyle().Foreground(sessionTheme.SubtleText)
 	desc := lipgloss.NewStyle().Foreground(sessionTheme.Muted)
+	section := lipgloss.NewStyle().Foreground(sessionTheme.Muted).Bold(true)
 
 	var items []command.Definition
 	if registry != nil {
@@ -48,8 +49,20 @@ func newCommandPicker(registry *command.Registry) commandPicker {
 
 				return line
 			},
+			Section: func(def command.Definition) string {
+				return section.Render(sectionLabel(def.Kind))
+			},
 			Window: commandPickerWindow,
 		}),
+	}
+}
+
+func sectionLabel(kind command.Kind) string {
+	switch kind {
+	case command.KindSkill:
+		return "Skills"
+	default:
+		return "Commands"
 	}
 }
 

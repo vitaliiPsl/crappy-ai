@@ -9,7 +9,7 @@ type Registry struct {
 	commands map[string]Command
 }
 
-func NewRegistry() *Registry {
+func NewRegistry(skillSource SkillSource) *Registry {
 	r := &Registry{commands: make(map[string]Command)}
 
 	r.Register(NewNewCommand())
@@ -17,6 +17,16 @@ func NewRegistry() *Registry {
 	r.Register(NewSettingsCommand())
 	r.Register(NewCompactCommand())
 	r.Register(NewHelpCommand(r))
+
+	if skillSource != nil {
+		for _, sk := range skillSource.GetSkills() {
+			if _, exists := r.commands[sk.Name]; exists {
+				continue
+			}
+
+			r.Register(NewSkillCommand(skillSource, sk))
+		}
+	}
 
 	return r
 }
@@ -37,6 +47,10 @@ func (r *Registry) Definitions() []Definition {
 	}
 
 	sort.Slice(defs, func(i, j int) bool {
+		if defs[i].Kind != defs[j].Kind {
+			return defs[i].Kind < defs[j].Kind
+		}
+
 		return defs[i].Name < defs[j].Name
 	})
 

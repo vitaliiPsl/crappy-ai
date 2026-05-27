@@ -1,0 +1,90 @@
+package command_test
+
+import (
+	"context"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/vitaliiPsl/crappy-ai/internal/skills"
+	"github.com/vitaliiPsl/crappy-ai/internal/skills/skillstest"
+	"github.com/vitaliiPsl/crappy-ai/internal/tui/command"
+)
+
+func TestSkillCommandDefinitionMatchesSkill(t *testing.T) {
+	cmd := command.NewSkillCommand(nil, skills.Skill{Name: "review", Description: "Review code"})
+
+	def := cmd.Definition()
+	if def.Name != "review" {
+		t.Fatalf("Name = %q, want review", def.Name)
+	}
+
+	if def.Description != "Review code" {
+		t.Fatalf("Description = %q, want Review code", def.Description)
+	}
+}
+
+func TestSkillCommandExecuteEmitsLoadedSkillText(t *testing.T) {
+	userDir := filepath.Join(t.TempDir(), "skills")
+	skillstest.WriteSkill(t, filepath.Join(userDir, "review", "SKILL.md"), "review", "Review code", "Find bugs first.")
+	registry := skillstest.NewRegistry(userDir)
+
+	cmd := command.NewSkillCommand(registry, skills.Skill{Name: "review", Description: "Review code"})
+
+	msg := cmd.Execute(context.Background(), command.Request{Args: []string{"auth", "changes"}})()
+
+	submit, ok := msg.(command.SubmitTextMsg)
+	if !ok {
+		t.Fatalf("msg = %#v, want SubmitTextMsg", msg)
+	}
+
+	for _, want := range []string{
+		"Loaded skill: review",
+		"Arguments:\nauth changes",
+		"Find bugs first.",
+	} {
+		if !strings.Contains(submit.Text, want) {
+			t.Fatalf("submit.Text missing %q:\n%s", want, submit.Text)
+		}
+	}
+}
+
+func TestSkillCommandExecuteSystemErrorOnUnknown(t *testing.T) {
+	userDir := filepath.Join(t.TempDir(), "skills")
+	registry := skillstest.NewRegistry(userDir)
+
+	cmd := command.NewSkillCommand(registry, skills.Skill{Name: "missing"})
+
+	msg := cmd.Execute(context.Background(), command.Request{})()
+
+	sys, ok := msg.(command.SystemMsg)
+	if !ok {
+		t.Fatalf("msg = %#v, want SystemMsg", msg)
+	}
+
+	if !strings.Contains(sys.Text, "missing") {
+		t.Fatalf("system text = %q, want it to mention the missing skill name", sys.Text)
+	}
+}
+
+func TestRegistrySkipsSkillNameCollisionWithBuiltin(t *testing.T) {
+	userDir := filepath.Join(t.TempDir(), "skills")
+	skillstest.WriteSkill(t, filepath.Join(userDir, "help", "SKILL.md"), "help", "Custom help", "ignored")
+	skillstest.WriteSkill(t, filepath.Join(userDir, "review", "SKILL.md"), "review", "Review code", "Find bugs first.")
+
+	registry := command.NewRegistry(skillstest.NewRegistry(userDir))
+
+	helpCmd, _ := registry.Get("help")
+	if _, ok := helpCmd.(*command.HelpCommand); !ok {
+		t.Fatalf("help = %T, want *command.HelpCommand (builtin must win)", helpCmd)
+	}
+
+	reviewCmd, ok := registry.Get("review")
+	if !ok {
+		t.Fatal("review command missing")
+	}
+
+	if _, ok := reviewCmd.(*command.SkillCommand); !ok {
+		t.Fatalf("review = %T, want *command.SkillCommand", reviewCmd)
+	}
+}

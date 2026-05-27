@@ -22,5 +22,5 @@ func (s *Server) UpdateSettings(st settings.Settings) error {
 }
 
 func (s *Server) GetProviders() []settings.ProviderSettings {
-	return s.registry.GetProviders()
+	return s.modelsRegistry.GetProviders()
 }

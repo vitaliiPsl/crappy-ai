@@ -3,8 +3,6 @@ package skills
 import (
 	"strings"
 	"text/template"
-
-	coreskills "github.com/vitaliiPsl/crappy-ai/internal/skills"
 )
 
 const listingTemplate = `{{range .}}- {{.Name}}{{if .Description}}: {{.Description}}{{end}}
@@ -36,21 +34,21 @@ func init() {
 }
 
 type loadedSkillData struct {
-	Skill coreskills.Skill
+	Skill Skill
 	Args  string
 }
 
-func formatListing(skills []coreskills.Skill) string {
-	if len(skills) == 0 {
+func FormatListing(list []Skill) string {
+	if len(list) == 0 {
 		return ""
 	}
 
-	return renderTemplate("listing", skills)
+	return renderTemplate("listing", list)
 }
 
-func formatLoadedSkill(loaded coreskills.Skill, args string) string {
+func FormatLoaded(skill Skill, args string) string {
 	return renderTemplate("loaded", loadedSkillData{
-		Skill: loaded,
+		Skill: skill,
 		Args:  strings.TrimSpace(args),
 	})
 }
