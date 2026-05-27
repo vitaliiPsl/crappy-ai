@@ -33,6 +33,7 @@ permissions:
       pattern: "./**"
     - tool: read_file
       pattern: "./**"
+    - tool: use_skill
 ```
 
 File edits, shell commands, and web fetches ask first unless you add permission rules for them.
@@ -88,6 +89,12 @@ Crappy runs commands through your shell. If `SHELL` is not set, it uses `sh`.
 Use `bash` for tests, formatters, linters, project scripts, Git commands, and build tools.
 
 Avoid long-running commands like servers and file watchers unless you are prepared to cancel them.
+
+### `use_skill`
+
+Load a reusable local skill into the conversation.
+
+Crappy uses this when a request matches a skill or when you type a skill slash command such as `/review`. The startup context contains only skill names and descriptions; this tool loads the full `SKILL.md` instructions when needed.
 
 ## Notes
 

@@ -21,6 +21,7 @@ Use settings for things that describe your local installation:
 - provider credentials
 - provider endpoints
 - custom model metadata
+- user skills directory
 
 By default, Crappy uses:
 
@@ -77,6 +78,7 @@ The settings file describes providers, storage paths, and model metadata.
 config_path: ~/.crappy-ai/config.yaml
 sessions_dir: ~/.crappy-ai/sessions
 models_path: ~/.crappy-ai/models.json
+skills_path: ~/.crappy-ai/skills
 
 providers:
   - name: openai
@@ -94,6 +96,8 @@ models:
 `sessions_dir` is where Crappy stores sessions.
 
 `models_path` is where Crappy stores model metadata.
+
+`skills_path` is where Crappy loads user-level skills.
 
 `providers` tells Crappy how to connect to model providers.
 
@@ -166,6 +170,7 @@ They can also change where Crappy stores settings and session data:
 CRAPPY_SETTINGS=~/.config/crappy/settings.yaml
 CRAPPY_SESSIONS_DIR=~/.local/share/crappy/sessions
 CRAPPY_MODELS_PATH=~/.cache/crappy/models.json
+CRAPPY_SKILLS_PATH=~/.config/crappy/skills
 ```
 
 Provider API keys use the environment variable named by `api_key_env`, such as `OPENAI_API_KEY`.

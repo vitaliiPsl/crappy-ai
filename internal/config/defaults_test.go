@@ -22,6 +22,7 @@ func TestDefaultsAllowWorkspaceReads(t *testing.T) {
 	want := []model.Rule{
 		{Tool: "list", Pattern: "./**"},
 		{Tool: "read_file", Pattern: "./**"},
+		{Tool: "use_skill"},
 	}
 
 	if len(got) != len(want) {

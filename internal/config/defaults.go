@@ -22,6 +22,7 @@ func defaults() Config {
 			Allow: []permissionmodel.Rule{
 				{Tool: "list", Pattern: "./**"},
 				{Tool: "read_file", Pattern: "./**"},
+				{Tool: "use_skill"},
 			},
 		},
 	}

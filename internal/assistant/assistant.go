@@ -13,6 +13,7 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/models"
 	"github.com/vitaliiPsl/crappy-ai/internal/permission"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
+	coreskills "github.com/vitaliiPsl/crappy-ai/internal/skills"
 	"github.com/vitaliiPsl/crappy-ai/internal/tools"
 )
 
@@ -21,6 +22,7 @@ type Assistant struct {
 	sessionStore  session.Store
 	artifactStore session.ArtifactStore
 	modelRegistry *models.Registry
+	skillRegistry *coreskills.Registry
 	toolRegistry  *tools.Registry
 	permissions   *permission.Service
 }
@@ -30,6 +32,7 @@ func New(
 	sessionStore session.Store,
 	artifactStore session.ArtifactStore,
 	modelRegistry *models.Registry,
+	skillRegistry *coreskills.Registry,
 	toolRegistry *tools.Registry,
 	permissions *permission.Service,
 ) *Assistant {
@@ -38,6 +41,7 @@ func New(
 		sessionStore:  sessionStore,
 		artifactStore: artifactStore,
 		modelRegistry: modelRegistry,
+		skillRegistry: skillRegistry,
 		toolRegistry:  toolRegistry,
 		permissions:   permissions,
 	}

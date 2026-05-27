@@ -7,6 +7,7 @@ import (
 
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/instructions"
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/planning"
+	assistantskills "github.com/vitaliiPsl/crappy-ai/internal/assistant/skills"
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/summarization"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 )
@@ -27,6 +28,7 @@ func (a *Assistant) buildAgentOpts(sessionID string, cfg config.Config, model ki
 		guard.WithRepeatedToolCallLimit(toolLoopMaxRepeats, toolLoopWindow),
 		summarization.New(model),
 		planning.New(sessionID, a.artifactStore),
+		assistantskills.New(a.skillRegistry),
 	}
 
 	if cfg.Thinking != "" {

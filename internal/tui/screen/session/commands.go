@@ -120,5 +120,5 @@ func parseCommand(value string) (commandMsg, bool) {
 		return commandMsg{}, false
 	}
 
-	return commandMsg{Name: parts[0], Args: parts[1:]}, true
+	return commandMsg{Name: parts[0], Args: parts[1:], Raw: value}, true
 }

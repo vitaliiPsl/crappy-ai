@@ -95,9 +95,7 @@ func (m Model) handleKey(key tea.KeyMsg) (Model, tea.Cmd) {
 func (m Model) handleCommand(msg commandMsg) (Model, tea.Cmd) {
 	cmdDef, ok := m.registry.Get(msg.Name)
 	if !ok {
-		m.state = m.state.AppendSystem(fmt.Sprintf("Unknown command: /%s", msg.Name))
-
-		return m, nil
+		return m.handleSubmit(msg.Raw)
 	}
 
 	return m, cmdDef.Execute(m.ctx, command.Request{SessionID: m.state.ID, Args: msg.Args})

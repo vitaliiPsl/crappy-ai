@@ -63,6 +63,7 @@ permissions:
       pattern: "./**"
     - tool: read_file
       pattern: "./**"
+    - tool: use_skill
 ```
 
 `settings.yaml` is for local setup:
@@ -72,6 +73,8 @@ providers:
   - name: openai
     api: openai
     api_key_env: OPENAI_API_KEY
+
+skills_path: ~/.crappy-ai/skills
 ```
 
 See [Configuration](docs/configuration.md).
@@ -126,6 +129,14 @@ permissions:
 ```
 
 See [Tools](docs/tools.md) and [Permissions](docs/permissions.md).
+
+## Skills
+
+Skills are reusable markdown workflows invoked with slash commands such as `/review` or selected by the model through the `use_skill` tool.
+
+Crappy loads skills from `skills_path`, which defaults to `~/.crappy-ai/skills`.
+
+See [Skills](docs/skills.md).
 
 ## Sessions and Memory
 

@@ -180,6 +180,10 @@ func toolInlineArg(tool *ToolUse) string {
 		return desc
 	}
 
+	if skill, _ := tool.Arguments["skill"].(string); skill != "" {
+		return skill
+	}
+
 	return ""
 }
 

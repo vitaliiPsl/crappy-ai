@@ -25,6 +25,7 @@ type submitMsg struct {
 type commandMsg struct {
 	Name string
 	Args []string
+	Raw  string
 }
 
 type effectErrorMsg struct {

@@ -92,6 +92,14 @@ func TestMergeProvidersPreservesDefaultsForPartialOverride(t *testing.T) {
 	}
 }
 
+func TestMergeReadsSkillsPath(t *testing.T) {
+	got := merge(Settings{SkillsPath: "/default/skills"}, Settings{SkillsPath: "/custom/skills"})
+
+	if got.SkillsPath != "/custom/skills" {
+		t.Fatalf("SkillsPath = %q, want /custom/skills", got.SkillsPath)
+	}
+}
+
 func TestWriteFileUsesPrivatePermissions(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.yaml")
 
@@ -161,6 +169,7 @@ models:
 	t.Setenv(EnvSettingsPath, settingsPath)
 	t.Setenv(EnvModelsPath, "")
 	t.Setenv(EnvSessionsDir, "")
+	t.Setenv(EnvSkillsPath, "")
 
 	store, err := Load()
 	if err != nil {

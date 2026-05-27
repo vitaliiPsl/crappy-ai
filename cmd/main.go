@@ -14,6 +14,7 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/permission"
 	"github.com/vitaliiPsl/crappy-ai/internal/server"
 	"github.com/vitaliiPsl/crappy-ai/internal/settings"
+	"github.com/vitaliiPsl/crappy-ai/internal/skills"
 	"github.com/vitaliiPsl/crappy-ai/internal/tools"
 	"github.com/vitaliiPsl/crappy-ai/internal/tui"
 
@@ -71,11 +72,12 @@ func run() error {
 	}
 
 	modelRegistry := models.NewRegistry(settingsStore)
+	skillRegistry := skills.NewRegistry(settingsStore)
 	toolRegistry := tools.NewRegistry()
 
 	permissionService := permission.NewService(configStore, nil)
 
-	asst := assistant.New(configStore, sessStore, sessStore, modelRegistry, toolRegistry, permissionService)
+	asst := assistant.New(configStore, sessStore, sessStore, modelRegistry, skillRegistry, toolRegistry, permissionService)
 	srv := server.New(asst, settingsStore, configStore, sessStore, modelRegistry)
 
 	permissionService.SetHandler(srv)
