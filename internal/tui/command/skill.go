@@ -2,7 +2,6 @@ package command
 
 import (
 	"context"
-	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -11,16 +10,14 @@ import (
 
 type SkillSource interface {
 	GetSkills() []skills.Skill
-	GetSkill(name string) (skills.Skill, error)
 }
 
 type SkillCommand struct {
-	source SkillSource
-	skill  skills.Skill
+	skill skills.Skill
 }
 
-func NewSkillCommand(source SkillSource, skill skills.Skill) *SkillCommand {
-	return &SkillCommand{source: source, skill: skill}
+func NewSkillCommand(skill skills.Skill) *SkillCommand {
+	return &SkillCommand{skill: skill}
 }
 
 func (c *SkillCommand) Definition() Definition {
@@ -29,11 +26,6 @@ func (c *SkillCommand) Definition() Definition {
 
 func (c *SkillCommand) Execute(_ context.Context, req Request) tea.Cmd {
 	return func() tea.Msg {
-		loaded, err := c.source.GetSkill(c.skill.Name)
-		if err != nil {
-			return SystemMsg{Text: "skill error: " + err.Error()}
-		}
-
-		return SubmitTextMsg{Text: skills.FormatLoaded(loaded, strings.Join(req.Args, " "))}
+		return SubmitSkillMsg{Text: req.Raw, Name: c.skill.Name, Args: req.Args}
 	}
 }

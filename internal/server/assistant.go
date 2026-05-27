@@ -7,12 +7,13 @@ import (
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
 
+	"github.com/vitaliiPsl/crappy-ai/internal/assistant"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
 )
 
-func (s *Server) Send(ctx context.Context, sessionID, text string) error {
+func (s *Server) Send(ctx context.Context, sessionID string, req assistant.RunRequest) error {
 	return s.callAssistant(ctx, sessionID, func(turnCtx context.Context) (*kit.Stream[session.Event, struct{}], error) {
-		return s.assistant.Run(turnCtx, sessionID, text)
+		return s.assistant.Run(turnCtx, sessionID, req)
 	})
 }
 

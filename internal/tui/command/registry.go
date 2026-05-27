@@ -24,7 +24,7 @@ func NewRegistry(skillSource SkillSource) *Registry {
 				continue
 			}
 
-			r.Register(NewSkillCommand(skillSource, sk))
+			r.Register(NewSkillCommand(sk))
 		}
 	}
 

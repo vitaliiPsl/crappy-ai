@@ -7,6 +7,7 @@ import (
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/vitaliiPsl/crappy-ai/internal/assistant"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/permission/model"
 	sessiondata "github.com/vitaliiPsl/crappy-ai/internal/session"
@@ -98,7 +99,7 @@ func (m Model) handleCommand(msg commandMsg) (Model, tea.Cmd) {
 		return m.handleSubmit(msg.Raw)
 	}
 
-	return m, cmdDef.Execute(m.ctx, command.Request{SessionID: m.state.ID, Args: msg.Args})
+	return m, cmdDef.Execute(m.ctx, command.Request{SessionID: m.state.ID, Args: msg.Args, Raw: msg.Raw})
 }
 
 func (m Model) toggleMode() (Model, tea.Cmd) {
@@ -148,19 +149,23 @@ func (m Model) handlePromptKey(key tea.KeyMsg) (Model, tea.Cmd) {
 }
 
 func (m Model) handleSubmit(text string) (Model, tea.Cmd) {
+	return m.handleRunRequest(assistant.RunRequest{Text: text})
+}
+
+func (m Model) handleRunRequest(req assistant.RunRequest) (Model, tea.Cmd) {
 	if m.state.Phase != PhaseIdle {
 		return m, nil
 	}
 
-	text = strings.TrimSpace(text)
-	if text == "" {
+	req.Text = strings.TrimSpace(req.Text)
+	if req.Text == "" {
 		return m, nil
 	}
 
 	var cmds []tea.Cmd
 
 	if m.state.ID == "" {
-		sess, ch, err := m.openNewSession(deriveTitle(text))
+		sess, ch, err := m.openNewSession(deriveTitle(req.Text))
 		if err != nil {
 			m.state = m.state.SetError(err)
 
@@ -174,9 +179,19 @@ func (m Model) handleSubmit(text string) (Model, tea.Cmd) {
 	}
 
 	m.state = m.state.StartTurn()
-	cmds = append(cmds, sendCmd(m.ctx, m.server, m.state.ID, text), m.spinner.Tick)
+	cmds = append(cmds, sendCmd(m.ctx, m.server, m.state.ID, req), m.spinner.Tick)
 
 	return m, tea.Batch(cmds...)
+}
+
+func (m Model) handleSkillSubmit(msg command.SubmitSkillMsg) (Model, tea.Cmd) {
+	return m.handleRunRequest(assistant.RunRequest{
+		Text: msg.Text,
+		Skill: &assistant.SkillInvocation{
+			Name: msg.Name,
+			Args: msg.Args,
+		},
+	})
 }
 
 func (m Model) applyHistory(msg historyLoadedMsg) (Model, tea.Cmd) {

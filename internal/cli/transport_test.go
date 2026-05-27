@@ -11,6 +11,7 @@ import (
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
 
+	"github.com/vitaliiPsl/crappy-ai/internal/assistant"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/permission/model"
 	"github.com/vitaliiPsl/crappy-ai/internal/server"
@@ -23,7 +24,7 @@ type fakeAssistant struct {
 	err      error
 }
 
-func (a fakeAssistant) Run(ctx context.Context, sessionID, _ string) (*kit.Stream[session.Event, struct{}], error) {
+func (a fakeAssistant) Run(ctx context.Context, sessionID string, _ assistant.RunRequest) (*kit.Stream[session.Event, struct{}], error) {
 	if a.err != nil {
 		return nil, a.err
 	}
@@ -32,7 +33,7 @@ func (a fakeAssistant) Run(ctx context.Context, sessionID, _ string) (*kit.Strea
 }
 
 func (a fakeAssistant) Compact(ctx context.Context, sessionID string) (*kit.Stream[session.Event, struct{}], error) {
-	return a.Run(ctx, sessionID, "")
+	return a.Run(ctx, sessionID, assistant.RunRequest{})
 }
 
 func TestTransport_PrintsTextAndUsageOnTurnComplete(t *testing.T) {

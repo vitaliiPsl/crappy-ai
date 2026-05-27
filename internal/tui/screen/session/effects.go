@@ -5,6 +5,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/vitaliiPsl/crappy-ai/internal/assistant"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/permission/model"
 	"github.com/vitaliiPsl/crappy-ai/internal/server"
@@ -34,9 +35,9 @@ func waitForEventCmd(ch <-chan sessiondata.Event) tea.Cmd {
 	}
 }
 
-func sendCmd(ctx context.Context, srv *server.Server, sessionID, text string) tea.Cmd {
+func sendCmd(ctx context.Context, srv *server.Server, sessionID string, req assistant.RunRequest) tea.Cmd {
 	return func() tea.Msg {
-		if err := srv.Send(ctx, sessionID, text); err != nil {
+		if err := srv.Send(ctx, sessionID, req); err != nil {
 			return effectErrorMsg{err: err}
 		}
 

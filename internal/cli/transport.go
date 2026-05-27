@@ -8,6 +8,7 @@ import (
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
 
+	"github.com/vitaliiPsl/crappy-ai/internal/assistant"
 	"github.com/vitaliiPsl/crappy-ai/internal/server"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
 )
@@ -36,7 +37,7 @@ func (t *Transport) Run(ctx context.Context) error {
 
 	defer t.srv.Unsubscribe(sess.ID, ch)
 
-	if err := t.srv.Send(ctx, sess.ID, t.prompt); err != nil {
+	if err := t.srv.Send(ctx, sess.ID, assistant.RunRequest{Text: t.prompt}); err != nil {
 		return fmt.Errorf("send: %w", err)
 	}
 

@@ -8,6 +8,7 @@ import (
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
 
+	"github.com/vitaliiPsl/crappy-ai/internal/assistant"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
 )
 
@@ -37,7 +38,7 @@ func TestSend_FansOutStreamEvents(t *testing.T) {
 
 	defer srv.Unsubscribe(sess.ID, ch)
 
-	if err := srv.Send(context.Background(), sess.ID, "hi"); err != nil {
+	if err := srv.Send(context.Background(), sess.ID, assistant.RunRequest{Text: "hi"}); err != nil {
 		t.Fatalf("Send: %v", err)
 	}
 
@@ -69,7 +70,7 @@ func TestSend_FansOutStreamResultError(t *testing.T) {
 
 	defer srv.Unsubscribe(sess.ID, ch)
 
-	if err := srv.Send(context.Background(), sess.ID, "hi"); err != nil {
+	if err := srv.Send(context.Background(), sess.ID, assistant.RunRequest{Text: "hi"}); err != nil {
 		t.Fatalf("Send: %v", err)
 	}
 
@@ -99,7 +100,7 @@ func TestSend_FansOutStreamResultCancellation(t *testing.T) {
 
 	defer srv.Unsubscribe(sess.ID, ch)
 
-	if err := srv.Send(context.Background(), sess.ID, "hi"); err != nil {
+	if err := srv.Send(context.Background(), sess.ID, assistant.RunRequest{Text: "hi"}); err != nil {
 		t.Fatalf("Send: %v", err)
 	}
 
@@ -130,11 +131,11 @@ func TestSend_RefusesWhileRunActive(t *testing.T) {
 
 	defer srv.Unsubscribe(sess.ID, ch)
 
-	if err := srv.Send(context.Background(), sess.ID, "first"); err != nil {
+	if err := srv.Send(context.Background(), sess.ID, assistant.RunRequest{Text: "first"}); err != nil {
 		t.Fatalf("first Send: %v", err)
 	}
 
-	err = srv.Send(context.Background(), sess.ID, "second")
+	err = srv.Send(context.Background(), sess.ID, assistant.RunRequest{Text: "second"})
 	if err == nil {
 		t.Fatal("second Send should fail while first is active")
 	}
@@ -201,7 +202,7 @@ func TestCancelRun_PropagatesCancellation(t *testing.T) {
 
 	defer srv.Unsubscribe(sess.ID, ch)
 
-	if err := srv.Send(context.Background(), sess.ID, "hi"); err != nil {
+	if err := srv.Send(context.Background(), sess.ID, assistant.RunRequest{Text: "hi"}); err != nil {
 		t.Fatalf("Send: %v", err)
 	}
 

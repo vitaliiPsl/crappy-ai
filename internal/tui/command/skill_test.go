@@ -3,7 +3,6 @@ package command_test
 import (
 	"context"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/skills"
@@ -12,7 +11,7 @@ import (
 )
 
 func TestSkillCommandDefinitionMatchesSkill(t *testing.T) {
-	cmd := command.NewSkillCommand(nil, skills.Skill{Name: "review", Description: "Review code"})
+	cmd := command.NewSkillCommand(skills.Skill{Name: "review", Description: "Review code"})
 
 	def := cmd.Definition()
 	if def.Name != "review" {
@@ -24,46 +23,26 @@ func TestSkillCommandDefinitionMatchesSkill(t *testing.T) {
 	}
 }
 
-func TestSkillCommandExecuteEmitsLoadedSkillText(t *testing.T) {
-	userDir := filepath.Join(t.TempDir(), "skills")
-	skillstest.WriteSkill(t, filepath.Join(userDir, "review", "SKILL.md"), "review", "Review code", "Find bugs first.")
-	registry := skillstest.NewRegistry(userDir)
+func TestSkillCommandExecuteEmitsSkillRequest(t *testing.T) {
+	cmd := command.NewSkillCommand(skills.Skill{Name: "review", Description: "Review code"})
 
-	cmd := command.NewSkillCommand(registry, skills.Skill{Name: "review", Description: "Review code"})
+	msg := cmd.Execute(context.Background(), command.Request{Raw: "/review auth changes", Args: []string{"auth", "changes"}})()
 
-	msg := cmd.Execute(context.Background(), command.Request{Args: []string{"auth", "changes"}})()
-
-	submit, ok := msg.(command.SubmitTextMsg)
+	submit, ok := msg.(command.SubmitSkillMsg)
 	if !ok {
-		t.Fatalf("msg = %#v, want SubmitTextMsg", msg)
+		t.Fatalf("msg = %#v, want SubmitSkillMsg", msg)
 	}
 
-	for _, want := range []string{
-		"Loaded skill: review",
-		"Arguments:\nauth changes",
-		"Find bugs first.",
-	} {
-		if !strings.Contains(submit.Text, want) {
-			t.Fatalf("submit.Text missing %q:\n%s", want, submit.Text)
-		}
-	}
-}
-
-func TestSkillCommandExecuteSystemErrorOnUnknown(t *testing.T) {
-	userDir := filepath.Join(t.TempDir(), "skills")
-	registry := skillstest.NewRegistry(userDir)
-
-	cmd := command.NewSkillCommand(registry, skills.Skill{Name: "missing"})
-
-	msg := cmd.Execute(context.Background(), command.Request{})()
-
-	sys, ok := msg.(command.SystemMsg)
-	if !ok {
-		t.Fatalf("msg = %#v, want SystemMsg", msg)
+	if submit.Text != "/review auth changes" {
+		t.Fatalf("Text = %q, want raw command", submit.Text)
 	}
 
-	if !strings.Contains(sys.Text, "missing") {
-		t.Fatalf("system text = %q, want it to mention the missing skill name", sys.Text)
+	if submit.Name != "review" {
+		t.Fatalf("Name = %q, want review", submit.Name)
+	}
+
+	if len(submit.Args) != 2 || submit.Args[0] != "auth" || submit.Args[1] != "changes" {
+		t.Fatalf("Args = %#v, want auth changes", submit.Args)
 	}
 }
 

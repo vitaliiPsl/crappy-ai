@@ -6,6 +6,7 @@ import (
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
 
+	"github.com/vitaliiPsl/crappy-ai/internal/assistant"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/models"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
@@ -18,7 +19,7 @@ type Transport interface {
 }
 
 type Assistant interface {
-	Run(ctx context.Context, sessionID, text string) (*kit.Stream[session.Event, struct{}], error)
+	Run(ctx context.Context, sessionID string, req assistant.RunRequest) (*kit.Stream[session.Event, struct{}], error)
 	Compact(ctx context.Context, sessionID string) (*kit.Stream[session.Event, struct{}], error)
 }
 

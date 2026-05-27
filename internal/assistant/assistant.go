@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/vitaliiPsl/crappy-adk/agent"
 	"github.com/vitaliiPsl/crappy-adk/kit"
@@ -47,12 +48,22 @@ func New(
 	}
 }
 
-func (a *Assistant) Run(ctx context.Context, sessionID, text string) (*kit.Stream[session.Event, struct{}], error) {
+func (a *Assistant) Run(ctx context.Context, sessionID string, req RunRequest) (*kit.Stream[session.Event, struct{}], error) {
 	cfg := a.configStore.Get()
 
 	model, err := a.modelRegistry.Build(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("build model: %w", err)
+	}
+
+	text := req.Text
+	if req.Skill != nil {
+		skill, err := a.skillRegistry.GetSkill(req.Skill.Name)
+		if err != nil {
+			return nil, fmt.Errorf("load skill %q: %w", req.Skill.Name, err)
+		}
+
+		text = coreskills.FormatLoaded(skill, strings.Join(req.Skill.Args, " "))
 	}
 
 	mem := memory.New(a.sessionStore, sessionID)

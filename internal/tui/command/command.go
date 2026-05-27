@@ -27,6 +27,7 @@ type Command interface {
 type Request struct {
 	SessionID string
 	Args      []string
+	Raw       string
 }
 
 type SystemMsg struct {
@@ -35,6 +36,12 @@ type SystemMsg struct {
 
 type SubmitTextMsg struct {
 	Text string
+}
+
+type SubmitSkillMsg struct {
+	Text string
+	Name string
+	Args []string
 }
 
 type NavNewSessionMsg struct{}
