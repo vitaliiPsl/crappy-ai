@@ -131,6 +131,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	case effectErrorMsg:
 		m.state = m.state.SetError(msg.err)
 
+	case tea.PasteMsg:
+		m, cmd = m.handlePaste(msg)
+
 	case tea.KeyMsg:
 		m, cmd = m.handleKey(msg)
 

@@ -93,6 +93,18 @@ func (m Model) handleKey(key tea.KeyMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m Model) handlePaste(msg tea.PasteMsg) (Model, tea.Cmd) {
+	if focusForState(m.state) != FocusInput {
+		return m, nil
+	}
+
+	var cmd tea.Cmd
+
+	m.input, cmd = m.input.Update(msg)
+
+	return m, cmd
+}
+
 func (m Model) handleCommand(msg commandMsg) (Model, tea.Cmd) {
 	cmdDef, ok := m.registry.Get(msg.Name)
 	if !ok {
