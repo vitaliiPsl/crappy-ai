@@ -6,8 +6,8 @@ import (
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
 
+	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/summarization"
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/memory"
-	"github.com/vitaliiPsl/crappy-ai/internal/assistant/summarization"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
 )
 

@@ -3,6 +3,7 @@ package skills
 import (
 	"github.com/vitaliiPsl/crappy-adk/agent"
 
+	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension"
 	coreskills "github.com/vitaliiPsl/crappy-ai/internal/skills"
 )
 
@@ -23,14 +24,26 @@ You have a use_skill tool that loads reusable local workflows.
 Available skills:
 `
 
-func New(registry *coreskills.Registry) agent.Option {
-	listing := coreskills.FormatListing(registry.GetSkills())
+type ext struct {
+	registry *coreskills.Registry
+}
+
+func New(registry *coreskills.Registry) extension.Extension {
+	return &ext{registry: registry}
+}
+
+func (e *ext) Name() string {
+	return "skills"
+}
+
+func (e *ext) Options(_ extension.Context) (agent.Option, error) {
+	listing := coreskills.FormatListing(e.registry.GetSkills())
 	if listing == "" {
-		return agent.WithExtensions()
+		return agent.WithExtensions(), nil
 	}
 
 	return agent.WithExtensions(
 		agent.WithInstructions(instructions+"\n"+listing),
-		agent.WithTools(newTool(registry)),
-	)
+		agent.WithTools(newTool(e.registry)),
+	), nil
 }

@@ -3,6 +3,7 @@ package planning
 import (
 	"github.com/vitaliiPsl/crappy-adk/agent"
 
+	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
 )
 
@@ -25,10 +26,22 @@ You have a write_plan tool to create and track task lists for multi-step work.
 - Every update replaces the full plan, so send the complete list each time.
 - Mark items "completed" only when fully done, and revise the plan as you learn more.`
 
-func New(sessionID string, store session.ArtifactStore) agent.Option {
+type ext struct {
+	store session.ArtifactStore
+}
+
+func New(store session.ArtifactStore) extension.Extension {
+	return &ext{store: store}
+}
+
+func (e *ext) Name() string {
+	return "planning"
+}
+
+func (e *ext) Options(ctx extension.Context) (agent.Option, error) {
 	return agent.WithExtensions(
 		agent.WithInstructions(Instructions),
-		agent.WithTools(newTool(sessionID, store)),
-		agent.WithOnModelRequest(injectPlan(sessionID, store)),
-	)
+		agent.WithTools(newTool(ctx.SessionID, e.store)),
+		agent.WithOnModelRequest(injectPlan(ctx.SessionID, e.store)),
+	), nil
 }

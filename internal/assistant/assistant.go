@@ -10,6 +10,10 @@ import (
 	"github.com/vitaliiPsl/crappy-adk/kit"
 	"github.com/vitaliiPsl/crappy-adk/x/tool"
 
+	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension"
+	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/planning"
+	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/skills"
+	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/summarization"
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/memory"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/models"
@@ -22,11 +26,12 @@ import (
 type Assistant struct {
 	configStore   *config.Store
 	sessionStore  session.Store
-	artifactStore session.ArtifactStore
 	modelRegistry *models.Registry
 	skillRegistry *coreskills.Registry
 	toolRegistry  *tools.Registry
 	permissions   *permission.Service
+
+	extensions []extension.Extension
 }
 
 func New(
@@ -41,11 +46,15 @@ func New(
 	return &Assistant{
 		configStore:   configStore,
 		sessionStore:  sessionStore,
-		artifactStore: artifactStore,
 		modelRegistry: modelRegistry,
 		skillRegistry: skillRegistry,
 		toolRegistry:  toolRegistry,
 		permissions:   permissions,
+		extensions: []extension.Extension{
+			summarization.New(),
+			planning.New(artifactStore),
+			skills.New(skillRegistry),
+		},
 	}
 }
 
@@ -61,7 +70,12 @@ func (a *Assistant) Run(ctx context.Context, sessionID string, req RunRequest) (
 
 	toolset := tool.NewSet(a.toolRegistry.GetTools()...)
 
-	ag, err := agent.New(model, mem, toolset, a.buildAgentOpts(sessionID, cfg, model)...)
+	opts, err := a.buildAgentOpts(extension.Context{SessionID: sessionID, Config: cfg, Model: model})
+	if err != nil {
+		return nil, fmt.Errorf("build agent options: %w", err)
+	}
+
+	ag, err := agent.New(model, mem, toolset, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("build agent: %w", err)
 	}
