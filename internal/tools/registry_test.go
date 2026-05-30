@@ -1,24 +1,12 @@
 package tools
 
 import (
-	"context"
 	"strings"
 	"testing"
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
+	"github.com/vitaliiPsl/crappy-adk/kittest"
 )
-
-type fakeTool struct {
-	name string
-}
-
-func (t fakeTool) Definition() kit.ToolDefinition {
-	return kit.ToolDefinition{Name: t.name}
-}
-
-func (t fakeTool) Execute(_ context.Context, _ map[string]any) (string, error) {
-	return "", nil
-}
 
 func newTestRegistry(t *testing.T, tools ...kit.Tool) *Registry {
 	t.Helper()
@@ -48,7 +36,7 @@ func TestGetTools(t *testing.T) {
 }
 
 func TestGetTool(t *testing.T) {
-	registry := newTestRegistry(t, fakeTool{name: "alpha"})
+	registry := newTestRegistry(t, kittest.NewTool(t, "alpha", ""))
 
 	tool, err := registry.GetTool("alpha")
 	if err != nil {
@@ -61,7 +49,7 @@ func TestGetTool(t *testing.T) {
 }
 
 func TestGetTool_UnknownIncludesAvailableTools(t *testing.T) {
-	registry := newTestRegistry(t, fakeTool{name: "beta"}, fakeTool{name: "alpha"})
+	registry := newTestRegistry(t, kittest.NewTool(t, "beta", ""), kittest.NewTool(t, "alpha", ""))
 
 	_, err := registry.GetTool("missing")
 	if err == nil {
@@ -80,7 +68,7 @@ func TestGetTool_UnknownIncludesAvailableTools(t *testing.T) {
 
 func TestRegisterTools_DuplicatePanics(t *testing.T) {
 	entries := make(map[string]kit.Tool)
-	registerTools(entries, fakeTool{name: "alpha"})
+	registerTools(entries, kittest.NewTool(t, "alpha", ""))
 
 	defer func() {
 		if recover() == nil {
@@ -88,7 +76,7 @@ func TestRegisterTools_DuplicatePanics(t *testing.T) {
 		}
 	}()
 
-	registerTools(entries, fakeTool{name: "alpha"})
+	registerTools(entries, kittest.NewTool(t, "alpha", ""))
 }
 
 func toolNames(tools []kit.Tool) []string {

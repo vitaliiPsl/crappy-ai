@@ -1,7 +1,6 @@
 package filesystem
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -28,7 +27,7 @@ func NewListDirectory() kit.Tool {
 	return tool.MustNew(
 		listName,
 		listDescription,
-		func(_ context.Context, input ListDirectoryInput) (string, error) {
+		func(_ *kit.RunContext, input ListDirectoryInput) (string, error) {
 			limit := listDefaultLimit
 			if input.Limit != nil {
 				limit = min(*input.Limit, listMaxLimit)

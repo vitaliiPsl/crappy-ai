@@ -1,7 +1,6 @@
 package filesystem
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -34,7 +33,7 @@ func NewEditFile() kit.Tool {
 	return tool.MustNew(
 		editFileName,
 		editFileDescription,
-		func(_ context.Context, input EditFileInput) (string, error) {
+		func(_ *kit.RunContext, input EditFileInput) (string, error) {
 			if input.OldString == "" {
 				return "", fmt.Errorf("old_string must not be empty")
 			}

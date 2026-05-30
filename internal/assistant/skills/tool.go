@@ -1,7 +1,6 @@
 package skills
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
@@ -25,7 +24,7 @@ func newTool(registry *coreskills.Registry) kit.Tool {
 	return tool.MustNew(
 		toolName,
 		toolDescription,
-		func(_ context.Context, input useSkillInput) (string, error) {
+		func(_ *kit.RunContext, input useSkillInput) (string, error) {
 			name := strings.TrimPrefix(strings.TrimSpace(input.Skill), "/")
 			if name == "" {
 				return "", fmt.Errorf("skill name is required")

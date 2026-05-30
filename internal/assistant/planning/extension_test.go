@@ -62,7 +62,7 @@ func TestWritePlanTool_SavesPlanArtifact(t *testing.T) {
 	store := newArtifactStore()
 	tool := newTool(testSessionID, store)
 
-	out, err := tool.Execute(context.Background(), map[string]any{
+	out, err := tool.Execute(kit.NewRunContext(context.Background()), map[string]any{
 		"explanation": "Need a few steps",
 		"items": []any{
 			map[string]any{"step": "Inspect code", "status": string(StatusCompleted)},
@@ -100,7 +100,7 @@ func TestWritePlanTool_PropagatesSaveError(t *testing.T) {
 
 	tool := newTool(testSessionID, store)
 
-	_, err := tool.Execute(context.Background(), map[string]any{
+	_, err := tool.Execute(kit.NewRunContext(context.Background()), map[string]any{
 		"items": []any{
 			map[string]any{"step": "One", "status": string(StatusPending)},
 		},

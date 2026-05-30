@@ -7,7 +7,7 @@ require (
 	charm.land/bubbletea/v2 v2.0.6
 	charm.land/lipgloss/v2 v2.0.3
 	github.com/google/uuid v1.6.0
-	github.com/vitaliiPsl/crappy-adk v0.7.0
+	github.com/vitaliiPsl/crappy-adk v0.8.0
 	gopkg.in/yaml.v3 v3.0.1
 	mvdan.cc/sh/v3 v3.13.1
 )

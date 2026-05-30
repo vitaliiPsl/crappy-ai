@@ -8,6 +8,7 @@ import (
 
 	"github.com/vitaliiPsl/crappy-adk/agent"
 	"github.com/vitaliiPsl/crappy-adk/kit"
+	"github.com/vitaliiPsl/crappy-adk/x/tool"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/memory"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
@@ -58,7 +59,9 @@ func (a *Assistant) Run(ctx context.Context, sessionID string, req RunRequest) (
 		return nil, fmt.Errorf("build model: %w", err)
 	}
 
-	ag, err := agent.New(model, mem, a.buildAgentOpts(sessionID, cfg, model)...)
+	toolset := tool.NewSet(a.toolRegistry.GetTools()...)
+
+	ag, err := agent.New(model, mem, toolset, a.buildAgentOpts(sessionID, cfg, model)...)
 	if err != nil {
 		return nil, fmt.Errorf("build agent: %w", err)
 	}

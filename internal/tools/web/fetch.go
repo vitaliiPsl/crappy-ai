@@ -39,13 +39,13 @@ func NewFetch() kit.Tool {
 	return tool.MustNew(
 		fetchName,
 		fetchDescription,
-		func(ctx context.Context, input FetchInput) (string, error) {
+		func(rc *kit.RunContext, input FetchInput) (string, error) {
 			maxChars := defaultMaxChars
 			if input.MaxChars != nil && *input.MaxChars > 0 {
 				maxChars = *input.MaxChars
 			}
 
-			return fetchURL(ctx, input.URL, maxChars)
+			return fetchURL(rc.Context, input.URL, maxChars)
 		},
 	)
 }

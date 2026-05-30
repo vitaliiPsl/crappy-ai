@@ -11,6 +11,7 @@ import (
 	"github.com/vitaliiPsl/crappy-adk/kit"
 	"github.com/vitaliiPsl/crappy-adk/kittest"
 	xmemory "github.com/vitaliiPsl/crappy-adk/x/memory"
+	xtool "github.com/vitaliiPsl/crappy-adk/x/tool"
 
 	coreskills "github.com/vitaliiPsl/crappy-ai/internal/skills"
 	"github.com/vitaliiPsl/crappy-ai/internal/skills/skillstest"
@@ -21,7 +22,7 @@ func TestUseSkillToolLoadsFullInstructions(t *testing.T) {
 	skillstest.WriteSkill(t, filepath.Join(userDir, "review", "SKILL.md"), "review", "review skill", "Find bugs first.")
 	registry := skillstest.NewRegistry(userDir)
 
-	got, err := newTool(registry).Execute(t.Context(), map[string]any{
+	got, err := newTool(registry).Execute(kit.NewRunContext(t.Context()), map[string]any{
 		"skill": "review",
 		"args":  "auth changes",
 	})
@@ -47,7 +48,7 @@ func TestUseSkillToolUnknownSkill(t *testing.T) {
 	skillstest.WriteSkill(t, filepath.Join(userDir, "review", "SKILL.md"), "review", "review skill", "Review changes.")
 	registry := skillstest.NewRegistry(userDir)
 
-	_, err := newTool(registry).Execute(t.Context(), map[string]any{"skill": "missing"})
+	_, err := newTool(registry).Execute(kit.NewRunContext(t.Context()), map[string]any{"skill": "missing"})
 	if err == nil {
 		t.Fatal("Execute error = nil, want unknown skill")
 	}
@@ -73,7 +74,7 @@ func TestExtensionAddsMetadataListingAndTool(t *testing.T) {
 		},
 	})
 
-	ag, err := agent.New(model, xmemory.NewHistory(), New(registry))
+	ag, err := agent.New(model, xmemory.NewHistory(), xtool.NewSet(), New(registry))
 	if err != nil {
 		t.Fatalf("New agent: %v", err)
 	}

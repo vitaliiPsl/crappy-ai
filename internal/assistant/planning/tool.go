@@ -1,7 +1,6 @@
 package planning
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
@@ -30,7 +29,7 @@ func newTool(sessionID string, store session.ArtifactStore) kit.Tool {
 	return tool.MustNew(
 		toolName,
 		toolDescription,
-		func(ctx context.Context, input updateInput) (string, error) {
+		func(rc *kit.RunContext, input updateInput) (string, error) {
 			plan := input.plan()
 			if err := plan.validate(); err != nil {
 				return "", err
@@ -40,7 +39,7 @@ func newTool(sessionID string, store session.ArtifactStore) kit.Tool {
 				return "", fmt.Errorf("artifact store is not configured")
 			}
 
-			if err := store.SaveArtifact(ctx, sessionID, ArtifactName, plan); err != nil {
+			if err := store.SaveArtifact(rc.Context, sessionID, ArtifactName, plan); err != nil {
 				return "", fmt.Errorf("save plan: %w", err)
 			}
 

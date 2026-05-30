@@ -30,8 +30,8 @@ func NewBash() kit.Tool {
 	return tool.MustNew(
 		bashToolName,
 		bashToolDescription,
-		func(ctx context.Context, input Input) (string, error) {
-			return runBash(ctx, input.Command)
+		func(rc *kit.RunContext, input Input) (string, error) {
+			return runBash(rc.Context, input.Command)
 		},
 	)
 }

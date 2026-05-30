@@ -24,7 +24,6 @@ func (a *Assistant) buildAgentOpts(sessionID string, cfg config.Config, model ki
 			instructions.Env(cfg.Cwd),
 			instructions.Files(cfg.Cwd),
 		),
-		agent.WithTools(a.toolRegistry.GetTools()...),
 		guard.WithRepeatedToolCallLimit(toolLoopMaxRepeats, toolLoopWindow),
 		summarization.New(model),
 		planning.New(sessionID, a.artifactStore),

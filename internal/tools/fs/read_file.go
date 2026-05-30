@@ -2,7 +2,6 @@ package filesystem
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -26,7 +25,7 @@ func NewReadFile() kit.Tool {
 	return tool.MustNew(
 		readFileName,
 		readFileDescription,
-		func(_ context.Context, input ReadFileInput) (string, error) {
+		func(_ *kit.RunContext, input ReadFileInput) (string, error) {
 			return readFileLines(input.Path, input.Start, input.End)
 		},
 	)

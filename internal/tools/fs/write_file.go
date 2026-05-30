@@ -1,7 +1,6 @@
 package filesystem
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -27,7 +26,7 @@ func NewWriteFile() kit.Tool {
 	return tool.MustNew(
 		writeFileName,
 		writeFileDescription,
-		func(_ context.Context, input WriteFileInput) (string, error) {
+		func(_ *kit.RunContext, input WriteFileInput) (string, error) {
 			if err := ensureDirectoryExists(input.Path); err != nil {
 				return "", err
 			}
