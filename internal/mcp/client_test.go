@@ -1,13 +1,17 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -347,4 +351,89 @@ func TestClientSetFailed(t *testing.T) {
 			t.Fatal("session was not cleared")
 		}
 	})
+}
+
+func TestClientCachesToolsBetweenCalls(t *testing.T) {
+	var listCalls atomic.Int32
+
+	server := mcpsdk.NewServer(&mcpsdk.Implementation{Name: "test", Version: "0.1.0"}, nil)
+	mcpsdk.AddTool(server, &mcpsdk.Tool{Name: "greet", Description: "Greet someone"}, greet)
+	serverURL := serveMCP(t, server, func() { listCalls.Add(1) })
+
+	client := NewClient(Config{Name: "test", Transport: TransportHTTP, URL: serverURL})
+	defer func() { _ = client.Close() }()
+
+	for i := 0; i < 3; i++ {
+		if _, err := client.ListTools(context.Background()); err != nil {
+			t.Fatalf("ListTools() #%d error = %v", i, err)
+		}
+	}
+
+	if got := listCalls.Load(); got != 1 {
+		t.Fatalf("tools/list calls = %d, want 1 (cached after first fetch)", got)
+	}
+}
+
+func TestClientRefetchesToolsAfterChangeNotification(t *testing.T) {
+	server := mcpsdk.NewServer(&mcpsdk.Implementation{Name: "test", Version: "0.1.0"}, nil)
+	mcpsdk.AddTool(server, &mcpsdk.Tool{Name: "greet", Description: "Greet someone"}, greet)
+	serverURL := serveMCP(t, server, nil)
+
+	client := NewClient(Config{Name: "test", Transport: TransportHTTP, URL: serverURL})
+	defer func() { _ = client.Close() }()
+
+	tools, err := client.ListTools(context.Background())
+	if err != nil {
+		t.Fatalf("ListTools() error = %v", err)
+	}
+
+	if len(tools) != 1 {
+		t.Fatalf("len(tools) = %d, want 1", len(tools))
+	}
+
+	// Adding a tool pushes tools/list_changed, which should invalidate the cache.
+	mcpsdk.AddTool(server, &mcpsdk.Tool{Name: "farewell", Description: "Say bye"}, greet)
+
+	// Notification delivery is async; poll until the refetched list reflects it.
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		tools, err = client.ListTools(context.Background())
+		if err != nil {
+			t.Fatalf("ListTools() error = %v", err)
+		}
+
+		if len(tools) == 2 {
+			return
+		}
+
+		if time.Now().After(deadline) {
+			t.Fatalf("len(tools) = %d, want 2 after change notification", len(tools))
+		}
+
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func serveMCP(t *testing.T, server *mcpsdk.Server, onListTools func()) string {
+	t.Helper()
+
+	handler := mcpsdk.NewStreamableHTTPHandler(func(*http.Request) *mcpsdk.Server {
+		return server
+	}, nil)
+
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if onListTools != nil {
+			body, _ := io.ReadAll(r.Body)
+
+			r.Body = io.NopCloser(bytes.NewReader(body))
+			if bytes.Contains(body, []byte(`"tools/list"`)) {
+				onListTools()
+			}
+		}
+
+		handler.ServeHTTP(w, r)
+	}))
+	t.Cleanup(httpServer.Close)
+
+	return httpServer.URL
 }
