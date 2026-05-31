@@ -49,3 +49,5 @@ type NavNewSessionMsg struct{}
 type NavSessionsMsg struct{}
 
 type NavSettingsMsg struct{}
+
+type NavMCPMsg struct{}

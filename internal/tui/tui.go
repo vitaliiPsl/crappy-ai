@@ -8,6 +8,7 @@ import (
 
 	"github.com/vitaliiPsl/crappy-ai/internal/server"
 	"github.com/vitaliiPsl/crappy-ai/internal/tui/command"
+	mcpScreen "github.com/vitaliiPsl/crappy-ai/internal/tui/screen/mcp"
 	sessionScreen "github.com/vitaliiPsl/crappy-ai/internal/tui/screen/session"
 	sessionsScreen "github.com/vitaliiPsl/crappy-ai/internal/tui/screen/sessions"
 	settingsScreen "github.com/vitaliiPsl/crappy-ai/internal/tui/screen/settings"
@@ -23,6 +24,7 @@ const (
 	screenSession screen = iota
 	screenSessions
 	screenSettings
+	screenMCP
 )
 
 type Model struct {
@@ -36,6 +38,7 @@ type Model struct {
 	session   *sessionScreen.Model
 	sessions  *sessionsScreen.Model
 	settings  *settingsScreen.Model
+	mcp       *mcpScreen.Model
 
 	width  int
 	height int
@@ -96,6 +99,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.openPrev()
 	case settingsScreen.ClosedMsg:
 		return m, m.openPrev()
+	case mcpScreen.ClosedMsg:
+		return m, m.openPrev()
 	case command.NavNewSessionMsg:
 		if m.session != nil {
 			m.session.Cleanup()
@@ -114,6 +119,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		return m, m.openSettings()
+	case command.NavMCPMsg:
+		if m.active == screenSession && m.session != nil {
+			m.session.Cleanup()
+		}
+
+		return m, m.openMCP()
 	}
 
 	switch m.active {
@@ -149,6 +160,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		*m.settings, cmd = m.settings.Update(msg)
 
 		return m, cmd
+
+	case screenMCP:
+		if m.mcp == nil {
+			return m, nil
+		}
+
+		var cmd tea.Cmd
+
+		*m.mcp, cmd = m.mcp.Update(msg)
+
+		return m, cmd
 	}
 
 	return m, nil
@@ -169,6 +191,10 @@ func (m Model) View() tea.View {
 	case screenSettings:
 		if m.settings != nil {
 			content = m.settings.View()
+		}
+	case screenMCP:
+		if m.mcp != nil {
+			content = m.mcp.View()
 		}
 	}
 
@@ -200,6 +226,12 @@ func (m *Model) resize() {
 		}
 
 		m.settings.SetSize(innerWidth, m.height)
+	case screenMCP:
+		if m.mcp == nil {
+			return
+		}
+
+		m.mcp.SetSize(innerWidth, m.height)
 	}
 }
 
@@ -233,6 +265,16 @@ func (m *Model) openSettings() tea.Cmd {
 	return m.settings.Init()
 }
 
+func (m *Model) openMCP() tea.Cmd {
+	m.prev = m.active
+	screen := mcpScreen.New(m.server)
+	m.mcp = &screen
+	m.active = screenMCP
+	m.resize()
+
+	return m.mcp.Init()
+}
+
 func (m *Model) openPrev() tea.Cmd {
 	switch m.prev {
 	case screenSession:
@@ -243,6 +285,24 @@ func (m *Model) openPrev() tea.Cmd {
 		}
 
 		m.active = screenSessions
+		m.resize()
+
+		return nil
+	case screenSettings:
+		if m.settings == nil {
+			return m.openSettings()
+		}
+
+		m.active = screenSettings
+		m.resize()
+
+		return nil
+	case screenMCP:
+		if m.mcp == nil {
+			return m.openMCP()
+		}
+
+		m.active = screenMCP
 		m.resize()
 
 		return nil

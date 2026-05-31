@@ -47,3 +47,17 @@ func (c *SettingsCommand) Definition() Definition {
 func (c *SettingsCommand) Execute(_ context.Context, _ Request) tea.Cmd {
 	return func() tea.Msg { return NavSettingsMsg{} }
 }
+
+type MCPCommand struct{}
+
+func NewMCPCommand() *MCPCommand {
+	return &MCPCommand{}
+}
+
+func (c *MCPCommand) Definition() Definition {
+	return Definition{Name: "mcp", Description: "Open the MCP clients screen"}
+}
+
+func (c *MCPCommand) Execute(_ context.Context, _ Request) tea.Cmd {
+	return func() tea.Msg { return NavMCPMsg{} }
+}

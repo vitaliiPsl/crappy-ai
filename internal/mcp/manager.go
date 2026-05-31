@@ -61,6 +61,10 @@ func (m *Manager) Statuses() []ClientStatus {
 func (m *Manager) Tools(ctx context.Context) []kit.Tool {
 	var tools []kit.Tool
 	for _, client := range m.clients {
+		if client.Status().State != ClientConnected {
+			continue
+		}
+
 		defs, err := client.ListTools(ctx)
 		if err != nil {
 			continue
