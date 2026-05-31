@@ -1,6 +1,8 @@
 package strategy
 
 import (
+	"strings"
+
 	"github.com/vitaliiPsl/crappy-adk/kit"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/permission/model"
@@ -17,6 +19,10 @@ func Resolve(permissions model.Permissions, call kit.ToolCall) model.ResolveResu
 }
 
 func forTool(tool string) Strategy {
+	if strings.HasPrefix(tool, mcpToolPrefix) {
+		return mcpStrategy{}
+	}
+
 	switch tool {
 	case ToolReadFile, ToolWriteFile, ToolEditFile:
 		return pathStrategy{}

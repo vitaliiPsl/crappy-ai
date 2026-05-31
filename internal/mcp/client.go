@@ -87,6 +87,7 @@ func (c *sdkClient) Connect(ctx context.Context) error {
 	if c.ctx.Err() != nil {
 		c.state = ClientDisconnected
 		c.mu.Unlock()
+
 		_ = session.Close()
 
 		return fmt.Errorf("mcp: client %q closed during connect", c.config.Name)

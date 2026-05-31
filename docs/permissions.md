@@ -128,6 +128,7 @@ The first matching decision wins. A deny rule always beats an ask or allow rule.
 | `edit_file` | File path |
 | `web_fetch` | URL or domain |
 | `bash` | Shell command |
+| `mcp__<server>__<tool>` | Matched by tool name; see [MCP Permissions](#mcp-permissions) |
 
 ## Path Permissions
 
@@ -270,6 +271,25 @@ diff <(ls a) <(ls b)
 ```
 
 Broad command-pattern rules like `git *` do not automatically approve commands with substitutions. Deny and ask rules can still match commands inside substitutions.
+
+## MCP Permissions
+
+Tools from [MCP servers](mcp.md) are named `mcp__<server>__<tool>`, such as `mcp__github__search`. They are matched by the `tool` field itself, which supports wildcards, so the `pattern` field is not used.
+
+```yaml
+permissions:
+  allow:
+    - tool: mcp__github__search   # one tool
+    - tool: mcp__github__*        # every tool from the github server
+  deny:
+    - tool: mcp__*                # every MCP tool
+```
+
+- `mcp__github__search` matches one tool.
+- `mcp__github__*` matches every tool from the `github` server.
+- `mcp__*` matches every MCP tool.
+
+When an MCP tool prompts for approval, Crappy offers to allow just that tool or every tool from its server, so you can grant a whole server at once.
 
 ## Approval Prompts
 

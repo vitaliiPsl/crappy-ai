@@ -147,3 +147,16 @@ Memory is session-scoped. Continuing a session sends its message history back to
 Crappy also reads `AGENTS.md` and `CLAUDE.md` instruction files from the working directory and its ancestors. Use them for shared conventions, workflows, and build/test notes that should be visible in every turn.
 
 See [Sessions](docs/sessions.md) and [Memory and Context](docs/memory.md).
+
+## MCP
+
+Crappy connects to MCP (Model Context Protocol) servers to use tools from external systems alongside its built-in ones, over local `stdio` processes or remote `http` endpoints.
+
+```yaml
+mcp:
+  - name: deepwiki
+    type: http
+    url: https://mcp.deepwiki.com/mcp
+```
+
+See [MCP](docs/mcp.md).
