@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"errors"
+	"sync"
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
 )
@@ -27,12 +28,16 @@ func NewWithClients(clients ...Client) *Manager {
 }
 
 func (m *Manager) Connect(ctx context.Context) error {
-	var errs []error
-	for _, client := range m.clients {
-		if err := client.Connect(ctx); err != nil {
-			errs = append(errs, err)
-		}
+	errs := make([]error, len(m.clients))
+
+	var wg sync.WaitGroup
+	for i, client := range m.clients {
+		wg.Go(func() {
+			errs[i] = client.Connect(ctx)
+		})
 	}
+
+	wg.Wait()
 
 	return errors.Join(errs...)
 }
@@ -44,12 +49,21 @@ func (m *Manager) Clients() []Client {
 	return clients
 }
 
-func (m *Manager) Tools(ctx context.Context) ([]kit.Tool, error) {
+func (m *Manager) Statuses() []ClientStatus {
+	statuses := make([]ClientStatus, len(m.clients))
+	for i, client := range m.clients {
+		statuses[i] = client.Status()
+	}
+
+	return statuses
+}
+
+func (m *Manager) Tools(ctx context.Context) []kit.Tool {
 	var tools []kit.Tool
 	for _, client := range m.clients {
 		defs, err := client.ListTools(ctx)
 		if err != nil {
-			return nil, err
+			continue
 		}
 
 		for _, def := range defs {
@@ -57,7 +71,7 @@ func (m *Manager) Tools(ctx context.Context) ([]kit.Tool, error) {
 		}
 	}
 
-	return tools, nil
+	return tools
 }
 
 func (m *Manager) Close() error {

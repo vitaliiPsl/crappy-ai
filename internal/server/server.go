@@ -8,6 +8,7 @@ import (
 
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
+	"github.com/vitaliiPsl/crappy-ai/internal/mcp"
 	"github.com/vitaliiPsl/crappy-ai/internal/models"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
 	"github.com/vitaliiPsl/crappy-ai/internal/settings"
@@ -32,6 +33,7 @@ type Server struct {
 	sessionStore   session.Store
 	modelsRegistry *models.Registry
 	skillRegistry  *skills.Registry
+	mcpManager     *mcp.Manager
 
 	mu       sync.RWMutex
 	sessions map[string]*sessionState
@@ -44,6 +46,7 @@ func New(
 	sessionStore session.Store,
 	modelsRegistry *models.Registry,
 	skillRegistry *skills.Registry,
+	mcpManager *mcp.Manager,
 ) *Server {
 	return &Server{
 		assistant:      assistant,
@@ -52,6 +55,7 @@ func New(
 		sessionStore:   sessionStore,
 		modelsRegistry: modelsRegistry,
 		skillRegistry:  skillRegistry,
+		mcpManager:     mcpManager,
 		sessions:       make(map[string]*sessionState),
 	}
 }

@@ -10,6 +10,7 @@ import (
 
 type fakeClient struct {
 	config Config
+	state  ClientState
 	tools  []kit.ToolDefinition
 	err    error
 
@@ -20,6 +21,20 @@ type fakeClient struct {
 
 func (c *fakeClient) Config() Config {
 	return c.config
+}
+
+func (c *fakeClient) Status() ClientStatus {
+	state := c.state
+	if state == "" {
+		state = ClientConnected
+	}
+
+	status := ClientStatus{Config: c.config, State: state}
+	if c.err != nil {
+		status.Error = c.err.Error()
+	}
+
+	return status
 }
 
 func (c *fakeClient) Connect(context.Context) error {
@@ -74,10 +89,7 @@ func TestManagerToolsWrapsClientTools(t *testing.T) {
 		}},
 	}
 
-	tools, err := NewWithClients(client).Tools(context.Background())
-	if err != nil {
-		t.Fatalf("Tools: %v", err)
-	}
+	tools := NewWithClients(client).Tools(context.Background())
 
 	if len(tools) != 1 {
 		t.Fatalf("len(tools) = %d, want 1", len(tools))
@@ -93,12 +105,33 @@ func TestManagerToolsWrapsClientTools(t *testing.T) {
 	}
 }
 
-func TestManagerToolsReturnsListError(t *testing.T) {
-	want := errors.New("boom")
+func TestManagerToolsSkipsClientsThatFailToList(t *testing.T) {
+	client := &fakeClient{
+		config: Config{Name: "github"},
+		tools:  []kit.ToolDefinition{{Name: "search"}},
+		err:    errors.New("boom"),
+	}
 
-	_, err := NewWithClients(&fakeClient{err: want}).Tools(context.Background())
-	if !errors.Is(err, want) {
-		t.Fatalf("Tools error = %v, want %v", err, want)
+	tools := NewWithClients(client).Tools(context.Background())
+	if len(tools) != 0 {
+		t.Fatalf("len(tools) = %d, want 0", len(tools))
+	}
+}
+
+func TestManagerStatusesReturnsClientStatuses(t *testing.T) {
+	client := &fakeClient{
+		config: Config{Name: "github"},
+		state:  ClientFailed,
+		err:    errors.New("boom"),
+	}
+
+	statuses := NewWithClients(client).Statuses()
+	if len(statuses) != 1 {
+		t.Fatalf("len(statuses) = %d, want 1", len(statuses))
+	}
+
+	if statuses[0].Config.Name != "github" || statuses[0].State != ClientFailed || statuses[0].Error != "boom" {
+		t.Fatalf("status = %+v, want github failed boom", statuses[0])
 	}
 }
 

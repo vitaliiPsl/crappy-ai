@@ -22,10 +22,5 @@ func (e *ext) Name() string {
 }
 
 func (e *ext) Options(ctx extension.Context) (agent.Option, error) {
-	tools, err := e.manager.Tools(ctx.Ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return agent.WithTools(tools...), nil
+	return agent.WithTools(e.manager.Tools(ctx.Ctx)...), nil
 }

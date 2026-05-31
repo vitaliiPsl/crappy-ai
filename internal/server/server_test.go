@@ -125,7 +125,7 @@ func newTestServer(t *testing.T, asst Assistant) (*Server, *session.Session) {
 		t.Fatalf("Create: %v", err)
 	}
 
-	return New(asst, nil, nil, store, nil, nil), sess
+	return New(asst, nil, nil, store, nil, nil, nil), sess
 }
 
 func readEvent(t *testing.T, ch <-chan session.Event) session.Event {

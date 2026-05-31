@@ -82,11 +82,9 @@ func run() error {
 	defer cancel()
 
 	mcpManager := mcp.New(settingsStore.Get().MCPClients)
-	defer func() { _ = mcpManager.Close() }()
+	go func() { _ = mcpManager.Connect(ctx) }()
 
-	if err := mcpManager.Connect(ctx); err != nil {
-		return fmt.Errorf("connect mcp: %w", err)
-	}
+	defer func() { _ = mcpManager.Close() }()
 
 	asst := assistant.New(
 		configStore,
@@ -106,6 +104,7 @@ func run() error {
 		sessStore,
 		modelRegistry,
 		skillRegistry,
+		mcpManager,
 	)
 
 	permissionService.SetHandler(srv)

@@ -29,7 +29,7 @@ type Settings struct {
 
 	Providers    []ProviderSettings           `yaml:"providers,omitempty"`
 	ModelConfigs map[string][]kit.ModelConfig `yaml:"models,omitempty"`
-	MCPClients   []mcp.Config                 `yaml:"mcp_clients,omitempty"`
+	MCPClients   []mcp.Config                 `yaml:"mcp,omitempty"`
 
 	Models map[string][]kit.ModelConfig `yaml:"-"`
 }
