@@ -1,6 +1,8 @@
 package extension
 
 import (
+	"context"
+
 	"github.com/vitaliiPsl/crappy-adk/agent"
 	"github.com/vitaliiPsl/crappy-adk/kit"
 
@@ -8,6 +10,7 @@ import (
 )
 
 type Context struct {
+	Ctx       context.Context
 	SessionID string
 	Config    config.Config
 	Model     kit.Model

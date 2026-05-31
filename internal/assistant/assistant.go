@@ -11,11 +11,13 @@ import (
 	"github.com/vitaliiPsl/crappy-adk/x/tool"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension"
+	mcpext "github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/mcp"
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/planning"
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/skills"
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/summarization"
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/memory"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
+	"github.com/vitaliiPsl/crappy-ai/internal/mcp"
 	"github.com/vitaliiPsl/crappy-ai/internal/models"
 	"github.com/vitaliiPsl/crappy-ai/internal/permission"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
@@ -42,6 +44,7 @@ func New(
 	skillRegistry *coreskills.Registry,
 	toolRegistry *tools.Registry,
 	permissions *permission.Service,
+	mcpManager *mcp.Manager,
 ) *Assistant {
 	return &Assistant{
 		configStore:   configStore,
@@ -54,6 +57,7 @@ func New(
 			summarization.New(),
 			planning.New(artifactStore),
 			skills.New(skillRegistry),
+			mcpext.New(mcpManager),
 		},
 	}
 }
@@ -70,7 +74,7 @@ func (a *Assistant) Run(ctx context.Context, sessionID string, req RunRequest) (
 
 	toolset := tool.NewSet(a.toolRegistry.GetTools()...)
 
-	opts, err := a.buildAgentOpts(extension.Context{SessionID: sessionID, Config: cfg, Model: model})
+	opts, err := a.buildAgentOpts(extension.Context{Ctx: ctx, SessionID: sessionID, Config: cfg, Model: model})
 	if err != nil {
 		return nil, fmt.Errorf("build agent options: %w", err)
 	}

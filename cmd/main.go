@@ -10,6 +10,7 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant"
 	"github.com/vitaliiPsl/crappy-ai/internal/cli"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
+	"github.com/vitaliiPsl/crappy-ai/internal/mcp"
 	"github.com/vitaliiPsl/crappy-ai/internal/models"
 	"github.com/vitaliiPsl/crappy-ai/internal/permission"
 	"github.com/vitaliiPsl/crappy-ai/internal/server"
@@ -77,13 +78,37 @@ func run() error {
 
 	permissionService := permission.NewService(configStore, nil)
 
-	asst := assistant.New(configStore, sessStore, sessStore, modelRegistry, skillRegistry, toolRegistry, permissionService)
-	srv := server.New(asst, settingsStore, configStore, sessStore, modelRegistry, skillRegistry)
-
-	permissionService.SetHandler(srv)
-
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
+
+	mcpManager := mcp.New(settingsStore.Get().MCPClients)
+	defer func() { _ = mcpManager.Close() }()
+
+	if err := mcpManager.Connect(ctx); err != nil {
+		return fmt.Errorf("connect mcp: %w", err)
+	}
+
+	asst := assistant.New(
+		configStore,
+		sessStore,
+		sessStore,
+		modelRegistry,
+		skillRegistry,
+		toolRegistry,
+		permissionService,
+		mcpManager,
+	)
+
+	srv := server.New(
+		asst,
+		settingsStore,
+		configStore,
+		sessStore,
+		modelRegistry,
+		skillRegistry,
+	)
+
+	permissionService.SetHandler(srv)
 
 	if *prompt != "" {
 		srv.AddTransport(cli.NewTransport(srv, *prompt))

@@ -1,6 +1,10 @@
 package settings
 
-import "github.com/vitaliiPsl/crappy-adk/kit"
+import (
+	"github.com/vitaliiPsl/crappy-adk/kit"
+
+	"github.com/vitaliiPsl/crappy-ai/internal/mcp"
+)
 
 const (
 	DefaultSettingsPath = "~/.crappy-ai/settings.yaml"
@@ -25,7 +29,9 @@ type Settings struct {
 
 	Providers    []ProviderSettings           `yaml:"providers,omitempty"`
 	ModelConfigs map[string][]kit.ModelConfig `yaml:"models,omitempty"`
-	Models       map[string][]kit.ModelConfig `yaml:"-"`
+	MCPClients   []mcp.Config                 `yaml:"mcp_clients,omitempty"`
+
+	Models map[string][]kit.ModelConfig `yaml:"-"`
 }
 
 func defaults() Settings {

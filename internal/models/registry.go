@@ -15,7 +15,9 @@ type Registry struct {
 }
 
 func NewRegistry(settingsStore *settings.Store) *Registry {
-	return &Registry{settingsStore: settingsStore}
+	return &Registry{
+		settingsStore: settingsStore,
+	}
 }
 
 func (r *Registry) GetProviders() []settings.ProviderSettings {

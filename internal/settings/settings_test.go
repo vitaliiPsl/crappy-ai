@@ -8,6 +8,7 @@ import (
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
 
+	"github.com/vitaliiPsl/crappy-ai/internal/mcp"
 	"github.com/vitaliiPsl/crappy-ai/internal/settings/models"
 )
 
@@ -97,6 +98,23 @@ func TestMergeReadsSkillsPath(t *testing.T) {
 
 	if got.SkillsPath != "/custom/skills" {
 		t.Fatalf("SkillsPath = %q, want /custom/skills", got.SkillsPath)
+	}
+}
+
+func TestMergeReadsMCPClients(t *testing.T) {
+	got := merge(Settings{}, Settings{
+		MCPClients: []mcp.Config{{
+			Name:    "github",
+			Command: "github-mcp-server",
+		}},
+	})
+
+	if len(got.MCPClients) != 1 {
+		t.Fatalf("len(MCPClients) = %d, want 1", len(got.MCPClients))
+	}
+
+	if got.MCPClients[0].Name != "github" || got.MCPClients[0].Command != "github-mcp-server" {
+		t.Fatalf("MCPClients[0] = %+v, want github config", got.MCPClients[0])
 	}
 }
 

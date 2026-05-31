@@ -61,6 +61,10 @@ func merge(base, overlay Settings) Settings {
 		base.ModelConfigs = models.Merge(base.ModelConfigs, overlay.ModelConfigs)
 	}
 
+	if len(overlay.MCPClients) > 0 {
+		base.MCPClients = overlay.MCPClients
+	}
+
 	return base
 }
 
