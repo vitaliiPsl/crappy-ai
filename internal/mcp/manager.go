@@ -30,30 +30,16 @@ func (m *Manager) Connect(ctx context.Context) error {
 
 	var wg sync.WaitGroup
 	for i, client := range m.clients {
-		wg.Go(func() {
-			errs[i] = client.Connect(ctx)
-		})
+		if client.Config().IsEnabled() {
+			wg.Go(func() {
+				errs[i] = client.Connect(ctx)
+			})
+		}
 	}
 
 	wg.Wait()
 
 	return errors.Join(errs...)
-}
-
-func (m *Manager) Clients() []Client {
-	clients := make([]Client, len(m.clients))
-	copy(clients, m.clients)
-
-	return clients
-}
-
-func (m *Manager) States() []ClientState {
-	states := make([]ClientState, len(m.clients))
-	for i, client := range m.clients {
-		states[i] = client.State()
-	}
-
-	return states
 }
 
 func (m *Manager) Close() error {
@@ -65,4 +51,29 @@ func (m *Manager) Close() error {
 	}
 
 	return errors.Join(errs...)
+}
+
+func (m *Manager) Clients() []Client {
+	clients := make([]Client, len(m.clients))
+	copy(clients, m.clients)
+
+	return clients
+}
+
+func (m *Manager) Configs() []Config {
+	configs := make([]Config, len(m.clients))
+	for i, client := range m.clients {
+		configs[i] = client.Config()
+	}
+
+	return configs
+}
+
+func (m *Manager) States() []ClientState {
+	states := make([]ClientState, len(m.clients))
+	for i, client := range m.clients {
+		states[i] = client.State()
+	}
+
+	return states
 }

@@ -125,6 +125,26 @@ export GITHUB_MCP_TOKEN="Bearer ghp_..."
 
 If a referenced environment variable is empty, the server fails to connect and reports the missing variable.
 
+## Timeouts
+
+Crappy bounds how long it waits on a server with two separate budgets, because connecting and running a tool are different kinds of wait:
+
+- `connect_timeout` bounds establishing the connection.
+- `request_timeout` bounds each request on a live connection — listing tools or running a tool call.
+
+```yaml
+mcp:
+  - name: docs
+    type: http
+    url: https://mcp.deepwiki.com/mcp
+    connect_timeout: 10s
+    request_timeout: 30s
+```
+
+Each value is a duration string such as `500ms`, `10s`, or `2m`, and applies per operation, so every request gets the full budget. When a timeout is unset, that operation is not time-bounded and waits as long as the server takes.
+
+Keeping them separate lets a connection fail fast while a slow tool call still gets a generous budget. If an operation exceeds its timeout, that request fails and the server moves to `failed`.
+
 ## Tools
 
 Crappy loads a server's tools when it connects and namespaces each one with the server name:

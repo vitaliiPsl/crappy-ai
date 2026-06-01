@@ -19,13 +19,17 @@ type fakeClient struct {
 	result   kit.ToolResult
 }
 
+func (c *fakeClient) Config() Config {
+	return c.config
+}
+
 func (c *fakeClient) State() ClientState {
 	status := c.status
 	if status == "" {
 		status = ClientConnected
 	}
 
-	state := ClientState{Config: c.config, Status: status}
+	state := ClientState{Status: status}
 	if c.err != nil {
 		state.Error = c.err.Error()
 	}
@@ -77,7 +81,6 @@ func TestManagerConnectReturnsErrors(t *testing.T) {
 
 func TestManagerStatesReturnsClientStates(t *testing.T) {
 	client := &fakeClient{
-		config: Config{Name: "github"},
 		status: ClientFailed,
 		err:    errors.New("boom"),
 	}
@@ -87,7 +90,7 @@ func TestManagerStatesReturnsClientStates(t *testing.T) {
 		t.Fatalf("len(states) = %d, want 1", len(states))
 	}
 
-	if states[0].Config.Name != "github" || states[0].Status != ClientFailed || states[0].Error != "boom" {
-		t.Fatalf("state = %+v, want github failed boom", states[0])
+	if states[0].Status != ClientFailed || states[0].Error != "boom" {
+		t.Fatalf("state = %+v, want failed boom", states[0])
 	}
 }

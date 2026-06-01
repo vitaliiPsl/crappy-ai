@@ -2,11 +2,13 @@ package mcp
 
 import (
 	"context"
+	"time"
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
 )
 
 type Client interface {
+	Config() Config
 	State() ClientState
 
 	Connect(ctx context.Context) error
@@ -33,22 +35,32 @@ const (
 )
 
 type ClientState struct {
-	Config Config
 	Status ClientStatus
 	Error  string
 }
 
 type Config struct {
-	Name      string        `yaml:"name"`
-	Transport TransportType `yaml:"type,omitempty"`
-	Command   string        `yaml:"command,omitempty"`
-	URL       string        `yaml:"url,omitempty"`
-	Args      []string      `yaml:"args,omitempty"`
-	Env       []string      `yaml:"env,omitempty"`
-	Auth      AuthConfig    `yaml:"auth,omitempty"`
-}
+	Name    string `yaml:"name"`
+	Enabled *bool  `yaml:"enabled,omitempty"`
 
-type AuthConfig struct {
+	Transport TransportType `yaml:"type,omitempty"`
+
+	Command string   `yaml:"command,omitempty"`
+	Args    []string `yaml:"args,omitempty"`
+	Env     []string `yaml:"env,omitempty"`
+
+	URL       string            `yaml:"url,omitempty"`
 	Headers   map[string]string `yaml:"headers,omitempty"`
 	HeaderEnv map[string]string `yaml:"header_env,omitempty"`
+
+	ConnectTimeout time.Duration `yaml:"connect_timeout,omitempty"`
+	RequestTimeout time.Duration `yaml:"request_timeout,omitempty"`
+}
+
+func (c Config) IsEnabled() bool {
+	if c.Enabled == nil {
+		return true
+	}
+
+	return *c.Enabled
 }

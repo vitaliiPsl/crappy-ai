@@ -31,8 +31,9 @@ const (
 type Model struct {
 	server *server.Server
 
-	states []coremcp.ClientState
-	cursor int
+	configs []coremcp.Config
+	states  []coremcp.ClientState
+	cursor  int
 
 	viewport viewport.Model
 	width    int
@@ -50,16 +51,22 @@ func New(srv *server.Server) Model {
 }
 
 func (m Model) Init() tea.Cmd {
-	return m.loadStates()
+	return tea.Batch(m.loadConfigs(), m.loadStates())
 }
 
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case statesLoadedMsg:
-		m.states = msg.states
-		m.cursor = clampCursor(m.cursor, len(m.states))
+	case configsLoadedMsg:
+		m.configs = msg.configs
+		m.cursor = clampCursor(m.cursor, len(m.configs))
 		m.refreshContent()
 		m.scrollToCursor()
+
+		return m, nil
+
+	case statesLoadedMsg:
+		m.states = msg.states
+		m.refreshContent()
 
 		return m, nil
 
@@ -110,7 +117,7 @@ func (m Model) handleKey(key tea.KeyMsg) (Model, tea.Cmd) {
 
 func (m Model) moveCursor(delta int) (Model, tea.Cmd) {
 	next := m.cursor + delta
-	if next < 0 || next >= len(m.states) {
+	if next < 0 || next >= len(m.configs) {
 		return m, nil
 	}
 
@@ -126,13 +133,19 @@ func (m *Model) resizeViewport() {
 }
 
 func (m *Model) refreshContent() {
-	if len(m.states) == 0 {
+	if len(m.configs) == 0 {
 		m.viewport.SetContent(renderEmpty(m.width, m.viewport.Height()))
 
 		return
 	}
 
-	m.viewport.SetContent(renderList(m.states, m.cursor))
+	m.viewport.SetContent(renderList(m.configs, m.states, m.cursor))
+}
+
+func (m Model) loadConfigs() tea.Cmd {
+	return func() tea.Msg {
+		return configsLoadedMsg{configs: m.server.GetMCPClientConfigs()}
+	}
 }
 
 func (m Model) loadStates() tea.Cmd {
@@ -152,20 +165,25 @@ func renderEmpty(width, height int) string {
 		Render(content)
 }
 
-func renderList(statuses []coremcp.ClientState, cursor int) string {
+func renderList(configs []coremcp.Config, states []coremcp.ClientState, cursor int) string {
 	var b strings.Builder
-	for i, status := range statuses {
-		b.WriteString(renderStatus(status, i == cursor))
+	for i, cfg := range configs {
+		var state coremcp.ClientState
+		if i < len(states) {
+			state = states[i]
+		}
+
+		b.WriteString(renderClient(cfg, state, i == cursor))
 		b.WriteString("\n\n")
 	}
 
 	return strings.TrimRight(b.String(), "\n")
 }
 
-func renderStatus(status coremcp.ClientState, selected bool) string {
+func renderClient(cfg coremcp.Config, state coremcp.ClientState, selected bool) string {
 	cursor := noCursorPrefix
 
-	name := status.Config.Name
+	name := cfg.Name
 	if name == "" {
 		name = "(unnamed)"
 	}
@@ -177,12 +195,12 @@ func renderStatus(status coremcp.ClientState, selected bool) string {
 	}
 
 	lines := []string{
-		cursor + statusBadge(status.Status) + titleSep + title,
-		metaStyle.Render(metaPad + strings.Join(statusMeta(status.Config), metaSep)),
+		cursor + clientBadge(cfg, state) + titleSep + title,
+		metaStyle.Render(metaPad + strings.Join(statusMeta(cfg), metaSep)),
 	}
 
-	if status.Error != "" {
-		lines = append(lines, errorStyle.Render(metaPad+status.Error))
+	if state.Error != "" {
+		lines = append(lines, errorStyle.Render(metaPad+state.Error))
 	}
 
 	return strings.Join(lines, "\n")
@@ -206,11 +224,19 @@ func statusMeta(cfg coremcp.Config) []string {
 		}
 	}
 
-	if authCount := len(cfg.Auth.Headers) + len(cfg.Auth.HeaderEnv); authCount > 0 {
+	if authCount := len(cfg.Headers) + len(cfg.HeaderEnv); authCount > 0 {
 		parts = append(parts, fmt.Sprintf("%d auth header(s)", authCount))
 	}
 
 	return parts
+}
+
+func clientBadge(cfg coremcp.Config, state coremcp.ClientState) string {
+	if !cfg.IsEnabled() {
+		return disconnectedStyle.Render("disabled")
+	}
+
+	return statusBadge(state.Status)
 }
 
 func statusBadge(status coremcp.ClientStatus) string {

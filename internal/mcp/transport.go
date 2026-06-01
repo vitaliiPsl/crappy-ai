@@ -50,7 +50,7 @@ func httpTransport(cfg Config) (mcpsdk.Transport, error) {
 }
 
 func authHTTPClient(cfg Config) (*http.Client, error) {
-	headers, err := authHeaders(cfg)
+	headers, err := headers(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -67,14 +67,14 @@ func authHTTPClient(cfg Config) (*http.Client, error) {
 	}, nil
 }
 
-func authHeaders(cfg Config) (http.Header, error) {
+func headers(cfg Config) (http.Header, error) {
 	headers := make(http.Header)
 
-	for name, value := range cfg.Auth.Headers {
+	for name, value := range cfg.Headers {
 		headers.Set(name, value)
 	}
 
-	for name, env := range cfg.Auth.HeaderEnv {
+	for name, env := range cfg.HeaderEnv {
 		value := os.Getenv(env)
 		if value == "" {
 			return nil, fmt.Errorf("mcp: client %q auth header %q references empty env %q", cfg.Name, name, env)
