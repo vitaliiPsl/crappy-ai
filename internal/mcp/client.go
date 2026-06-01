@@ -18,39 +18,29 @@ const (
 type sdkClient struct {
 	config Config
 
-	ctx    context.Context
-	cancel context.CancelFunc
+	mu        sync.Mutex
+	connectMu sync.Mutex
+	session   *mcpsdk.ClientSession
 
-	mu      sync.Mutex
-	session *mcpsdk.ClientSession
-
-	state ClientState
-	tools []kit.ToolDefinition
+	state ClientStatus
+	tools []kit.Tool
 	err   error
 }
 
 func NewClient(config Config) Client {
-	ctx, cancel := context.WithCancel(context.Background())
-
 	return &sdkClient{
 		config: config,
-		ctx:    ctx,
-		cancel: cancel,
 		state:  ClientDisconnected,
 	}
 }
 
-func (c *sdkClient) Config() Config {
-	return c.config
-}
-
-func (c *sdkClient) Status() ClientStatus {
+func (c *sdkClient) State() ClientState {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	status := ClientStatus{
+	status := ClientState{
 		Config: c.config,
-		State:  c.state,
+		Status: c.state,
 	}
 
 	if c.err != nil {
@@ -61,83 +51,76 @@ func (c *sdkClient) Status() ClientStatus {
 }
 
 func (c *sdkClient) Connect(ctx context.Context) error {
-	c.mu.Lock()
-	if c.session != nil || c.state == ClientConnecting {
-		c.mu.Unlock()
+	c.connectMu.Lock()
+	defer c.connectMu.Unlock()
 
+	if c.connected() {
 		return nil
 	}
 
-	c.state = ClientConnecting
-	c.err = nil
-	c.mu.Unlock()
+	c.markConnecting()
 
 	session, err := c.dial(ctx)
-
-	c.mu.Lock()
-
 	if err != nil {
-		c.state = ClientFailed
-		c.err = err
-		c.mu.Unlock()
+		c.markFailed(err)
 
 		return err
 	}
 
-	if c.ctx.Err() != nil {
-		c.state = ClientDisconnected
-		c.mu.Unlock()
-
-		_ = session.Close()
-
-		return fmt.Errorf("mcp: client %q closed during connect", c.config.Name)
-	}
-
-	c.session = session
-	c.state = ClientConnected
-	c.err = nil
-	c.mu.Unlock()
-
-	if err := c.loadTools(ctx, session); err != nil {
-		c.setFailed(err)
-
-		return err
-	}
+	c.markConnected(session)
 
 	return nil
 }
 
 func (c *sdkClient) Close() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	defer c.cancel()
+	session := c.reset()
 
-	c.state = ClientDisconnected
-	if c.session == nil {
+	if session == nil {
 		return nil
 	}
 
-	err := c.clearSession()
-	c.err = err
-
-	return err
+	return session.Close()
 }
 
-func (c *sdkClient) ListTools(ctx context.Context) ([]kit.ToolDefinition, error) {
-	if _, err := c.ensureSession(ctx); err != nil {
+func (c *sdkClient) ListTools(ctx context.Context) ([]kit.Tool, error) {
+	c.mu.Lock()
+	session := c.session
+	connected := session != nil && c.state == ClientConnected
+	tools := c.tools
+	c.mu.Unlock()
+
+	if !connected {
+		return nil, fmt.Errorf("mcp: client %q is not connected", c.config.Name)
+	}
+
+	if tools != nil {
+		return tools, nil
+	}
+
+	tools, err := c.fetchTools(ctx, session)
+	if err != nil {
+		c.failSession(err)
+
 		return nil, err
 	}
 
 	c.mu.Lock()
-	defer c.mu.Unlock()
+	if c.session == session && c.state == ClientConnected {
+		c.tools = tools
+	}
+	c.mu.Unlock()
 
-	return c.tools, nil
+	return tools, nil
 }
 
 func (c *sdkClient) CallTool(ctx context.Context, call kit.ToolCall) (kit.ToolResult, error) {
-	session, err := c.ensureSession(ctx)
-	if err != nil {
-		return kit.ToolResult{}, err
+	c.mu.Lock()
+	session := c.session
+	connected := session != nil && c.state == ClientConnected
+	c.mu.Unlock()
+
+	if !connected {
+		return kit.ToolResult{}, fmt.Errorf("mcp: client %q is not connected", c.config.Name)
 	}
 
 	res, err := session.CallTool(ctx, &mcpsdk.CallToolParams{
@@ -145,7 +128,7 @@ func (c *sdkClient) CallTool(ctx context.Context, call kit.ToolCall) (kit.ToolRe
 		Arguments: call.Arguments,
 	})
 	if err != nil {
-		c.setFailed(err)
+		c.failSession(err)
 
 		return kit.ToolResult{}, err
 	}
@@ -153,31 +136,8 @@ func (c *sdkClient) CallTool(ctx context.Context, call kit.ToolCall) (kit.ToolRe
 	return convertToolResult(call, res), nil
 }
 
-func (c *sdkClient) ensureSession(ctx context.Context) (*mcpsdk.ClientSession, error) {
-	c.mu.Lock()
-	session := c.session
-	c.mu.Unlock()
-
-	if session != nil {
-		return session, nil
-	}
-
-	if err := c.Connect(ctx); err != nil {
-		return nil, err
-	}
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.session == nil {
-		return nil, fmt.Errorf("mcp: client %q is not connected", c.config.Name)
-	}
-
-	return c.session, nil
-}
-
 func (c *sdkClient) dial(ctx context.Context) (*mcpsdk.ClientSession, error) {
-	transport, err := c.transport()
+	transport, err := buildTransport(c.config)
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +149,7 @@ func (c *sdkClient) dial(ctx context.Context) (*mcpsdk.ClientSession, error) {
 		},
 		&mcpsdk.ClientOptions{
 			ToolListChangedHandler: func(context.Context, *mcpsdk.ToolListChangedRequest) {
-				go c.reloadTools()
+				c.invalidateTools()
 			},
 		},
 	)
@@ -202,55 +162,92 @@ func (c *sdkClient) dial(ctx context.Context) (*mcpsdk.ClientSession, error) {
 	return session, nil
 }
 
-func (c *sdkClient) setFailed(err error) {
+func (c *sdkClient) fetchTools(ctx context.Context, session *mcpsdk.ClientSession) ([]kit.Tool, error) {
+	res, err := session.ListTools(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	defs, err := convertTools(res.Tools)
+	if err != nil {
+		return nil, err
+	}
+
+	tools := make([]kit.Tool, 0, len(defs))
+	for _, def := range defs {
+		tools = append(tools, newTool(c.config.Name, c, def))
+	}
+
+	return tools, nil
+}
+
+func (c *sdkClient) invalidateTools() {
+	c.mu.Lock()
+	if c.state == ClientConnected {
+		c.tools = nil
+	}
+	c.mu.Unlock()
+}
+
+func (c *sdkClient) connected() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if c.session == nil {
-		return
-	}
+	return c.session != nil && c.state == ClientConnected
+}
 
-	_ = c.clearSession()
+func (c *sdkClient) markConnecting() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.state = ClientConnecting
+	c.err = nil
+}
+
+func (c *sdkClient) markFailed(err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	c.state = ClientFailed
 	c.err = err
 }
 
-func (c *sdkClient) clearSession() error {
-	err := c.session.Close()
+func (c *sdkClient) markConnected(session *mcpsdk.ClientSession) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.session = session
+	c.tools = nil
+	c.state = ClientConnected
+	c.err = nil
+}
+
+func (c *sdkClient) failSession(err error) {
+	c.mu.Lock()
+
+	session := c.session
+	if session != nil {
+		c.session = nil
+		c.tools = nil
+		c.state = ClientFailed
+		c.err = err
+	}
+	c.mu.Unlock()
+
+	if session != nil {
+		_ = session.Close()
+	}
+}
+
+func (c *sdkClient) reset() *mcpsdk.ClientSession {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	session := c.session
 	c.session = nil
 	c.tools = nil
+	c.state = ClientDisconnected
+	c.err = nil
 
-	return err
-}
-
-func (c *sdkClient) loadTools(ctx context.Context, session *mcpsdk.ClientSession) error {
-	res, err := session.ListTools(ctx, nil)
-	if err != nil {
-		return err
-	}
-
-	tools, err := convertTools(res.Tools)
-	if err != nil {
-		return err
-	}
-
-	c.mu.Lock()
-	c.tools = tools
-	c.mu.Unlock()
-
-	return nil
-}
-
-func (c *sdkClient) reloadTools() {
-	c.mu.Lock()
-	session := c.session
-	c.mu.Unlock()
-
-	if session == nil {
-		return
-	}
-
-	if err := c.loadTools(c.ctx, session); err != nil {
-		c.setFailed(err)
-	}
+	return session
 }

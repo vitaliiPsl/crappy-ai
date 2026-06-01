@@ -2,10 +2,10 @@ package server
 
 import "github.com/vitaliiPsl/crappy-ai/internal/mcp"
 
-func (s *Server) GetMCPClientStatuses() []mcp.ClientStatus {
+func (s *Server) GetMCPClientStates() []mcp.ClientState {
 	if s.mcpManager == nil {
 		return nil
 	}
 
-	return s.mcpManager.Statuses()
+	return s.mcpManager.States()
 }

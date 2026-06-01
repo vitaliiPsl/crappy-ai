@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"sync"
-
-	"github.com/vitaliiPsl/crappy-adk/kit"
 )
 
 type Manager struct {
@@ -49,33 +47,13 @@ func (m *Manager) Clients() []Client {
 	return clients
 }
 
-func (m *Manager) Statuses() []ClientStatus {
-	statuses := make([]ClientStatus, len(m.clients))
+func (m *Manager) States() []ClientState {
+	states := make([]ClientState, len(m.clients))
 	for i, client := range m.clients {
-		statuses[i] = client.Status()
+		states[i] = client.State()
 	}
 
-	return statuses
-}
-
-func (m *Manager) Tools(ctx context.Context) []kit.Tool {
-	var tools []kit.Tool
-	for _, client := range m.clients {
-		if client.Status().State != ClientConnected {
-			continue
-		}
-
-		defs, err := client.ListTools(ctx)
-		if err != nil {
-			continue
-		}
-
-		for _, def := range defs {
-			tools = append(tools, newTool(client, def))
-		}
-	}
-
-	return tools
+	return states
 }
 
 func (m *Manager) Close() error {

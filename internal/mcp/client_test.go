@@ -1,149 +1,34 @@
 package mcp
 
 import (
-	"bytes"
 	"context"
 	"errors"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"strings"
-	"sync/atomic"
+	"sync"
 	"testing"
-	"time"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
 )
 
-func TestClientReturnsConfig(t *testing.T) {
-	cfg := Config{
-		Name:      "docs",
-		Transport: TransportHTTP,
-		URL:       "http://localhost:3000/mcp",
+func TestStateStartsDisconnected(t *testing.T) {
+	cfg := Config{Name: "docs", Transport: TransportHTTP, URL: "http://localhost:3000/mcp"}
+
+	state := NewClient(cfg).State()
+	if !reflect.DeepEqual(state.Config, cfg) {
+		t.Fatalf("Config = %+v, want %+v", state.Config, cfg)
 	}
 
-	if got := NewClient(cfg).Config(); !reflect.DeepEqual(got, cfg) {
-		t.Fatalf("Config() = %+v, want %+v", got, cfg)
-	}
-}
-
-func TestClientHTTPToolLifecycle(t *testing.T) {
-	serverURL := newTestMCPServer(t, nil)
-	client := NewClient(Config{Name: "test", Transport: TransportHTTP, URL: serverURL})
-
-	if err := client.Connect(context.Background()); err != nil {
-		t.Fatalf("Connect() error = %v", err)
-	}
-	defer func() { _ = client.Close() }()
-
-	tools, err := client.ListTools(context.Background())
-	if err != nil {
-		t.Fatalf("ListTools() error = %v", err)
-	}
-
-	if len(tools) != 1 {
-		t.Fatalf("len(tools) = %d, want 1", len(tools))
-	}
-
-	if tools[0].Name != "greet" {
-		t.Fatalf("tool name = %q, want greet", tools[0].Name)
-	}
-
-	result, err := client.CallTool(context.Background(), kit.NewToolCall("call_1", "greet", map[string]any{
-		"name": "Ada",
-	}))
-	if err != nil {
-		t.Fatalf("CallTool() error = %v", err)
-	}
-
-	if !strings.Contains(result.Output, "Hi Ada") {
-		t.Fatalf("tool output = %q, want greeting", result.Output)
+	if state.Status != ClientDisconnected {
+		t.Fatalf("Status = %q, want disconnected", state.Status)
 	}
 }
 
-func TestClientHTTPAuth(t *testing.T) {
-	tests := []struct {
-		name       string
-		auth       AuthConfig
-		env        map[string]string
-		wantHeader map[string]string
-	}{
-		{
-			name: "static headers",
-			auth: AuthConfig{
-				Headers: map[string]string{
-					"Authorization": "Bearer static",
-					"X-MCP-Tenant":  "acme",
-				},
-			},
-			wantHeader: map[string]string{
-				"Authorization": "Bearer static",
-				"X-MCP-Tenant":  "acme",
-			},
-		},
-		{
-			name: "env headers",
-			auth: AuthConfig{
-				HeaderEnv: map[string]string{
-					"Authorization": "TEST_MCP_AUTHORIZATION",
-				},
-			},
-			env: map[string]string{
-				"TEST_MCP_AUTHORIZATION": "Bearer env",
-			},
-			wantHeader: map[string]string{
-				"Authorization": "Bearer env",
-			},
-		},
-		{
-			name: "env overrides static header",
-			auth: AuthConfig{
-				Headers: map[string]string{
-					"Authorization": "Bearer static",
-				},
-				HeaderEnv: map[string]string{
-					"Authorization": "TEST_MCP_AUTHORIZATION",
-				},
-			},
-			env: map[string]string{
-				"TEST_MCP_AUTHORIZATION": "Bearer env",
-			},
-			wantHeader: map[string]string{
-				"Authorization": "Bearer env",
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			for name, value := range tt.env {
-				t.Setenv(name, value)
-			}
-
-			serverURL := newTestMCPServer(t, tt.wantHeader)
-			client := NewClient(Config{
-				Name:      "test",
-				Transport: TransportHTTP,
-				URL:       serverURL,
-				Auth:      tt.auth,
-			})
-
-			if err := client.Connect(context.Background()); err != nil {
-				t.Fatalf("Connect() error = %v", err)
-			}
-			defer func() { _ = client.Close() }()
-
-			if _, err := client.ListTools(context.Background()); err != nil {
-				t.Fatalf("ListTools() error = %v", err)
-			}
-		})
-	}
-}
-
-func TestClientConnectValidation(t *testing.T) {
+func TestConnectValidation(t *testing.T) {
 	tests := []struct {
 		name    string
 		config  Config
@@ -165,16 +50,12 @@ func TestClientConnectValidation(t *testing.T) {
 			wantErr: `mcp: client "test" has unsupported transport "websocket"`,
 		},
 		{
-			name: "auth header env is required",
+			name: "auth env must be set",
 			config: Config{
 				Name:      "test",
 				Transport: TransportHTTP,
 				URL:       "http://example.com",
-				Auth: AuthConfig{
-					HeaderEnv: map[string]string{
-						"Authorization": "MISSING_MCP_AUTHORIZATION",
-					},
-				},
+				Auth:      AuthConfig{HeaderEnv: map[string]string{"Authorization": "MISSING_MCP_AUTHORIZATION"}},
 			},
 			wantErr: `mcp: client "test" auth header "Authorization" references empty env "MISSING_MCP_AUTHORIZATION"`,
 		},
@@ -183,41 +64,256 @@ func TestClientConnectValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := NewClient(tt.config).Connect(context.Background())
-			if err == nil {
-				t.Fatal("Connect() error = nil, want error")
-			}
-
-			if err.Error() != tt.wantErr {
-				t.Fatalf("Connect() error = %q, want %q", err.Error(), tt.wantErr)
+			if err == nil || err.Error() != tt.wantErr {
+				t.Fatalf("Connect() error = %v, want %q", err, tt.wantErr)
 			}
 		})
 	}
 }
 
-func TestClientListToolsConnectsOnDemand(t *testing.T) {
-	_, err := NewClient(Config{Name: "test"}).ListTools(context.Background())
-	if err == nil {
-		t.Fatal("ListTools() error = nil, want error")
+func TestStatusLifecycle(t *testing.T) {
+	client := NewClient(Config{Name: "test", Transport: TransportHTTP, URL: serve(t, newServer(t, "greet"))})
+
+	if got := client.State().Status; got != ClientDisconnected {
+		t.Fatalf("initial Status = %q, want disconnected", got)
 	}
 
-	if err.Error() != `mcp: client "test" has no command for stdio transport` {
-		t.Fatalf("ListTools() error = %q, want connect failure", err.Error())
+	if err := client.Connect(context.Background()); err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+
+	if got := client.State().Status; got != ClientConnected {
+		t.Fatalf("connected Status = %q, want connected", got)
+	}
+
+	if err := client.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+
+	if got := client.State().Status; got != ClientDisconnected {
+		t.Fatalf("closed Status = %q, want disconnected", got)
 	}
 }
 
-func newTestMCPServer(t *testing.T, requiredHeaders map[string]string) string {
+func TestToolLifecycle(t *testing.T) {
+	client := connect(t, newServer(t, "greet"))
+
+	tools, err := client.ListTools(context.Background())
+	if err != nil {
+		t.Fatalf("ListTools() error = %v", err)
+	}
+
+	if len(tools) != 1 {
+		t.Fatalf("len(tools) = %d, want 1", len(tools))
+	}
+
+	if got := tools[0].Definition().Name; got != "mcp__test__greet" {
+		t.Fatalf("tool name = %q, want mcp__test__greet", got)
+	}
+
+	result, err := client.CallTool(context.Background(), kit.NewToolCall("call_1", "greet", map[string]any{"name": "Ada"}))
+	if err != nil {
+		t.Fatalf("CallTool() error = %v", err)
+	}
+
+	if !strings.Contains(result.Output, "Hi Ada") {
+		t.Fatalf("output = %q, want greeting", result.Output)
+	}
+}
+
+func TestOperationsRequireConnection(t *testing.T) {
+	client := NewClient(Config{Name: "test"})
+	wantErr := `mcp: client "test" is not connected`
+
+	if _, err := client.ListTools(context.Background()); err == nil || err.Error() != wantErr {
+		t.Fatalf("ListTools() error = %v, want %q", err, wantErr)
+	}
+
+	if _, err := client.CallTool(context.Background(), kit.NewToolCall("1", "greet", nil)); err == nil || err.Error() != wantErr {
+		t.Fatalf("CallTool() error = %v, want %q", err, wantErr)
+	}
+}
+
+func TestListToolsCachesBetweenCalls(t *testing.T) {
+	client := connect(t, newServer(t, "greet"))
+
+	first, err := client.ListTools(context.Background())
+	if err != nil {
+		t.Fatalf("ListTools() error = %v", err)
+	}
+
+	second, err := client.ListTools(context.Background())
+	if err != nil {
+		t.Fatalf("ListTools() error = %v", err)
+	}
+
+	if !sameTools(first, second) {
+		t.Fatal("ListTools() refetched instead of returning the cache")
+	}
+}
+
+func TestConnectIsIdempotent(t *testing.T) {
+	client := NewClient(Config{Name: "test", Transport: TransportHTTP, URL: serve(t, newServer(t, "greet"))}).(*sdkClient)
+	t.Cleanup(func() { _ = client.Close() })
+
+	if err := client.Connect(context.Background()); err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+
+	session := client.session
+
+	if err := client.Connect(context.Background()); err != nil {
+		t.Fatalf("second Connect() error = %v", err)
+	}
+
+	if client.session != session {
+		t.Fatal("second Connect() replaced the live session")
+	}
+}
+
+func TestConnectIsConcurrencySafe(t *testing.T) {
+	client := NewClient(Config{Name: "test", Transport: TransportHTTP, URL: serve(t, newServer(t, "greet"))})
+	t.Cleanup(func() { _ = client.Close() })
+
+	var wg sync.WaitGroup
+
+	errs := make(chan error, 8)
+	for range 8 {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			errs <- client.Connect(context.Background())
+		}()
+	}
+
+	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("Connect() error = %v", err)
+		}
+	}
+
+	if got := client.State().Status; got != ClientConnected {
+		t.Fatalf("Status = %q, want connected", got)
+	}
+}
+
+func TestFailSession(t *testing.T) {
+	t.Run("tears down a live session", func(t *testing.T) {
+		client := connect(t, newServer(t, "greet")).(*sdkClient)
+
+		client.failSession(errors.New("boom"))
+
+		state := client.State()
+		if state.Status != ClientFailed {
+			t.Fatalf("Status = %q, want failed", state.Status)
+		}
+
+		if state.Error != "boom" {
+			t.Fatalf("Error = %q, want boom", state.Error)
+		}
+
+		if client.session != nil {
+			t.Fatal("session was not cleared")
+		}
+	})
+
+	t.Run("is a no-op without a live session", func(t *testing.T) {
+		client := NewClient(Config{Name: "test"}).(*sdkClient)
+
+		client.failSession(errors.New("boom"))
+
+		if got := client.State().Status; got != ClientDisconnected {
+			t.Fatalf("Status = %q, want disconnected", got)
+		}
+	})
+}
+
+func TestAuthHeaders(t *testing.T) {
+	tests := []struct {
+		name string
+		auth AuthConfig
+		env  map[string]string
+		want map[string]string
+	}{
+		{
+			name: "static headers",
+			auth: AuthConfig{Headers: map[string]string{"Authorization": "Bearer static", "X-MCP-Tenant": "acme"}},
+			want: map[string]string{"Authorization": "Bearer static", "X-MCP-Tenant": "acme"},
+		},
+		{
+			name: "env header overrides static",
+			auth: AuthConfig{
+				Headers:   map[string]string{"Authorization": "Bearer static"},
+				HeaderEnv: map[string]string{"Authorization": "TEST_MCP_AUTHORIZATION"},
+			},
+			env:  map[string]string{"TEST_MCP_AUTHORIZATION": "Bearer env"},
+			want: map[string]string{"Authorization": "Bearer env"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for name, value := range tt.env {
+				t.Setenv(name, value)
+			}
+
+			// The server rejects any request missing the expected headers, so a
+			// successful Connect proves authTransport applied them.
+			url := serveRequiring(t, newServer(t, "greet"), tt.want)
+			client := NewClient(Config{Name: "test", Transport: TransportHTTP, URL: url, Auth: tt.auth})
+			t.Cleanup(func() { _ = client.Close() })
+
+			if err := client.Connect(context.Background()); err != nil {
+				t.Fatalf("Connect() error = %v", err)
+			}
+		})
+	}
+}
+
+type greetInput struct {
+	Name string `json:"name" jsonschema:"Name to greet"`
+}
+
+type greetOutput struct {
+	Greeting string `json:"greeting" jsonschema:"Greeting text"`
+}
+
+func greet(_ context.Context, _ *mcpsdk.CallToolRequest, in greetInput) (*mcpsdk.CallToolResult, greetOutput, error) {
+	return nil, greetOutput{Greeting: "Hi " + in.Name}, nil
+}
+
+func newServer(t *testing.T, tools ...string) *mcpsdk.Server {
 	t.Helper()
 
 	server := mcpsdk.NewServer(&mcpsdk.Implementation{Name: "test", Version: "0.1.0"}, nil)
-	mcpsdk.AddTool(server, &mcpsdk.Tool{Name: "greet", Description: "Greet someone"}, greet)
+	for _, name := range tools {
+		mcpsdk.AddTool(server, &mcpsdk.Tool{Name: name}, greet)
+	}
+
+	return server
+}
+
+func serve(t *testing.T, server *mcpsdk.Server) string {
+	t.Helper()
+
+	return serveRequiring(t, server, nil)
+}
+
+func serveRequiring(t *testing.T, server *mcpsdk.Server, headers map[string]string) string {
+	t.Helper()
 
 	handler := mcpsdk.NewStreamableHTTPHandler(func(*http.Request) *mcpsdk.Server {
 		return server
 	}, nil)
 
 	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		for name, value := range requiredHeaders {
-			if got := r.Header.Get(name); got != value {
+		for name, value := range headers {
+			if r.Header.Get(name) != value {
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 
 				return
@@ -231,209 +327,19 @@ func newTestMCPServer(t *testing.T, requiredHeaders map[string]string) string {
 	return httpServer.URL
 }
 
-type greetInput struct {
-	Name string `json:"name" jsonschema:"Name to greet"`
-}
-
-type greetOutput struct {
-	Greeting string `json:"greeting" jsonschema:"Greeting text"`
-}
-
-func greet(_ context.Context, _ *mcpsdk.CallToolRequest, input greetInput) (*mcpsdk.CallToolResult, greetOutput, error) {
-	return nil, greetOutput{Greeting: "Hi " + input.Name}, nil
-}
-
-func TestClientStatusLifecycle(t *testing.T) {
-	serverURL := newTestMCPServer(t, nil)
-	client := NewClient(Config{Name: "test", Transport: TransportHTTP, URL: serverURL})
-
-	if got := client.Status().State; got != ClientDisconnected {
-		t.Fatalf("initial State = %q, want disconnected", got)
-	}
-
-	if err := client.Connect(context.Background()); err != nil {
-		t.Fatalf("Connect() error = %v", err)
-	}
-
-	if got := client.Status().State; got != ClientConnected {
-		t.Fatalf("connected State = %q, want connected", got)
-	}
-
-	if err := client.Close(); err != nil {
-		t.Fatalf("Close() error = %v", err)
-	}
-
-	if got := client.Status().State; got != ClientDisconnected {
-		t.Fatalf("closed State = %q, want disconnected", got)
-	}
-}
-
-func TestClientListToolsConnectsOnDemandToLiveServer(t *testing.T) {
-	serverURL := newTestMCPServer(t, nil)
-
-	client := NewClient(Config{Name: "test", Transport: TransportHTTP, URL: serverURL})
-	defer func() { _ = client.Close() }()
-
-	// No explicit Connect: ListTools must auto-connect.
-	tools, err := client.ListTools(context.Background())
-	if err != nil {
-		t.Fatalf("ListTools() error = %v", err)
-	}
-
-	if len(tools) != 1 {
-		t.Fatalf("len(tools) = %d, want 1", len(tools))
-	}
-
-	if got := client.Status().State; got != ClientConnected {
-		t.Fatalf("State = %q, want connected", got)
-	}
-}
-
-func TestClientConnectIsIdempotent(t *testing.T) {
-	serverURL := newTestMCPServer(t, nil)
-
-	client := NewClient(Config{Name: "test", Transport: TransportHTTP, URL: serverURL}).(*sdkClient)
-	defer func() { _ = client.Close() }()
-
-	if err := client.Connect(context.Background()); err != nil {
-		t.Fatalf("Connect() error = %v", err)
-	}
-
-	first := client.session
-
-	if err := client.Connect(context.Background()); err != nil {
-		t.Fatalf("second Connect() error = %v", err)
-	}
-
-	if client.session != first {
-		t.Fatal("second Connect() replaced the live session")
-	}
-}
-
-func TestClientSetFailed(t *testing.T) {
-	t.Run("no-op without a session", func(t *testing.T) {
-		client := NewClient(Config{Name: "test"}).(*sdkClient)
-
-		client.setFailed(errors.New("boom"))
-
-		status := client.Status()
-		if status.State != ClientDisconnected {
-			t.Fatalf("State = %q, want disconnected", status.State)
-		}
-
-		if status.Error != "" {
-			t.Fatalf("Error = %q, want empty", status.Error)
-		}
-	})
-
-	t.Run("closes and clears a live session", func(t *testing.T) {
-		serverURL := newTestMCPServer(t, nil)
-
-		client := NewClient(Config{Name: "test", Transport: TransportHTTP, URL: serverURL}).(*sdkClient)
-		defer func() { _ = client.Close() }()
-
-		if err := client.Connect(context.Background()); err != nil {
-			t.Fatalf("Connect() error = %v", err)
-		}
-
-		client.setFailed(errors.New("boom"))
-
-		status := client.Status()
-		if status.State != ClientFailed {
-			t.Fatalf("State = %q, want failed", status.State)
-		}
-
-		if status.Error != "boom" {
-			t.Fatalf("Error = %q, want boom", status.Error)
-		}
-
-		if client.session != nil {
-			t.Fatal("session was not cleared")
-		}
-	})
-}
-
-func TestClientCachesToolsBetweenCalls(t *testing.T) {
-	var listCalls atomic.Int32
-
-	server := mcpsdk.NewServer(&mcpsdk.Implementation{Name: "test", Version: "0.1.0"}, nil)
-	mcpsdk.AddTool(server, &mcpsdk.Tool{Name: "greet", Description: "Greet someone"}, greet)
-	serverURL := serveMCP(t, server, func() { listCalls.Add(1) })
-
-	client := NewClient(Config{Name: "test", Transport: TransportHTTP, URL: serverURL})
-	defer func() { _ = client.Close() }()
-
-	for i := 0; i < 3; i++ {
-		if _, err := client.ListTools(context.Background()); err != nil {
-			t.Fatalf("ListTools() #%d error = %v", i, err)
-		}
-	}
-
-	if got := listCalls.Load(); got != 1 {
-		t.Fatalf("tools/list calls = %d, want 1 (cached after first fetch)", got)
-	}
-}
-
-func TestClientRefetchesToolsAfterChangeNotification(t *testing.T) {
-	server := mcpsdk.NewServer(&mcpsdk.Implementation{Name: "test", Version: "0.1.0"}, nil)
-	mcpsdk.AddTool(server, &mcpsdk.Tool{Name: "greet", Description: "Greet someone"}, greet)
-	serverURL := serveMCP(t, server, nil)
-
-	client := NewClient(Config{Name: "test", Transport: TransportHTTP, URL: serverURL})
-	defer func() { _ = client.Close() }()
-
-	tools, err := client.ListTools(context.Background())
-	if err != nil {
-		t.Fatalf("ListTools() error = %v", err)
-	}
-
-	if len(tools) != 1 {
-		t.Fatalf("len(tools) = %d, want 1", len(tools))
-	}
-
-	// Adding a tool pushes tools/list_changed, which should invalidate the cache.
-	mcpsdk.AddTool(server, &mcpsdk.Tool{Name: "farewell", Description: "Say bye"}, greet)
-
-	// Notification delivery is async; poll until the refetched list reflects it.
-	deadline := time.Now().Add(2 * time.Second)
-	for {
-		tools, err = client.ListTools(context.Background())
-		if err != nil {
-			t.Fatalf("ListTools() error = %v", err)
-		}
-
-		if len(tools) == 2 {
-			return
-		}
-
-		if time.Now().After(deadline) {
-			t.Fatalf("len(tools) = %d, want 2 after change notification", len(tools))
-		}
-
-		time.Sleep(10 * time.Millisecond)
-	}
-}
-
-func serveMCP(t *testing.T, server *mcpsdk.Server, onListTools func()) string {
+func connect(t *testing.T, server *mcpsdk.Server) Client {
 	t.Helper()
 
-	handler := mcpsdk.NewStreamableHTTPHandler(func(*http.Request) *mcpsdk.Server {
-		return server
-	}, nil)
+	client := NewClient(Config{Name: "test", Transport: TransportHTTP, URL: serve(t, server)})
+	if err := client.Connect(context.Background()); err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
 
-	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if onListTools != nil {
-			body, _ := io.ReadAll(r.Body)
+	t.Cleanup(func() { _ = client.Close() })
 
-			r.Body = io.NopCloser(bytes.NewReader(body))
-			if bytes.Contains(body, []byte(`"tools/list"`)) {
-				onListTools()
-			}
-		}
+	return client
+}
 
-		handler.ServeHTTP(w, r)
-	}))
-	t.Cleanup(httpServer.Close)
-
-	return httpServer.URL
+func sameTools(a, b []kit.Tool) bool {
+	return len(a) == len(b) && (len(a) == 0 || &a[0] == &b[0])
 }

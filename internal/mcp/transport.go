@@ -9,48 +9,48 @@ import (
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-func (c *sdkClient) transport() (mcpsdk.Transport, error) {
-	switch c.config.Transport {
+func buildTransport(cfg Config) (mcpsdk.Transport, error) {
+	switch cfg.Transport {
 	case "", TransportStdio:
-		return c.stdioTransport()
+		return stdioTransport(cfg)
 	case TransportHTTP:
-		return c.httpTransport()
+		return httpTransport(cfg)
 	default:
-		return nil, fmt.Errorf("mcp: client %q has unsupported transport %q", c.config.Name, c.config.Transport)
+		return nil, fmt.Errorf("mcp: client %q has unsupported transport %q", cfg.Name, cfg.Transport)
 	}
 }
 
-func (c *sdkClient) stdioTransport() (mcpsdk.Transport, error) {
-	if c.config.Command == "" {
-		return nil, fmt.Errorf("mcp: client %q has no command for stdio transport", c.config.Name)
+func stdioTransport(cfg Config) (mcpsdk.Transport, error) {
+	if cfg.Command == "" {
+		return nil, fmt.Errorf("mcp: client %q has no command for stdio transport", cfg.Name)
 	}
 
-	cmd := exec.CommandContext(c.ctx, c.config.Command, c.config.Args...)
-	cmd.Env = append(os.Environ(), c.config.Env...)
+	cmd := exec.Command(cfg.Command, cfg.Args...)
+	cmd.Env = append(os.Environ(), cfg.Env...)
 
 	return &mcpsdk.CommandTransport{
 		Command: cmd,
 	}, nil
 }
 
-func (c *sdkClient) httpTransport() (mcpsdk.Transport, error) {
-	if c.config.URL == "" {
-		return nil, fmt.Errorf("mcp: client %q has no url for http transport", c.config.Name)
+func httpTransport(cfg Config) (mcpsdk.Transport, error) {
+	if cfg.URL == "" {
+		return nil, fmt.Errorf("mcp: client %q has no url for http transport", cfg.Name)
 	}
 
-	httpClient, err := c.httpClient()
+	httpClient, err := authHTTPClient(cfg)
 	if err != nil {
 		return nil, err
 	}
 
 	return &mcpsdk.StreamableClientTransport{
-		Endpoint:   c.config.URL,
+		Endpoint:   cfg.URL,
 		HTTPClient: httpClient,
 	}, nil
 }
 
-func (c *sdkClient) httpClient() (*http.Client, error) {
-	headers, err := c.authHeaders()
+func authHTTPClient(cfg Config) (*http.Client, error) {
+	headers, err := authHeaders(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -67,17 +67,17 @@ func (c *sdkClient) httpClient() (*http.Client, error) {
 	}, nil
 }
 
-func (c *sdkClient) authHeaders() (http.Header, error) {
+func authHeaders(cfg Config) (http.Header, error) {
 	headers := make(http.Header)
 
-	for name, value := range c.config.Auth.Headers {
+	for name, value := range cfg.Auth.Headers {
 		headers.Set(name, value)
 	}
 
-	for name, env := range c.config.Auth.HeaderEnv {
+	for name, env := range cfg.Auth.HeaderEnv {
 		value := os.Getenv(env)
 		if value == "" {
-			return nil, fmt.Errorf("mcp: client %q auth header %q references empty env %q", c.config.Name, name, env)
+			return nil, fmt.Errorf("mcp: client %q auth header %q references empty env %q", cfg.Name, name, env)
 		}
 
 		headers.Set(name, value)

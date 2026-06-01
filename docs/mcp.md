@@ -150,7 +150,7 @@ A server moves through these states:
 - `connected` — ready, tools available
 - `failed` — the last attempt errored
 
-If a connection drops or a call fails, Crappy reconnects the next time the server is used. A failed server shows its error so you can see why it could not connect.
+If a connection drops or a call fails, the server moves to `failed`. A failed server shows its error so you can see why it could not connect.
 
 ## See Also
 

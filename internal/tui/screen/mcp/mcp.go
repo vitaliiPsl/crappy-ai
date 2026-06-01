@@ -16,7 +16,7 @@ const (
 	headerText    = "MCP Clients"
 	hintsText     = "j/Down Move • r Refresh • Esc Back"
 	emptyTitle    = "No MCP clients configured"
-	emptySubtitle = "Add mcp_clients to settings.yaml."
+	emptySubtitle = "Add mcp to settings.yaml."
 
 	cursorPrefix   = "> "
 	noCursorPrefix = "  "
@@ -31,8 +31,8 @@ const (
 type Model struct {
 	server *server.Server
 
-	statuses []coremcp.ClientStatus
-	cursor   int
+	states []coremcp.ClientState
+	cursor int
 
 	viewport viewport.Model
 	width    int
@@ -50,14 +50,14 @@ func New(srv *server.Server) Model {
 }
 
 func (m Model) Init() tea.Cmd {
-	return m.loadStatuses()
+	return m.loadStates()
 }
 
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case statusesLoadedMsg:
-		m.statuses = msg.statuses
-		m.cursor = clampCursor(m.cursor, len(m.statuses))
+	case statesLoadedMsg:
+		m.states = msg.states
+		m.cursor = clampCursor(m.cursor, len(m.states))
 		m.refreshContent()
 		m.scrollToCursor()
 
@@ -96,7 +96,7 @@ func (m Model) handleKey(key tea.KeyMsg) (Model, tea.Cmd) {
 	case "down", "j":
 		return m.moveCursor(1)
 	case "r":
-		return m, m.loadStatuses()
+		return m, m.loadStates()
 	case "esc":
 		return m, func() tea.Msg { return ClosedMsg{} }
 	}
@@ -110,7 +110,7 @@ func (m Model) handleKey(key tea.KeyMsg) (Model, tea.Cmd) {
 
 func (m Model) moveCursor(delta int) (Model, tea.Cmd) {
 	next := m.cursor + delta
-	if next < 0 || next >= len(m.statuses) {
+	if next < 0 || next >= len(m.states) {
 		return m, nil
 	}
 
@@ -126,18 +126,18 @@ func (m *Model) resizeViewport() {
 }
 
 func (m *Model) refreshContent() {
-	if len(m.statuses) == 0 {
+	if len(m.states) == 0 {
 		m.viewport.SetContent(renderEmpty(m.width, m.viewport.Height()))
 
 		return
 	}
 
-	m.viewport.SetContent(renderList(m.statuses, m.cursor))
+	m.viewport.SetContent(renderList(m.states, m.cursor))
 }
 
-func (m Model) loadStatuses() tea.Cmd {
+func (m Model) loadStates() tea.Cmd {
 	return func() tea.Msg {
-		return statusesLoadedMsg{statuses: m.server.GetMCPClientStatuses()}
+		return statesLoadedMsg{states: m.server.GetMCPClientStates()}
 	}
 }
 
@@ -152,7 +152,7 @@ func renderEmpty(width, height int) string {
 		Render(content)
 }
 
-func renderList(statuses []coremcp.ClientStatus, cursor int) string {
+func renderList(statuses []coremcp.ClientState, cursor int) string {
 	var b strings.Builder
 	for i, status := range statuses {
 		b.WriteString(renderStatus(status, i == cursor))
@@ -162,7 +162,7 @@ func renderList(statuses []coremcp.ClientStatus, cursor int) string {
 	return strings.TrimRight(b.String(), "\n")
 }
 
-func renderStatus(status coremcp.ClientStatus, selected bool) string {
+func renderStatus(status coremcp.ClientState, selected bool) string {
 	cursor := noCursorPrefix
 
 	name := status.Config.Name
@@ -177,8 +177,8 @@ func renderStatus(status coremcp.ClientStatus, selected bool) string {
 	}
 
 	lines := []string{
-		cursor + statusBadge(status.State) + titleSep + title,
-		metaStyle.Render(metaPad + strings.Join(statusMeta(status), metaSep)),
+		cursor + statusBadge(status.Status) + titleSep + title,
+		metaStyle.Render(metaPad + strings.Join(statusMeta(status.Config), metaSep)),
 	}
 
 	if status.Error != "" {
@@ -188,9 +188,7 @@ func renderStatus(status coremcp.ClientStatus, selected bool) string {
 	return strings.Join(lines, "\n")
 }
 
-func statusMeta(status coremcp.ClientStatus) []string {
-	cfg := status.Config
-
+func statusMeta(cfg coremcp.Config) []string {
 	transport := cfg.Transport
 	if transport == "" {
 		transport = coremcp.TransportStdio
@@ -215,8 +213,8 @@ func statusMeta(status coremcp.ClientStatus) []string {
 	return parts
 }
 
-func statusBadge(state coremcp.ClientState) string {
-	switch state {
+func statusBadge(status coremcp.ClientStatus) string {
+	switch status {
 	case coremcp.ClientConnected:
 		return successStyle.Render("connected")
 	case coremcp.ClientConnecting:

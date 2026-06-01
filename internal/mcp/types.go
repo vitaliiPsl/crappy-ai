@@ -7,13 +7,12 @@ import (
 )
 
 type Client interface {
-	Config() Config
-	Status() ClientStatus
+	State() ClientState
 
 	Connect(ctx context.Context) error
 	Close() error
 
-	ListTools(ctx context.Context) ([]kit.ToolDefinition, error)
+	ListTools(ctx context.Context) ([]kit.Tool, error)
 	CallTool(ctx context.Context, call kit.ToolCall) (kit.ToolResult, error)
 }
 
@@ -24,18 +23,18 @@ const (
 	TransportHTTP  TransportType = "http"
 )
 
-type ClientState string
+type ClientStatus string
 
 const (
-	ClientDisconnected ClientState = "disconnected"
-	ClientConnecting   ClientState = "connecting"
-	ClientConnected    ClientState = "connected"
-	ClientFailed       ClientState = "failed"
+	ClientDisconnected ClientStatus = "disconnected"
+	ClientConnecting   ClientStatus = "connecting"
+	ClientConnected    ClientStatus = "connected"
+	ClientFailed       ClientStatus = "failed"
 )
 
-type ClientStatus struct {
+type ClientState struct {
 	Config Config
-	State  ClientState
+	Status ClientStatus
 	Error  string
 }
 
