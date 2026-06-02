@@ -15,7 +15,7 @@ import (
 
 const (
 	headerText    = "MCP Clients"
-	hintsText     = "j/Down Move • r Refresh • c Reconnect • Esc Back"
+	hintsText     = "j/Down Move • r Refresh • a Auth • c Reconnect • Esc Back"
 	emptyTitle    = "No MCP clients configured"
 	emptySubtitle = "Add mcp to settings.yaml."
 
@@ -105,6 +105,8 @@ func (m Model) handleKey(key tea.KeyMsg) (Model, tea.Cmd) {
 		return m.moveCursor(1)
 	case "r":
 		return m, m.loadStates()
+	case "a":
+		return m.authenticateSelected()
 	case "c":
 		return m.reconnectSelected()
 	case "esc":
@@ -176,6 +178,28 @@ func (m Model) reconnectSelected() (Model, tea.Cmd) {
 
 	return m, func() tea.Msg {
 		_ = m.server.ReconnectMCPClient(context.Background(), cfg.Name)
+
+		return statesLoadedMsg{states: m.server.GetMCPClientStates()}
+	}
+}
+
+func (m Model) authenticateSelected() (Model, tea.Cmd) {
+	if m.cursor < 0 || m.cursor >= len(m.configs) {
+		return m, nil
+	}
+
+	cfg := m.configs[m.cursor]
+	if !cfg.IsEnabled() || cfg.OAuth == nil || !cfg.OAuth.IsEnabled() {
+		return m, nil
+	}
+
+	if m.cursor < len(m.states) {
+		m.states[m.cursor] = coremcp.ClientState{Status: coremcp.ClientConnecting}
+		m.refreshContent()
+	}
+
+	return m, func() tea.Msg {
+		_ = m.server.AuthenticateMCPClient(context.Background(), cfg.Name)
 
 		return statesLoadedMsg{states: m.server.GetMCPClientStates()}
 	}
@@ -255,6 +279,10 @@ func statusMeta(cfg coremcp.Config) []string {
 		parts = append(parts, fmt.Sprintf("%d auth header(s)", authCount))
 	}
 
+	if cfg.OAuth != nil && cfg.OAuth.IsEnabled() {
+		parts = append(parts, "oauth")
+	}
+
 	return parts
 }
 
@@ -272,6 +300,8 @@ func statusBadge(status coremcp.ClientStatus) string {
 		return successStyle.Render("connected")
 	case coremcp.ClientConnecting:
 		return warningStyle.Render("connecting")
+	case coremcp.ClientAuthRequired:
+		return warningStyle.Render("auth required")
 	case coremcp.ClientFailed:
 		return errorStyle.Render("failed")
 	default:

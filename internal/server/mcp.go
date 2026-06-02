@@ -29,3 +29,11 @@ func (s *Server) ReconnectMCPClient(ctx context.Context, name string) error {
 
 	return s.mcpManager.Reconnect(ctx, name)
 }
+
+func (s *Server) AuthenticateMCPClient(ctx context.Context, name string) error {
+	if s.mcpManager == nil {
+		return nil
+	}
+
+	return s.mcpManager.Authenticate(ctx, name)
+}

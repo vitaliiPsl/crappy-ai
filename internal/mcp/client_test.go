@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -12,6 +13,8 @@ import (
 	"time"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/vitaliiPsl/crappy-ai/internal/mcp/oauth"
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
 )
@@ -78,6 +81,113 @@ func TestConnectValidation(t *testing.T) {
 				t.Fatalf("Connect() error = %v, want %q", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestHTTPTransportConfiguresOAuthHandler(t *testing.T) {
+	transport, err := newHTTPTransport(Config{
+		Name:  "test",
+		URL:   "http://example.com/mcp",
+		OAuth: &oauth.Config{},
+	}, transportOptions{OAuthInteractive: true})
+	if err != nil {
+		t.Fatalf("newHTTPTransport() error = %v", err)
+	}
+
+	streamable, ok := transport.(*mcpsdk.StreamableClientTransport)
+	if !ok {
+		t.Fatalf("transport = %T, want streamable", transport)
+	}
+
+	if streamable.OAuthHandler == nil {
+		t.Fatal("OAuthHandler is nil, want configured handler")
+	}
+}
+
+func TestHTTPTransportSkipsDisabledOAuth(t *testing.T) {
+	enabled := false
+
+	transport, err := newHTTPTransport(Config{
+		Name: "test",
+		URL:  "http://example.com/mcp",
+		OAuth: &oauth.Config{
+			Enabled: &enabled,
+		},
+	}, transportOptions{})
+	if err != nil {
+		t.Fatalf("newHTTPTransport() error = %v", err)
+	}
+
+	streamable, ok := transport.(*mcpsdk.StreamableClientTransport)
+	if !ok {
+		t.Fatalf("transport = %T, want streamable", transport)
+	}
+
+	if streamable.OAuthHandler != nil {
+		t.Fatal("OAuthHandler is configured, want nil")
+	}
+}
+
+func TestConnectUsesTransportFactory(t *testing.T) {
+	want := errors.New("transport boom")
+	factory := &fakeTransportFactory{err: want}
+	client := newSDKClient(Config{Name: "test"})
+	client.newTransport = factory.New
+
+	err := client.Connect(context.Background())
+	if !errors.Is(err, want) {
+		t.Fatalf("Connect() error = %v, want %v", err, want)
+	}
+
+	if factory.calls != 1 {
+		t.Fatalf("transport factory calls = %d, want 1", factory.calls)
+	}
+
+	if factory.config.Name != "test" {
+		t.Fatalf("transport factory config = %+v, want test config", factory.config)
+	}
+
+	if factory.options.OAuthInteractive {
+		t.Fatal("transport factory OAuthInteractive = true, want false")
+	}
+
+	state := client.State()
+	if state.Status != ClientFailed || state.Error != want.Error() {
+		t.Fatalf("state = %+v, want failed with transport error", state)
+	}
+}
+
+func TestConnectMapsOAuthAuthorizationRequiredStatus(t *testing.T) {
+	factory := &fakeTransportFactory{err: fmt.Errorf("wrapped: %w", oauth.ErrAuthorizationRequired)}
+	client := newSDKClient(Config{Name: "test"})
+	client.newTransport = factory.New
+
+	_ = client.Connect(context.Background())
+
+	state := client.State()
+	if state.Status != ClientAuthRequired {
+		t.Fatalf("Status = %q, want auth_required", state.Status)
+	}
+
+	if state.Error != oauth.ErrAuthorizationRequired.Error() {
+		t.Fatalf("Error = %q, want auth required", state.Error)
+	}
+}
+
+func TestAuthenticateUsesInteractiveOAuthTransport(t *testing.T) {
+	factory := &fakeTransportFactory{err: errors.New("transport boom")}
+	client := newSDKClient(Config{
+		Name: "test",
+		OAuth: &oauth.Config{
+			Enabled: nil,
+		},
+	})
+	client.newTransport = factory.New
+
+	_ = client.Authenticate(context.Background())
+
+	if !factory.options.OAuthInteractive {
+		t.Fatal("transport factory OAuthInteractive = false, want true")
 	}
 }
 
@@ -403,4 +513,19 @@ func eventually(t *testing.T, timeout time.Duration, ok func() bool) {
 	if !ok() {
 		t.Fatal("condition was not met before timeout")
 	}
+}
+
+type fakeTransportFactory struct {
+	config  Config
+	options transportOptions
+	err     error
+	calls   int
+}
+
+func (f *fakeTransportFactory) New(config Config, opts transportOptions) (mcpsdk.Transport, error) {
+	f.config = config
+	f.options = opts
+	f.calls++
+
+	return nil, f.err
 }

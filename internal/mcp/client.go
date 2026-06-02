@@ -8,6 +8,8 @@ import (
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/vitaliiPsl/crappy-ai/internal/mcp/oauth"
+
 	"github.com/vitaliiPsl/crappy-adk/kit"
 )
 
@@ -17,7 +19,8 @@ const (
 )
 
 type sdkClient struct {
-	config Config
+	config       Config
+	newTransport func(Config, transportOptions) (mcpsdk.Transport, error)
 
 	connMu sync.Mutex
 	mu     sync.RWMutex
@@ -30,9 +33,14 @@ type sdkClient struct {
 }
 
 func NewClient(config Config) Client {
+	return newSDKClient(config)
+}
+
+func newSDKClient(config Config) *sdkClient {
 	return &sdkClient{
-		config: config,
-		status: ClientDisconnected,
+		config:       config,
+		newTransport: newTransport,
+		status:       ClientDisconnected,
 	}
 }
 
@@ -59,63 +67,44 @@ func (c *sdkClient) Connect(ctx context.Context) error {
 	c.connMu.Lock()
 	defer c.connMu.Unlock()
 
-	if !c.config.IsEnabled() {
-		return fmt.Errorf("mcp: client is disabled")
-	}
-
 	if session, _ := c.activeSession(); session != nil {
 		return nil
 	}
 
-	c.setStatus(ClientConnecting, nil)
+	return c.connectLocked(ctx, transportOptions{})
+}
 
-	session, err := c.dial(ctx)
-	if err != nil {
-		c.setStatus(ClientFailed, err)
+func (c *sdkClient) Authenticate(ctx context.Context) error {
+	c.connMu.Lock()
+	defer c.connMu.Unlock()
 
+	if c.config.OAuth == nil || !c.config.OAuth.IsEnabled() {
+		return fmt.Errorf("mcp: client %q has no oauth configuration", c.config.Name)
+	}
+
+	if err := c.closeLocked(); err != nil {
 		return err
 	}
 
-	tools, err := c.fetchTools(ctx, session)
-	if err != nil {
-		_ = session.Close()
-
-		c.setStatus(ClientFailed, err)
-
-		return err
-	}
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.session = session
-	c.tools = tools
-
-	c.status = ClientConnected
-	c.err = nil
-
-	return nil
+	return c.connectLocked(ctx, transportOptions{OAuthInteractive: true})
 }
 
 func (c *sdkClient) Close() error {
 	c.connMu.Lock()
 	defer c.connMu.Unlock()
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	return c.closeLocked()
+}
 
-	session := c.session
-	c.session = nil
-	c.tools = nil
+func (c *sdkClient) ListTools(_ context.Context) ([]kit.Tool, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
-	c.status = ClientDisconnected
-	c.err = nil
-
-	if session == nil {
-		return nil
+	if c.session == nil || c.status != ClientConnected {
+		return nil, fmt.Errorf("mcp: client is not connected")
 	}
 
-	return session.Close()
+	return c.tools, nil
 }
 
 func (c *sdkClient) CallTool(ctx context.Context, call kit.ToolCall) (kit.ToolResult, error) {
@@ -133,7 +122,7 @@ func (c *sdkClient) CallTool(ctx context.Context, call kit.ToolCall) (kit.ToolRe
 	})
 	if err != nil {
 		if !isContextError(err) {
-			c.setStatus(ClientFailed, err)
+			c.handleError(err)
 		}
 
 		return kit.ToolResult{}, err
@@ -142,22 +131,64 @@ func (c *sdkClient) CallTool(ctx context.Context, call kit.ToolCall) (kit.ToolRe
 	return convertToolResult(call, res), nil
 }
 
-func (c *sdkClient) ListTools(_ context.Context) ([]kit.Tool, error) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	if c.session == nil || c.status != ClientConnected {
-		return nil, fmt.Errorf("mcp: client is not connected")
+func (c *sdkClient) connectLocked(ctx context.Context, opts transportOptions) error {
+	if !c.config.IsEnabled() {
+		return fmt.Errorf("mcp: client is disabled")
 	}
 
-	return c.tools, nil
+	c.setStatus(ClientConnecting, nil)
+
+	session, err := c.dial(ctx, opts)
+	if err != nil {
+		c.handleError(err)
+
+		return err
+	}
+
+	tools, err := c.fetchTools(ctx, session)
+	if err != nil {
+		_ = session.Close()
+
+		c.handleError(err)
+
+		return err
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.session = session
+	c.tools = tools
+
+	c.status = ClientConnected
+	c.err = nil
+
+	return nil
 }
 
-func (c *sdkClient) dial(ctx context.Context) (*mcpsdk.ClientSession, error) {
+func (c *sdkClient) closeLocked() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	session := c.session
+	c.session = nil
+	c.tools = nil
+
+	c.status = ClientDisconnected
+	c.err = nil
+
+	if session == nil {
+		return nil
+	}
+
+	return session.Close()
+}
+
+func (c *sdkClient) dial(ctx context.Context, opts transportOptions) (*mcpsdk.ClientSession, error) {
 	ctx, cancelConnect := withTimeout(ctx, c.config.ConnectTimeout)
 	defer cancelConnect()
 
-	transport, err := buildTransport(c.config)
+	transport, err := c.newTransport(c.config, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -213,7 +244,7 @@ func (c *sdkClient) refetchTools(ctx context.Context) {
 	tools, err := c.fetchTools(ctx, session)
 	if err != nil {
 		if !isContextError(err) {
-			c.setStatus(ClientFailed, err)
+			c.handleError(err)
 		}
 
 		return
@@ -241,6 +272,16 @@ func (c *sdkClient) setStatus(status ClientStatus, err error) {
 
 	c.status = status
 	c.err = err
+}
+
+func (c *sdkClient) handleError(err error) {
+	if errors.Is(err, oauth.ErrAuthorizationRequired) {
+		c.setStatus(ClientAuthRequired, oauth.ErrAuthorizationRequired)
+
+		return
+	}
+
+	c.setStatus(ClientFailed, err)
 }
 
 func isContextError(err error) bool {

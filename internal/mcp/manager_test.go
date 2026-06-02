@@ -15,6 +15,7 @@ type fakeClient struct {
 	err    error
 
 	connects int
+	auths    int
 	closes   int
 	called   kit.ToolCall
 	result   kit.ToolResult
@@ -40,6 +41,12 @@ func (c *fakeClient) State() ClientState {
 
 func (c *fakeClient) Connect(context.Context) error {
 	c.connects++
+
+	return c.err
+}
+
+func (c *fakeClient) Authenticate(context.Context) error {
+	c.auths++
 
 	return c.err
 }
@@ -123,5 +130,17 @@ func TestManagerReconnectUnknownClient(t *testing.T) {
 	err := newManager(&fakeClient{config: Config{Name: "github"}}).Reconnect(context.Background(), "missing")
 	if err == nil || err.Error() != `mcp: unknown client "missing"` {
 		t.Fatalf("Reconnect error = %v, want unknown client", err)
+	}
+}
+
+func TestManagerAuthenticateClient(t *testing.T) {
+	client := &fakeClient{config: Config{Name: "github"}}
+
+	if err := newManager(client).Authenticate(context.Background(), "github"); err != nil {
+		t.Fatalf("Authenticate: %v", err)
+	}
+
+	if client.auths != 1 {
+		t.Fatalf("auths = %d, want 1", client.auths)
 	}
 }

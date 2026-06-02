@@ -15,7 +15,7 @@ type Manager struct {
 func New(configs []Config) *Manager {
 	clients := make(map[string]Client, len(configs))
 	for _, cfg := range configs {
-		clients[cfg.Name] = NewClient(cfg)
+		clients[cfg.Name] = newSDKClient(cfg)
 	}
 
 	return &Manager{
@@ -52,6 +52,15 @@ func (m *Manager) Reconnect(ctx context.Context, name string) error {
 	}
 
 	return client.Connect(ctx)
+}
+
+func (m *Manager) Authenticate(ctx context.Context, name string) error {
+	client, ok := m.clients[name]
+	if !ok {
+		return fmt.Errorf("mcp: unknown client %q", name)
+	}
+
+	return client.Authenticate(ctx)
 }
 
 func (m *Manager) Close() error {

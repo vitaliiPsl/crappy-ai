@@ -7,20 +7,26 @@ import (
 	"os/exec"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/vitaliiPsl/crappy-ai/internal/mcp/oauth"
 )
 
-func buildTransport(cfg Config) (mcpsdk.Transport, error) {
+type transportOptions struct {
+	OAuthInteractive bool
+}
+
+func newTransport(cfg Config, opts transportOptions) (mcpsdk.Transport, error) {
 	switch cfg.Transport {
 	case "", TransportStdio:
-		return stdioTransport(cfg)
+		return newStdioTransport(cfg)
 	case TransportHTTP:
-		return httpTransport(cfg)
+		return newHTTPTransport(cfg, opts)
 	default:
 		return nil, fmt.Errorf("mcp: client %q has unsupported transport %q", cfg.Name, cfg.Transport)
 	}
 }
 
-func stdioTransport(cfg Config) (mcpsdk.Transport, error) {
+func newStdioTransport(cfg Config) (mcpsdk.Transport, error) {
 	if cfg.Command == "" {
 		return nil, fmt.Errorf("mcp: client %q has no command for stdio transport", cfg.Name)
 	}
@@ -33,24 +39,37 @@ func stdioTransport(cfg Config) (mcpsdk.Transport, error) {
 	}, nil
 }
 
-func httpTransport(cfg Config) (mcpsdk.Transport, error) {
+func newHTTPTransport(cfg Config, opts transportOptions) (mcpsdk.Transport, error) {
 	if cfg.URL == "" {
 		return nil, fmt.Errorf("mcp: client %q has no url for http transport", cfg.Name)
 	}
 
-	httpClient, err := authHTTPClient(cfg)
+	httpClient, err := httpClientWithStaticHeaders(cfg)
 	if err != nil {
 		return nil, err
 	}
 
+	oauthHandler, err := oauth.NewHandler(oauth.HandlerConfig{
+		Config:      cfg.OAuth,
+		ClientName:  clientName,
+		ClientLabel: clientName,
+		Version:     clientVersion,
+		HTTPClient:  httpClient,
+		Interactive: opts.OAuthInteractive,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("mcp: client %q oauth: %w", cfg.Name, err)
+	}
+
 	return &mcpsdk.StreamableClientTransport{
-		Endpoint:   cfg.URL,
-		HTTPClient: httpClient,
+		Endpoint:     cfg.URL,
+		HTTPClient:   httpClient,
+		OAuthHandler: oauthHandler,
 	}, nil
 }
 
-func authHTTPClient(cfg Config) (*http.Client, error) {
-	headers, err := headers(cfg)
+func httpClientWithStaticHeaders(cfg Config) (*http.Client, error) {
+	headers, err := staticHeaders(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -60,14 +79,14 @@ func authHTTPClient(cfg Config) (*http.Client, error) {
 	}
 
 	return &http.Client{
-		Transport: authTransport{
+		Transport: staticHeaderTransport{
 			base:    http.DefaultTransport,
 			headers: headers,
 		},
 	}, nil
 }
 
-func headers(cfg Config) (http.Header, error) {
+func staticHeaders(cfg Config) (http.Header, error) {
 	headers := make(http.Header)
 
 	for name, value := range cfg.Headers {
@@ -86,16 +105,20 @@ func headers(cfg Config) (http.Header, error) {
 	return headers, nil
 }
 
-type authTransport struct {
+type staticHeaderTransport struct {
 	base    http.RoundTripper
 	headers http.Header
 }
 
-func (t authTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+func (t staticHeaderTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	cloned := req.Clone(req.Context())
 	cloned.Header = req.Header.Clone()
 
 	for name, values := range t.headers {
+		if cloned.Header.Get(name) != "" {
+			continue
+		}
+
 		for _, value := range values {
 			cloned.Header.Set(name, value)
 		}

@@ -88,7 +88,11 @@ mcp:
 
 ## Authentication
 
-Remote servers often need a credential. Crappy sends it as an HTTP header.
+Remote servers often need credentials. Crappy supports static HTTP headers and OAuth for HTTP MCP servers.
+
+### Headers
+
+Use static headers when the server expects an API key, bearer token, tenant ID, or another fixed request header.
 
 Set a header directly with `headers`:
 
@@ -97,10 +101,9 @@ mcp:
   - name: internal
     type: http
     url: https://mcp.internal.example.com
-    auth:
-      headers:
-        Authorization: "Bearer static-token"
-        X-Tenant: acme
+    headers:
+      Authorization: "Bearer static-token"
+      X-Tenant: acme
 ```
 
 Or read the header value from an environment variable with `header_env`, which keeps secrets out of the settings file:
@@ -110,9 +113,8 @@ mcp:
   - name: github
     type: http
     url: https://api.githubcopilot.com/mcp/
-    auth:
-      header_env:
-        Authorization: GITHUB_MCP_TOKEN
+    header_env:
+      Authorization: GITHUB_MCP_TOKEN
 ```
 
 `headers` maps a header name to a literal value.
@@ -124,6 +126,85 @@ export GITHUB_MCP_TOKEN="Bearer ghp_..."
 ```
 
 If a referenced environment variable is empty, the server fails to connect and reports the missing variable.
+
+Static headers are added to MCP HTTP requests unless that header is already set by the MCP transport. This lets OAuth-provided headers, such as `Authorization`, take precedence over static fallback headers.
+
+### OAuth
+
+HTTP MCP servers that support OAuth can use an authorization-code flow. OAuth is passive during startup: Crappy detects that authorization is needed, but it does not open a browser until you ask it to.
+
+Enable OAuth on the server:
+
+```yaml
+mcp:
+  - name: sentry
+    type: http
+    url: https://mcp.sentry.dev/mcp
+    oauth:
+      enabled: true
+```
+
+When the server asks for authorization, Crappy marks the MCP client as `auth required`. Open the MCP clients screen and press `a` on that client to start the OAuth flow. Crappy then starts a local callback server, opens the authorization URL in your browser, and retries the MCP connection after the callback completes. The callback server only lives for that one authentication attempt and shuts down after success, failure, or cancellation.
+
+By default the callback URL is:
+
+```text
+http://127.0.0.1:14545/oauth/callback
+```
+
+You can customize it:
+
+```yaml
+mcp:
+  - name: sentry
+    type: http
+    url: https://mcp.sentry.dev/mcp
+    oauth:
+      callback_host: 127.0.0.1
+      callback_port: 14546
+```
+
+When you press `a` to authenticate, Crappy opens the authorization URL in your browser. If the browser cannot be opened, the authentication attempt fails and the MCP client reports the error.
+
+Crappy supports three OAuth client registration modes.
+
+With dynamic registration, the authorization server gives Crappy a client ID during the OAuth flow. This is the default when no `client_id` or `client_id_metadata_url` is configured:
+
+```yaml
+mcp:
+  - name: sentry
+    type: http
+    url: https://mcp.sentry.dev/mcp
+    oauth:
+      enabled: true
+```
+
+For a pre-registered OAuth client, provide the client ID and, if needed, a client secret:
+
+```yaml
+mcp:
+  - name: internal
+    type: http
+    url: https://mcp.internal.example.com/mcp
+    oauth:
+      client_id: crappy-local
+      client_secret_env: INTERNAL_MCP_CLIENT_SECRET
+      redirect_url: http://127.0.0.1:14545/oauth/callback
+```
+
+For an OAuth server that supports Client ID Metadata Documents, provide the metadata document URL:
+
+```yaml
+mcp:
+  - name: internal
+    type: http
+    url: https://mcp.internal.example.com/mcp
+    oauth:
+      client_id_metadata_url: https://example.com/crappy/oauth-client.json
+      redirect_url: http://127.0.0.1:14545/oauth/callback
+```
+
+Set `dynamic_registration: false` if the server must not try dynamic registration.
 
 ## Timeouts
 
@@ -168,9 +249,10 @@ A server moves through these states:
 - `disconnected` — not connected yet
 - `connecting` — establishing the connection
 - `connected` — ready, tools available
+- `auth_required` — the server needs OAuth; authenticate it from the MCP clients screen
 - `failed` — the last attempt errored
 
-If a connection drops or a call fails, the server moves to `failed`. A failed server shows its error so you can see why it could not connect.
+If a connection drops or a non-auth call fails, the server moves to `failed`. If an OAuth-enabled server asks for authorization, the server moves to `auth_required` instead. A failed server shows its error so you can see why it could not connect.
 
 ## See Also
 
