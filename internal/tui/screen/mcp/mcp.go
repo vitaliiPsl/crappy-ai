@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -14,7 +15,7 @@ import (
 
 const (
 	headerText    = "MCP Clients"
-	hintsText     = "j/Down Move • r Refresh • Esc Back"
+	hintsText     = "j/Down Move • r Refresh • c Reconnect • Esc Back"
 	emptyTitle    = "No MCP clients configured"
 	emptySubtitle = "Add mcp to settings.yaml."
 
@@ -104,6 +105,8 @@ func (m Model) handleKey(key tea.KeyMsg) (Model, tea.Cmd) {
 		return m.moveCursor(1)
 	case "r":
 		return m, m.loadStates()
+	case "c":
+		return m.reconnectSelected()
 	case "esc":
 		return m, func() tea.Msg { return ClosedMsg{} }
 	}
@@ -150,6 +153,30 @@ func (m Model) loadConfigs() tea.Cmd {
 
 func (m Model) loadStates() tea.Cmd {
 	return func() tea.Msg {
+		return statesLoadedMsg{states: m.server.GetMCPClientStates()}
+	}
+}
+
+func (m Model) reconnectSelected() (Model, tea.Cmd) {
+	if m.cursor < 0 || m.cursor >= len(m.configs) {
+		return m, nil
+	}
+
+	cfg := m.configs[m.cursor]
+	if !cfg.IsEnabled() {
+		return m, nil
+	}
+
+	// Flip the badge to "connecting" right away so the keypress visibly does
+	// something; the reconnect resolves it to connected/failed when it lands.
+	if m.cursor < len(m.states) {
+		m.states[m.cursor] = coremcp.ClientState{Status: coremcp.ClientConnecting}
+		m.refreshContent()
+	}
+
+	return m, func() tea.Msg {
+		_ = m.server.ReconnectMCPClient(context.Background(), cfg.Name)
+
 		return statesLoadedMsg{states: m.server.GetMCPClientStates()}
 	}
 }
