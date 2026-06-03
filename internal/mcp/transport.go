@@ -16,18 +16,18 @@ type TransportFactory func(Config, transportOptions) (mcpsdk.Transport, error)
 
 type transportOptions struct {
 	OAuthInteractive  bool
-	OAuthPrompter     oauth.Prompter
 	OAuthSessionStore oauth.Store
+	OAuthCallback     oauth.Callback
 }
 
 func NewTransportFactory(options Options) TransportFactory {
 	return func(cfg Config, opts transportOptions) (mcpsdk.Transport, error) {
-		if opts.OAuthPrompter == nil {
-			opts.OAuthPrompter = options.OAuthPrompter
-		}
-
 		if opts.OAuthSessionStore == nil {
 			opts.OAuthSessionStore = options.OAuthSessionStore
+		}
+
+		if opts.OAuthCallback == nil {
+			opts.OAuthCallback = options.OAuthCallback
 		}
 
 		return newTransport(cfg, opts)
@@ -96,7 +96,6 @@ func newOAuthHandler(cfg Config, httpClient *http.Client, opts transportOptions)
 		RedirectURL: redirectURL,
 		Scopes:      cfg.OAuth.Scopes,
 		HTTPClient:  httpClient,
-		Callback:    oauth.NewCallbackServer(redirectURL, opts.OAuthPrompter),
 		Registration: oauth.RegistrationInfo{
 			ClientID:     cfg.OAuth.ClientID,
 			ClientSecret: cfg.OAuth.ResolveClientSecret(),
@@ -106,11 +105,13 @@ func newOAuthHandler(cfg Config, httpClient *http.Client, opts transportOptions)
 		},
 	}
 
+	// Only an interactive request gets a callback; without one the handler
+	// reports ErrAuthorizationRequired instead of prompting the user.
 	if opts.OAuthInteractive {
-		return oauth.NewInteractiveHandler(config), nil
+		config.Callback = opts.OAuthCallback
 	}
 
-	return oauth.NewPassiveHandler(config), nil
+	return oauth.New(config), nil
 }
 
 func httpClientWithStaticHeaders(cfg Config) (*http.Client, error) {

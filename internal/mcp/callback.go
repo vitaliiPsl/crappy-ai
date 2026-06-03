@@ -1,4 +1,4 @@
-package oauth
+package mcp
 
 import (
 	"context"
@@ -7,13 +7,16 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os/exec"
+	"runtime"
 	"time"
 )
 
-type CallbackServer struct {
-	redirectURL string
-	prompter    Prompter
-}
+// BrowserCallback resolves the OAuth authorization code by opening the user's
+// browser at the authorization URL and capturing the redirect on a loopback
+// listener. The loopback address is read from the authorization URL's
+// redirect_uri, so one callback serves every client.
+type BrowserCallback struct{}
 
 type callbackResult struct {
 	code  string
@@ -21,19 +24,12 @@ type callbackResult struct {
 	err   error
 }
 
-func NewCallbackServer(redirectURL string, prompter Prompter) *CallbackServer {
-	if prompter == nil {
-		prompter = NewBrowserPrompter()
-	}
-
-	return &CallbackServer{
-		redirectURL: redirectURL,
-		prompter:    prompter,
-	}
+func NewBrowserCallback() *BrowserCallback {
+	return &BrowserCallback{}
 }
 
-func (s *CallbackServer) Wait(ctx context.Context, authURL string) (string, string, error) {
-	redirect, err := url.Parse(s.redirectURL)
+func (c *BrowserCallback) Wait(ctx context.Context, authURL string) (string, string, error) {
+	redirect, err := redirectURI(authURL)
 	if err != nil {
 		return "", "", err
 	}
@@ -43,14 +39,14 @@ func (s *CallbackServer) Wait(ctx context.Context, authURL string) (string, stri
 
 	listener, err := net.Listen("tcp", redirect.Host)
 	if err != nil {
-		return "", "", fmt.Errorf("start oauth callback listener: %w", err)
+		return "", "", fmt.Errorf("mcp: start oauth callback listener: %w", err)
 	}
 
-	go s.serve(server, listener, resultCh)
-	defer s.shutdown(server)
+	go serveCallback(server, listener, resultCh)
+	defer shutdownCallback(server)
 
-	if err := s.prompter.Prompt(authURL); err != nil {
-		return "", "", fmt.Errorf("prompt oauth authorization URL: %w", err)
+	if err := openBrowser(authURL); err != nil {
+		return "", "", fmt.Errorf("mcp: open oauth authorization URL: %w", err)
 	}
 
 	select {
@@ -61,13 +57,27 @@ func (s *CallbackServer) Wait(ctx context.Context, authURL string) (string, stri
 	}
 }
 
-func (s *CallbackServer) serve(server *http.Server, listener net.Listener, resultCh chan<- callbackResult) {
+func redirectURI(authURL string) (*url.URL, error) {
+	u, err := url.Parse(authURL)
+	if err != nil {
+		return nil, err
+	}
+
+	raw := u.Query().Get("redirect_uri")
+	if raw == "" {
+		return nil, errors.New("mcp: authorization URL has no redirect_uri")
+	}
+
+	return url.Parse(raw)
+}
+
+func serveCallback(server *http.Server, listener net.Listener, resultCh chan<- callbackResult) {
 	if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		sendCallbackResult(resultCh, callbackResult{err: err})
 	}
 }
 
-func (s *CallbackServer) shutdown(server *http.Server) {
+func shutdownCallback(server *http.Server) {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
@@ -114,4 +124,18 @@ func sendCallbackResult(resultCh chan<- callbackResult, result callbackResult) {
 	case resultCh <- result:
 	default:
 	}
+}
+
+func openBrowser(authURL string) error {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", authURL)
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", authURL)
+	default:
+		cmd = exec.Command("xdg-open", authURL)
+	}
+
+	return cmd.Start()
 }

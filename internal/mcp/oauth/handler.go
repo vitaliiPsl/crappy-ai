@@ -30,25 +30,33 @@ type HandlerConfig struct {
 	RedirectURL string
 	Scopes      []string
 
-	HTTPClient   *http.Client
 	Callback     Callback
+	HTTPClient   *http.Client
 	Registration RegistrationInfo
 }
 
 type handler struct {
-	config      HandlerConfig
-	interactive bool
+	config     HandlerConfig
+	authorizer *Authorizer
 
 	mu     sync.Mutex
 	source oauth2.TokenSource
 }
 
-func NewPassiveHandler(config HandlerConfig) mcpauth.OAuthHandler {
-	return &handler{config: config, interactive: false}
-}
+func New(config HandlerConfig) mcpauth.OAuthHandler {
+	authorizer := NewAuthorizer(AuthorizerConfig{
+		Key:          config.Key,
+		RedirectURL:  config.RedirectURL,
+		Scopes:       config.Scopes,
+		Callback:     config.Callback,
+		HTTPClient:   config.HTTPClient,
+		Registration: config.Registration,
+	})
 
-func NewInteractiveHandler(config HandlerConfig) mcpauth.OAuthHandler {
-	return &handler{config: config, interactive: true}
+	return &handler{
+		config:     config,
+		authorizer: authorizer,
+	}
 }
 
 func (h *handler) TokenSource(ctx context.Context) (oauth2.TokenSource, error) {
@@ -64,19 +72,19 @@ func (h *handler) TokenSource(ctx context.Context) (oauth2.TokenSource, error) {
 		return nil, err
 	}
 
-	h.source = h.refreshingSource(*session)
+	h.source = newPersistingSource(*session, h.config.Key, h.config.Store)
 
 	return h.source, nil
 }
 
 func (h *handler) Authorize(ctx context.Context, _ *http.Request, resp *http.Response) error {
-	if !h.interactive {
+	if h.config.Callback == nil {
 		closeResponse(resp)
 
 		return ErrAuthorizationRequired
 	}
 
-	session, err := h.authorize(ctx, resp)
+	session, err := h.authorizer.Authorize(ctx, resp)
 	if err != nil {
 		return err
 	}
@@ -86,28 +94,8 @@ func (h *handler) Authorize(ctx context.Context, _ *http.Request, resp *http.Res
 	}
 
 	h.mu.Lock()
-	h.source = h.refreshingSource(session)
+	h.source = newPersistingSource(session, h.config.Key, h.config.Store)
 	h.mu.Unlock()
 
 	return nil
-}
-
-func (h *handler) refreshingSource(session Session) oauth2.TokenSource {
-	cfg := session.oauthConfig(h.config.RedirectURL)
-	base := cfg.TokenSource(h.clientContext(context.Background()), session.oauthToken())
-
-	return &persistingSource{
-		base:    base,
-		key:     h.config.Key,
-		store:   h.config.Store,
-		session: session,
-	}
-}
-
-func (h *handler) clientContext(ctx context.Context) context.Context {
-	if h.config.HTTPClient == nil {
-		return ctx
-	}
-
-	return context.WithValue(ctx, oauth2.HTTPClient, h.config.HTTPClient)
 }

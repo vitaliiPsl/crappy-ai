@@ -23,28 +23,47 @@ type endpoints struct {
 	scopes          []string
 }
 
-func (h *handler) authorize(ctx context.Context, resp *http.Response) (Session, error) {
-	found, err := h.discover(ctx, readChallenge(resp))
+type AuthorizerConfig struct {
+	Key          Key
+	RedirectURL  string
+	Scopes       []string
+	Callback     Callback
+	HTTPClient   *http.Client
+	Registration RegistrationInfo
+}
+
+type Authorizer struct {
+	config AuthorizerConfig
+}
+
+func NewAuthorizer(config AuthorizerConfig) *Authorizer {
+	return &Authorizer{config: config}
+}
+
+func (a *Authorizer) Authorize(ctx context.Context, resp *http.Response) (Session, error) {
+	challenge := readChallenge(resp)
+
+	found, err := a.discover(ctx, challenge)
 	if err != nil {
 		return Session{}, err
 	}
 
-	clientID, clientSecret, err := h.client(ctx, found.registrationURL)
+	clientID, clientSecret, err := a.client(ctx, found.registrationURL)
 	if err != nil {
 		return Session{}, err
 	}
 
 	session := Session{
-		ServerURL:    h.config.Key.ServerURL,
+		ServerURL:    a.config.Key.ServerURL,
 		Resource:     found.resource,
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
 		AuthURL:      found.authURL,
 		TokenURL:     found.tokenURL,
-		Scopes:       h.scopes(found.scopes),
+		Scopes:       a.scopes(found.scopes),
 	}
 
-	token, err := h.exchange(ctx, session.oauthConfig(h.config.RedirectURL), found.resource)
+	token, err := a.exchange(ctx, session.oauthConfig(a.config.RedirectURL), found.resource)
 	if err != nil {
 		return Session{}, err
 	}
@@ -52,15 +71,15 @@ func (h *handler) authorize(ctx context.Context, resp *http.Response) (Session, 
 	return withToken(session, token), nil
 }
 
-func (h *handler) discover(ctx context.Context, metadataURL string) (endpoints, error) {
-	prm, err := h.resourceMetadata(ctx, metadataURL)
+func (a *Authorizer) discover(ctx context.Context, metadataURL string) (endpoints, error) {
+	prm, err := a.resourceMetadata(ctx, metadataURL)
 	if err != nil {
 		return endpoints{}, err
 	}
 
 	issuer := prm.AuthorizationServers[0]
 
-	asm, err := h.authServerMeta(ctx, issuer)
+	asm, err := a.authServerMeta(ctx, issuer)
 	if err != nil {
 		return endpoints{}, err
 	}
@@ -74,9 +93,9 @@ func (h *handler) discover(ctx context.Context, metadataURL string) (endpoints, 
 	}, nil
 }
 
-func (h *handler) resourceMetadata(ctx context.Context, metadataURL string) (*oauthex.ProtectedResourceMetadata, error) {
-	for _, candidate := range resourceMetadataURLs(metadataURL, h.config.Key.ServerURL) {
-		prm, err := oauthex.GetProtectedResourceMetadata(ctx, candidate.url, candidate.resource, h.config.HTTPClient)
+func (a *Authorizer) resourceMetadata(ctx context.Context, metadataURL string) (*oauthex.ProtectedResourceMetadata, error) {
+	for _, candidate := range resourceMetadataURLs(metadataURL, a.config.Key.ServerURL) {
+		prm, err := oauthex.GetProtectedResourceMetadata(ctx, candidate.url, candidate.resource, a.config.HTTPClient)
 		if err != nil || prm == nil {
 			continue
 		}
@@ -88,12 +107,12 @@ func (h *handler) resourceMetadata(ctx context.Context, metadataURL string) (*oa
 		return prm, nil
 	}
 
-	return nil, fmt.Errorf("oauth: no protected resource metadata for %q", h.config.Key.ServerURL)
+	return nil, fmt.Errorf("oauth: no protected resource metadata for %q", a.config.Key.ServerURL)
 }
 
-func (h *handler) authServerMeta(ctx context.Context, issuer string) (*oauthex.AuthServerMeta, error) {
+func (a *Authorizer) authServerMeta(ctx context.Context, issuer string) (*oauthex.AuthServerMeta, error) {
 	for _, metadataURL := range authServerMetadataURLs(issuer) {
-		asm, err := oauthex.GetAuthServerMeta(ctx, metadataURL, issuer, h.config.HTTPClient)
+		asm, err := oauthex.GetAuthServerMeta(ctx, metadataURL, issuer, a.config.HTTPClient)
 		if err != nil {
 			return nil, err
 		}
@@ -106,9 +125,9 @@ func (h *handler) authServerMeta(ctx context.Context, issuer string) (*oauthex.A
 	return nil, fmt.Errorf("oauth: no authorization server metadata for issuer %q", issuer)
 }
 
-func (h *handler) client(ctx context.Context, registrationURL string) (string, string, error) {
-	if h.config.Registration.ClientID != "" {
-		return h.config.Registration.ClientID, h.config.Registration.ClientSecret, nil
+func (a *Authorizer) client(ctx context.Context, registrationURL string) (string, string, error) {
+	if a.config.Registration.ClientID != "" {
+		return a.config.Registration.ClientID, a.config.Registration.ClientSecret, nil
 	}
 
 	if registrationURL == "" {
@@ -116,12 +135,12 @@ func (h *handler) client(ctx context.Context, registrationURL string) (string, s
 	}
 
 	resp, err := oauthex.RegisterClient(ctx, registrationURL, &oauthex.ClientRegistrationMetadata{
-		RedirectURIs:            []string{h.config.RedirectURL},
+		RedirectURIs:            []string{a.config.RedirectURL},
 		TokenEndpointAuthMethod: "none",
-		ClientName:              h.config.Registration.ClientName,
-		SoftwareID:              h.config.Registration.SoftwareID,
-		SoftwareVersion:         h.config.Registration.Version,
-	}, h.config.HTTPClient)
+		ClientName:              a.config.Registration.ClientName,
+		SoftwareID:              a.config.Registration.SoftwareID,
+		SoftwareVersion:         a.config.Registration.Version,
+	}, a.config.HTTPClient)
 	if err != nil {
 		return "", "", err
 	}
@@ -129,7 +148,7 @@ func (h *handler) client(ctx context.Context, registrationURL string) (string, s
 	return resp.ClientID, resp.ClientSecret, nil
 }
 
-func (h *handler) exchange(ctx context.Context, cfg oauth2.Config, resource string) (*oauth2.Token, error) {
+func (a *Authorizer) exchange(ctx context.Context, cfg oauth2.Config, resource string) (*oauth2.Token, error) {
 	verifier := oauth2.GenerateVerifier()
 
 	state, err := randomState()
@@ -141,7 +160,7 @@ func (h *handler) exchange(ctx context.Context, cfg oauth2.Config, resource stri
 
 	authURL := cfg.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.S256ChallengeOption(verifier), resourceParam)
 
-	code, returnedState, err := h.config.Callback.Wait(ctx, authURL)
+	code, returnedState, err := a.config.Callback.Wait(ctx, authURL)
 	if err != nil {
 		return nil, err
 	}
@@ -150,12 +169,12 @@ func (h *handler) exchange(ctx context.Context, cfg oauth2.Config, resource stri
 		return nil, errors.New("oauth: authorization state mismatch")
 	}
 
-	return cfg.Exchange(h.clientContext(ctx), code, oauth2.VerifierOption(verifier), resourceParam)
+	return cfg.Exchange(ctx, code, oauth2.VerifierOption(verifier), resourceParam)
 }
 
-func (h *handler) scopes(discovered []string) []string {
-	if len(h.config.Scopes) > 0 {
-		return h.config.Scopes
+func (a *Authorizer) scopes(discovered []string) []string {
+	if len(a.config.Scopes) > 0 {
+		return a.config.Scopes
 	}
 
 	return discovered

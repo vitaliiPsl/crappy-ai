@@ -16,7 +16,7 @@ type Manager struct {
 
 type Options struct {
 	OAuthSessionStore oauth.Store
-	OAuthPrompter     oauth.Prompter
+	OAuthCallback     oauth.Callback
 }
 
 type Option func(*Options)
@@ -27,9 +27,9 @@ func WithOAuthSessionStore(store oauth.Store) Option {
 	}
 }
 
-func WithOAuthPrompter(prompter oauth.Prompter) Option {
+func WithOAuthCallback(callback oauth.Callback) Option {
 	return func(options *Options) {
-		options.OAuthPrompter = prompter
+		options.OAuthCallback = callback
 	}
 }
 

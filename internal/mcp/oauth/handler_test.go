@@ -10,7 +10,7 @@ import (
 )
 
 func TestPassiveAuthorizeReturnsAuthorizationRequired(t *testing.T) {
-	handler := NewPassiveHandler(HandlerConfig{Store: newMemoryStore()})
+	handler := New(HandlerConfig{Store: newMemoryStore()})
 
 	err := handler.Authorize(context.Background(), nil, &http.Response{Body: http.NoBody})
 	if !errors.Is(err, ErrAuthorizationRequired) {
@@ -19,7 +19,7 @@ func TestPassiveAuthorizeReturnsAuthorizationRequired(t *testing.T) {
 }
 
 func TestTokenSourceNilWithoutStoredSession(t *testing.T) {
-	handler := NewPassiveHandler(HandlerConfig{Key: testKey(), Store: newMemoryStore()})
+	handler := New(HandlerConfig{Key: testKey(), Store: newMemoryStore()})
 
 	source, err := handler.TokenSource(context.Background())
 	if err != nil {
@@ -48,7 +48,7 @@ func TestTokenSourceUsesStoredSession(t *testing.T) {
 		t.Fatalf("Save() error = %v", err)
 	}
 
-	handler := NewPassiveHandler(HandlerConfig{Key: key, Store: store})
+	handler := New(HandlerConfig{Key: key, Store: store})
 
 	source, err := handler.TokenSource(context.Background())
 	if err != nil {

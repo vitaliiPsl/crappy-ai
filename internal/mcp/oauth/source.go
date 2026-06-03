@@ -7,6 +7,8 @@ import (
 	"golang.org/x/oauth2"
 )
 
+// persistingSource refreshes the access token from the stored refresh token and
+// writes the refreshed token back to the store whenever it changes
 type persistingSource struct {
 	base oauth2.TokenSource
 
@@ -16,6 +18,17 @@ type persistingSource struct {
 
 	mu      sync.Mutex
 	current string
+}
+
+func newPersistingSource(session Session, key Key, store Store) *persistingSource {
+	cfg := session.oauthConfig("")
+
+	return &persistingSource{
+		base:    cfg.TokenSource(context.Background(), session.oauthToken()),
+		key:     key,
+		store:   store,
+		session: session,
+	}
 }
 
 func (s *persistingSource) Token() (*oauth2.Token, error) {
