@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 
+	mcpauth "github.com/modelcontextprotocol/go-sdk/auth"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/mcp/oauth"
@@ -13,6 +14,7 @@ import (
 
 type transportOptions struct {
 	OAuthInteractive bool
+	OAuthPrompter    oauth.Prompter
 }
 
 func newTransport(cfg Config, opts transportOptions) (mcpsdk.Transport, error) {
@@ -49,14 +51,16 @@ func newHTTPTransport(cfg Config, opts transportOptions) (mcpsdk.Transport, erro
 		return nil, err
 	}
 
-	oauthHandler, err := oauth.NewHandler(oauth.HandlerConfig{
+	handlerConfig := oauth.HandlerConfig{
 		Config:      cfg.OAuth,
 		ClientName:  clientName,
 		ClientLabel: clientName,
 		Version:     clientVersion,
 		HTTPClient:  httpClient,
-		Interactive: opts.OAuthInteractive,
-	})
+		Prompter:    opts.OAuthPrompter,
+	}
+
+	oauthHandler, err := newOAuthHandler(handlerConfig, opts)
 	if err != nil {
 		return nil, fmt.Errorf("mcp: client %q oauth: %w", cfg.Name, err)
 	}
@@ -68,14 +72,18 @@ func newHTTPTransport(cfg Config, opts transportOptions) (mcpsdk.Transport, erro
 	}, nil
 }
 
+func newOAuthHandler(config oauth.HandlerConfig, opts transportOptions) (mcpauth.OAuthHandler, error) {
+	if opts.OAuthInteractive {
+		return oauth.NewInteractiveHandler(config)
+	}
+
+	return oauth.NewPassiveHandler(config)
+}
+
 func httpClientWithStaticHeaders(cfg Config) (*http.Client, error) {
 	headers, err := staticHeaders(cfg)
 	if err != nil {
 		return nil, err
-	}
-
-	if len(headers) == 0 {
-		return nil, nil
 	}
 
 	return &http.Client{

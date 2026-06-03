@@ -46,7 +46,7 @@ func (s *CallbackServer) Fetch(ctx context.Context, args *mcpauth.AuthorizationA
 	defer s.shutdown(server)
 
 	if err := s.prompter.Prompt(args.URL); err != nil {
-		return nil, fmt.Errorf("open oauth authorization URL: %w", err)
+		return nil, fmt.Errorf("prompt oauth authorization URL: %w", err)
 	}
 
 	select {
