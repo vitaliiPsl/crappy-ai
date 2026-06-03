@@ -19,7 +19,7 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/tools"
 	"github.com/vitaliiPsl/crappy-ai/internal/tui"
 
-	oauthtokenstore "github.com/vitaliiPsl/crappy-ai/internal/mcp/oauth/tokenstore"
+	oauthstore "github.com/vitaliiPsl/crappy-ai/internal/mcp/oauth/store"
 	sessionstore "github.com/vitaliiPsl/crappy-ai/internal/session/store"
 )
 
@@ -73,7 +73,7 @@ func run() error {
 		return fmt.Errorf("init session store: %w", err)
 	}
 
-	oauthStore, err := oauthtokenstore.NewFileStore(settingsStore.Get().OAuthPath)
+	oauthStore, err := oauthstore.NewFileStore(settingsStore.Get().OAuthPath)
 	if err != nil {
 		return fmt.Errorf("init oauth store: %w", err)
 	}

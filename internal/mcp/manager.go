@@ -15,13 +15,13 @@ type Manager struct {
 }
 
 type Options struct {
-	OAuthSessionStore oauth.SessionStore
+	OAuthSessionStore oauth.Store
 	OAuthPrompter     oauth.Prompter
 }
 
 type Option func(*Options)
 
-func WithOAuthSessionStore(store oauth.SessionStore) Option {
+func WithOAuthSessionStore(store oauth.Store) Option {
 	return func(options *Options) {
 		options.OAuthSessionStore = store
 	}

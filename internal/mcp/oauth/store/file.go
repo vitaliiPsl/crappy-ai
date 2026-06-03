@@ -1,4 +1,4 @@
-package tokenstore
+package store
 
 import (
 	"context"
@@ -29,7 +29,7 @@ func NewFileStore(path string) (*FileStore, error) {
 	return &FileStore{path: path}, nil
 }
 
-func (s *FileStore) Load(_ context.Context, key oauth.SessionKey) (*oauth.Session, error) {
+func (s *FileStore) Load(_ context.Context, key oauth.Key) (*oauth.Session, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -46,7 +46,7 @@ func (s *FileStore) Load(_ context.Context, key oauth.SessionKey) (*oauth.Sessio
 	return &session, nil
 }
 
-func (s *FileStore) Save(_ context.Context, key oauth.SessionKey, session oauth.Session) error {
+func (s *FileStore) Save(_ context.Context, key oauth.Key, session oauth.Session) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -60,7 +60,7 @@ func (s *FileStore) Save(_ context.Context, key oauth.SessionKey, session oauth.
 	return s.write(file)
 }
 
-func (s *FileStore) Delete(_ context.Context, key oauth.SessionKey) error {
+func (s *FileStore) Delete(_ context.Context, key oauth.Key) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

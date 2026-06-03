@@ -7,31 +7,37 @@ import (
 	"golang.org/x/oauth2"
 )
 
-type SessionStore interface {
-	Load(ctx context.Context, key SessionKey) (*Session, error)
-	Save(ctx context.Context, key SessionKey, session Session) error
-	Delete(ctx context.Context, key SessionKey) error
+type Store interface {
+	Load(ctx context.Context, key Key) (*Session, error)
+	Save(ctx context.Context, key Key, session Session) error
+	Delete(ctx context.Context, key Key) error
 }
 
-type SessionKey struct {
+type Key struct {
 	ServerName string
 	ServerURL  string
 }
 
-func NewSessionKey(serverName, serverURL string) SessionKey {
-	return SessionKey{
-		ServerName: serverName,
-		ServerURL:  serverURL,
-	}
+func NewKey(serverName, serverURL string) Key {
+	return Key{ServerName: serverName, ServerURL: serverURL}
 }
 
-func (k SessionKey) ID() string {
+func (k Key) ID() string {
 	return k.ServerName + "|" + k.ServerURL
 }
 
 type Session struct {
 	ServerURL string `json:"server_url"`
-	Token     Token  `json:"token"`
+	Resource  string `json:"resource,omitempty"`
+
+	ClientID     string `json:"client_id"`
+	ClientSecret string `json:"client_secret,omitempty"`
+
+	AuthURL  string   `json:"auth_url"`
+	TokenURL string   `json:"token_url"`
+	Scopes   []string `json:"scopes,omitempty"`
+
+	Token Token `json:"token"`
 }
 
 type Token struct {
@@ -39,40 +45,41 @@ type Token struct {
 	RefreshToken string    `json:"refresh_token,omitempty"`
 	TokenType    string    `json:"token_type,omitempty"`
 	ExpiresAt    time.Time `json:"expires_at,omitempty"`
-	Scope        string    `json:"scope,omitempty"`
 }
 
-func sessionFromToken(serverURL string, token *oauth2.Token) Session {
-	session := Session{
-		ServerURL: serverURL,
-		Token: Token{
-			AccessToken:  token.AccessToken,
-			RefreshToken: token.RefreshToken,
-			TokenType:    token.TokenType,
-			ExpiresAt:    token.Expiry,
+func (s Session) oauthConfig(redirectURL string) oauth2.Config {
+	return oauth2.Config{
+		ClientID:     s.ClientID,
+		ClientSecret: s.ClientSecret,
+		RedirectURL:  redirectURL,
+		Scopes:       s.Scopes,
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  s.AuthURL,
+			TokenURL: s.TokenURL,
 		},
 	}
-
-	if scope, ok := token.Extra("scope").(string); ok {
-		session.Token.Scope = scope
-	}
-
-	return session
 }
 
 func (s Session) oauthToken() *oauth2.Token {
-	token := &oauth2.Token{
+	return &oauth2.Token{
 		AccessToken:  s.Token.AccessToken,
 		RefreshToken: s.Token.RefreshToken,
 		TokenType:    s.Token.TokenType,
 		Expiry:       s.Token.ExpiresAt,
 	}
+}
 
-	if s.Token.Scope != "" {
-		token = token.WithExtra(map[string]any{
-			"scope": s.Token.Scope,
-		})
+func (s Session) hasToken() bool {
+	return s.Token.AccessToken != "" || s.Token.RefreshToken != ""
+}
+
+func withToken(base Session, token *oauth2.Token) Session {
+	base.Token = Token{
+		AccessToken:  token.AccessToken,
+		RefreshToken: token.RefreshToken,
+		TokenType:    token.TokenType,
+		ExpiresAt:    token.Expiry,
 	}
 
-	return token
+	return base
 }

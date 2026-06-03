@@ -8,13 +8,17 @@ import (
 	"net/http"
 	"net/url"
 	"time"
-
-	mcpauth "github.com/modelcontextprotocol/go-sdk/auth"
 )
 
 type CallbackServer struct {
 	redirectURL string
 	prompter    Prompter
+}
+
+type callbackResult struct {
+	code  string
+	state string
+	err   error
 }
 
 func NewCallbackServer(redirectURL string, prompter Prompter) *CallbackServer {
@@ -28,38 +32,32 @@ func NewCallbackServer(redirectURL string, prompter Prompter) *CallbackServer {
 	}
 }
 
-func (s *CallbackServer) Fetch(ctx context.Context, args *mcpauth.AuthorizationArgs) (*mcpauth.AuthorizationResult, error) {
+func (s *CallbackServer) Wait(ctx context.Context, authURL string) (string, string, error) {
 	redirect, err := url.Parse(s.redirectURL)
 	if err != nil {
-		return nil, err
+		return "", "", err
 	}
 
 	resultCh := make(chan callbackResult, 1)
-	server := s.newHTTPServer(redirect.Path, resultCh)
+	server := &http.Server{Handler: callbackHandler(redirect.Path, resultCh)}
 
 	listener, err := net.Listen("tcp", redirect.Host)
 	if err != nil {
-		return nil, fmt.Errorf("start oauth callback listener: %w", err)
+		return "", "", fmt.Errorf("start oauth callback listener: %w", err)
 	}
 
 	go s.serve(server, listener, resultCh)
 	defer s.shutdown(server)
 
-	if err := s.prompter.Prompt(args.URL); err != nil {
-		return nil, fmt.Errorf("prompt oauth authorization URL: %w", err)
+	if err := s.prompter.Prompt(authURL); err != nil {
+		return "", "", fmt.Errorf("prompt oauth authorization URL: %w", err)
 	}
 
 	select {
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return "", "", ctx.Err()
 	case result := <-resultCh:
-		return result.authorizationResult()
-	}
-}
-
-func (s *CallbackServer) newHTTPServer(path string, resultCh chan<- callbackResult) *http.Server {
-	return &http.Server{
-		Handler: callbackHandler(path, resultCh),
+		return result.code, result.state, result.err
 	}
 }
 
@@ -74,23 +72,6 @@ func (s *CallbackServer) shutdown(server *http.Server) {
 	defer cancel()
 
 	_ = server.Shutdown(shutdownCtx)
-}
-
-type callbackResult struct {
-	code  string
-	state string
-	err   error
-}
-
-func (r callbackResult) authorizationResult() (*mcpauth.AuthorizationResult, error) {
-	if r.err != nil {
-		return nil, r.err
-	}
-
-	return &mcpauth.AuthorizationResult{
-		Code:  r.code,
-		State: r.state,
-	}, nil
 }
 
 func callbackHandler(path string, resultCh chan<- callbackResult) http.Handler {

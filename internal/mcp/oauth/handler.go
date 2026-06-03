@@ -4,125 +4,110 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"sync"
 
 	mcpauth "github.com/modelcontextprotocol/go-sdk/auth"
 	"golang.org/x/oauth2"
 )
 
-// ErrAuthorizationRequired is returned when authorization requires user interaction.
 var ErrAuthorizationRequired = errors.New("mcp: oauth authorization required")
 
+type Callback interface {
+	Wait(ctx context.Context, authURL string) (code string, state string, err error)
+}
+
+type RegistrationInfo struct {
+	ClientID     string
+	ClientSecret string
+	ClientName   string
+	SoftwareID   string
+	Version      string
+}
+
 type HandlerConfig struct {
-	Config      *Config
-	ClientName  string
-	ClientLabel string
-	Version     string
+	Key         Key
+	Store       Store
+	RedirectURL string
+	Scopes      []string
 
-	HTTPClient *http.Client
-	Prompter   Prompter
-
-	SessionKey   SessionKey
-	SessionStore SessionStore
+	HTTPClient   *http.Client
+	Callback     Callback
+	Registration RegistrationInfo
 }
 
 type handler struct {
-	authorizer    mcpauth.OAuthHandler
-	authorization authorizationBehavior
-	sessionKey    SessionKey
-	sessionStore  SessionStore
+	config      HandlerConfig
+	interactive bool
+
+	mu     sync.Mutex
+	source oauth2.TokenSource
 }
 
-func NewPassiveHandler(config HandlerConfig) (mcpauth.OAuthHandler, error) {
-	return newHandler(config, passiveAuthorization{})
+func NewPassiveHandler(config HandlerConfig) mcpauth.OAuthHandler {
+	return &handler{config: config, interactive: false}
 }
 
-func NewInteractiveHandler(config HandlerConfig) (mcpauth.OAuthHandler, error) {
-	return newHandler(config, interactiveAuthorization{})
-}
-
-func newHandler(config HandlerConfig, authorization authorizationBehavior) (mcpauth.OAuthHandler, error) {
-	if config.Config == nil || !config.Config.IsEnabled() {
-		return nil, nil
-	}
-
-	authorizer, err := newAuthorizer(config)
-	if err != nil {
-		return nil, err
-	}
-
-	return &handler{
-		authorizer:    authorizer,
-		authorization: authorization,
-		sessionKey:    config.SessionKey,
-		sessionStore:  config.SessionStore,
-	}, nil
+func NewInteractiveHandler(config HandlerConfig) mcpauth.OAuthHandler {
+	return &handler{config: config, interactive: true}
 }
 
 func (h *handler) TokenSource(ctx context.Context) (oauth2.TokenSource, error) {
-	source, err := h.authorizer.TokenSource(ctx)
-	if err != nil {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if h.source != nil {
+		return h.source, nil
+	}
+
+	session, err := h.config.Store.Load(ctx, h.config.Key)
+	if err != nil || session == nil || !session.hasToken() {
 		return nil, err
 	}
 
-	if source != nil {
-		return h.savingTokenSource(source), nil
-	}
+	h.source = h.refreshingSource(*session)
 
-	return h.storedTokenSource(ctx)
+	return h.source, nil
 }
 
-func (h *handler) Authorize(ctx context.Context, req *http.Request, resp *http.Response) error {
-	if err := h.authorization.Authorize(ctx, h.authorizer, req, resp); err != nil {
-		return err
+func (h *handler) Authorize(ctx context.Context, _ *http.Request, resp *http.Response) error {
+	if !h.interactive {
+		closeResponse(resp)
+
+		return ErrAuthorizationRequired
 	}
 
-	return h.saveAuthorizerToken(ctx)
-}
-
-func (h *handler) storedTokenSource(ctx context.Context) (oauth2.TokenSource, error) {
-	if h.sessionStore == nil {
-		return nil, nil
-	}
-
-	session, err := h.sessionStore.Load(ctx, h.sessionKey)
+	session, err := h.authorize(ctx, resp)
 	if err != nil {
-		return nil, err
-	}
-
-	if session == nil {
-		return nil, nil
-	}
-
-	token := session.oauthToken()
-	if !token.Valid() {
-		return nil, nil
-	}
-
-	return oauth2.StaticTokenSource(token), nil
-}
-
-func (h *handler) saveAuthorizerToken(ctx context.Context) error {
-	if h.sessionStore == nil {
-		return nil
-	}
-
-	source, err := h.authorizer.TokenSource(ctx)
-	if err != nil || source == nil {
 		return err
 	}
 
-	token, err := source.Token()
-	if err != nil || token == nil || token.AccessToken == "" {
+	if err := h.config.Store.Save(ctx, h.config.Key, session); err != nil {
 		return err
 	}
 
-	return h.sessionStore.Save(ctx, h.sessionKey, sessionFromToken(h.sessionKey.ServerURL, token))
+	h.mu.Lock()
+	h.source = h.refreshingSource(session)
+	h.mu.Unlock()
+
+	return nil
 }
 
-func (h *handler) savingTokenSource(source oauth2.TokenSource) oauth2.TokenSource {
-	if h.sessionStore == nil {
-		return source
+func (h *handler) refreshingSource(session Session) oauth2.TokenSource {
+	cfg := session.oauthConfig(h.config.RedirectURL)
+	base := cfg.TokenSource(h.clientContext(context.Background()), session.oauthToken())
+
+	return &persistingSource{
+		base:    base,
+		key:     h.config.Key,
+		store:   h.config.Store,
+		session: session,
+	}
+}
+
+func (h *handler) clientContext(ctx context.Context) context.Context {
+	if h.config.HTTPClient == nil {
+		return ctx
 	}
 
-	return newSavingTokenSource(source, h.sessionKey, h.sessionStore)
+	return context.WithValue(ctx, oauth2.HTTPClient, h.config.HTTPClient)
 }

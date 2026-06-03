@@ -1,4 +1,4 @@
-package tokenstore
+package store
 
 import (
 	"context"
@@ -12,15 +12,18 @@ import (
 
 func TestFileStoreSavesAndLoadsSession(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "oauth.json")
-	key := testSessionKey()
+	key := testKey()
 	want := oauth.Session{
 		ServerURL: key.ServerURL,
+		ClientID:  "client-123",
+		AuthURL:   "https://auth.example.com/authorize",
+		TokenURL:  "https://auth.example.com/token",
+		Scopes:    []string{"read", "write"},
 		Token: oauth.Token{
 			AccessToken:  "access",
 			RefreshToken: "refresh",
 			TokenType:    "Bearer",
 			ExpiresAt:    time.Now().Add(time.Hour).UTC(),
-			Scope:        "read write",
 		},
 	}
 
@@ -47,9 +50,10 @@ func TestFileStoreSavesAndLoadsSession(t *testing.T) {
 		t.Fatal("Load() session = nil, want saved session")
 	}
 
-	if got.Token.AccessToken != want.Token.AccessToken ||
+	if got.ClientID != want.ClientID ||
+		got.TokenURL != want.TokenURL ||
+		got.Token.AccessToken != want.Token.AccessToken ||
 		got.Token.RefreshToken != want.Token.RefreshToken ||
-		got.Token.Scope != want.Token.Scope ||
 		!got.Token.ExpiresAt.Equal(want.Token.ExpiresAt) {
 		t.Fatalf("session = %+v, want %+v", got, want)
 	}
@@ -63,7 +67,7 @@ func TestFileStoreUsesPrivatePermissions(t *testing.T) {
 		t.Fatalf("NewFileStore() error = %v", err)
 	}
 
-	key := testSessionKey()
+	key := testKey()
 	if err := store.Save(context.Background(), key, oauth.Session{
 		ServerURL: key.ServerURL,
 		Token:     oauth.Token{AccessToken: "access"},
@@ -96,7 +100,7 @@ func TestFileStoreDeleteRemovesSession(t *testing.T) {
 		t.Fatalf("NewFileStore() error = %v", err)
 	}
 
-	key := testSessionKey()
+	key := testKey()
 	if err := store.Save(context.Background(), key, oauth.Session{
 		ServerURL: key.ServerURL,
 		Token:     oauth.Token{AccessToken: "access"},
@@ -118,6 +122,6 @@ func TestFileStoreDeleteRemovesSession(t *testing.T) {
 	}
 }
 
-func testSessionKey() oauth.SessionKey {
-	return oauth.NewSessionKey("test", "https://example.com/mcp")
+func testKey() oauth.Key {
+	return oauth.NewKey("test", "https://example.com/mcp")
 }

@@ -17,7 +17,7 @@ type TransportFactory func(Config, transportOptions) (mcpsdk.Transport, error)
 type transportOptions struct {
 	OAuthInteractive  bool
 	OAuthPrompter     oauth.Prompter
-	OAuthSessionStore oauth.SessionStore
+	OAuthSessionStore oauth.Store
 }
 
 func NewTransportFactory(options Options) TransportFactory {
@@ -68,18 +68,7 @@ func newHTTPTransport(cfg Config, opts transportOptions) (mcpsdk.Transport, erro
 		return nil, err
 	}
 
-	handlerConfig := oauth.HandlerConfig{
-		Config:       cfg.OAuth,
-		ClientName:   clientName,
-		ClientLabel:  clientName,
-		Version:      clientVersion,
-		HTTPClient:   httpClient,
-		Prompter:     opts.OAuthPrompter,
-		SessionKey:   oauth.NewSessionKey(cfg.Name, cfg.URL),
-		SessionStore: opts.OAuthSessionStore,
-	}
-
-	oauthHandler, err := newOAuthHandler(handlerConfig, opts)
+	oauthHandler, err := newOAuthHandler(cfg, httpClient, opts)
 	if err != nil {
 		return nil, fmt.Errorf("mcp: client %q oauth: %w", cfg.Name, err)
 	}
@@ -91,12 +80,37 @@ func newHTTPTransport(cfg Config, opts transportOptions) (mcpsdk.Transport, erro
 	}, nil
 }
 
-func newOAuthHandler(config oauth.HandlerConfig, opts transportOptions) (mcpauth.OAuthHandler, error) {
-	if opts.OAuthInteractive {
-		return oauth.NewInteractiveHandler(config)
+func newOAuthHandler(cfg Config, httpClient *http.Client, opts transportOptions) (mcpauth.OAuthHandler, error) {
+	if cfg.OAuth == nil || !cfg.OAuth.IsEnabled() {
+		return nil, nil
 	}
 
-	return oauth.NewPassiveHandler(config)
+	redirectURL, err := oauth.RedirectURL(*cfg.OAuth)
+	if err != nil {
+		return nil, err
+	}
+
+	config := oauth.HandlerConfig{
+		Key:         oauth.NewKey(cfg.Name, cfg.URL),
+		Store:       opts.OAuthSessionStore,
+		RedirectURL: redirectURL,
+		Scopes:      cfg.OAuth.Scopes,
+		HTTPClient:  httpClient,
+		Callback:    oauth.NewCallbackServer(redirectURL, opts.OAuthPrompter),
+		Registration: oauth.RegistrationInfo{
+			ClientID:     cfg.OAuth.ClientID,
+			ClientSecret: cfg.OAuth.ResolveClientSecret(),
+			ClientName:   clientName,
+			SoftwareID:   clientName,
+			Version:      clientVersion,
+		},
+	}
+
+	if opts.OAuthInteractive {
+		return oauth.NewInteractiveHandler(config), nil
+	}
+
+	return oauth.NewPassiveHandler(config), nil
 }
 
 func httpClientWithStaticHeaders(cfg Config) (*http.Client, error) {

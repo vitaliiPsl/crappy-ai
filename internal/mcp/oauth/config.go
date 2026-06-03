@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"os"
 )
 
 const (
@@ -20,8 +21,7 @@ type Config struct {
 	ClientSecret    string `yaml:"client_secret,omitempty"`
 	ClientSecretEnv string `yaml:"client_secret_env,omitempty"`
 
-	ClientIDMetadataURL string `yaml:"client_id_metadata_url,omitempty"`
-	DynamicRegistration *bool  `yaml:"dynamic_registration,omitempty"`
+	Scopes []string `yaml:"scopes,omitempty"`
 
 	RedirectURL  string `yaml:"redirect_url,omitempty"`
 	CallbackHost string `yaml:"callback_host,omitempty"`
@@ -36,12 +36,12 @@ func (c Config) IsEnabled() bool {
 	return *c.Enabled
 }
 
-func (c Config) UsesDynamicRegistration() bool {
-	if c.DynamicRegistration == nil {
-		return c.ClientID == "" && c.ClientIDMetadataURL == ""
+func (c Config) ResolveClientSecret() string {
+	if c.ClientSecretEnv != "" {
+		return os.Getenv(c.ClientSecretEnv)
 	}
 
-	return *c.DynamicRegistration
+	return c.ClientSecret
 }
 
 func RedirectURL(cfg Config) (string, error) {
