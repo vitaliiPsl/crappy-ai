@@ -15,8 +15,23 @@ import (
 type TransportFactory func(Config, transportOptions) (mcpsdk.Transport, error)
 
 type transportOptions struct {
-	OAuthInteractive bool
-	OAuthPrompter    oauth.Prompter
+	OAuthInteractive  bool
+	OAuthPrompter     oauth.Prompter
+	OAuthSessionStore oauth.SessionStore
+}
+
+func NewTransportFactory(options Options) TransportFactory {
+	return func(cfg Config, opts transportOptions) (mcpsdk.Transport, error) {
+		if opts.OAuthPrompter == nil {
+			opts.OAuthPrompter = options.OAuthPrompter
+		}
+
+		if opts.OAuthSessionStore == nil {
+			opts.OAuthSessionStore = options.OAuthSessionStore
+		}
+
+		return newTransport(cfg, opts)
+	}
 }
 
 func newTransport(cfg Config, opts transportOptions) (mcpsdk.Transport, error) {
@@ -54,12 +69,14 @@ func newHTTPTransport(cfg Config, opts transportOptions) (mcpsdk.Transport, erro
 	}
 
 	handlerConfig := oauth.HandlerConfig{
-		Config:      cfg.OAuth,
-		ClientName:  clientName,
-		ClientLabel: clientName,
-		Version:     clientVersion,
-		HTTPClient:  httpClient,
-		Prompter:    opts.OAuthPrompter,
+		Config:       cfg.OAuth,
+		ClientName:   clientName,
+		ClientLabel:  clientName,
+		Version:      clientVersion,
+		HTTPClient:   httpClient,
+		Prompter:     opts.OAuthPrompter,
+		SessionKey:   oauth.NewSessionKey(cfg.Name, cfg.URL),
+		SessionStore: opts.OAuthSessionStore,
 	}
 
 	oauthHandler, err := newOAuthHandler(handlerConfig, opts)

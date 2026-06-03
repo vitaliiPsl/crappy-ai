@@ -19,6 +19,7 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/tools"
 	"github.com/vitaliiPsl/crappy-ai/internal/tui"
 
+	oauthtokenstore "github.com/vitaliiPsl/crappy-ai/internal/mcp/oauth/tokenstore"
 	sessionstore "github.com/vitaliiPsl/crappy-ai/internal/session/store"
 )
 
@@ -72,6 +73,11 @@ func run() error {
 		return fmt.Errorf("init session store: %w", err)
 	}
 
+	oauthStore, err := oauthtokenstore.NewFileStore(settingsStore.Get().OAuthPath)
+	if err != nil {
+		return fmt.Errorf("init oauth store: %w", err)
+	}
+
 	modelRegistry := models.NewRegistry(settingsStore)
 	skillRegistry := skills.NewRegistry(settingsStore)
 	toolRegistry := tools.NewRegistry()
@@ -81,7 +87,10 @@ func run() error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
-	mcpManager := mcp.New(settingsStore.Get().MCPClients)
+	mcpManager := mcp.New(
+		settingsStore.Get().MCPClients,
+		mcp.WithOAuthSessionStore(oauthStore),
+	)
 	go func() { _ = mcpManager.Connect(ctx) }()
 
 	defer func() { _ = mcpManager.Close() }()

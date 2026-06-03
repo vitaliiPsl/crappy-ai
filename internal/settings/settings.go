@@ -12,6 +12,7 @@ const (
 	DefaultSessionsDir  = "~/.crappy-ai/sessions"
 	DefaultModelsPath   = "~/.crappy-ai/models.json"
 	DefaultSkillsPath   = "~/.crappy-ai/skills"
+	DefaultOAuthPath    = "~/.crappy-ai/oauth.json"
 )
 
 const (
@@ -26,6 +27,7 @@ type Settings struct {
 	SessionsDir string `yaml:"sessions_dir,omitempty"`
 	ModelsPath  string `yaml:"models_path,omitempty"`
 	SkillsPath  string `yaml:"skills_path,omitempty"`
+	OAuthPath   string `yaml:"oauth_path,omitempty"`
 
 	Providers    []ProviderSettings           `yaml:"providers,omitempty"`
 	ModelConfigs map[string][]kit.ModelConfig `yaml:"models,omitempty"`
@@ -40,6 +42,7 @@ func defaults() Settings {
 		SessionsDir: DefaultSessionsDir,
 		ModelsPath:  DefaultModelsPath,
 		SkillsPath:  DefaultSkillsPath,
+		OAuthPath:   DefaultOAuthPath,
 		Providers:   DefaultProviders(),
 	}
 }

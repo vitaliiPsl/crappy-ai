@@ -6,16 +6,44 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+
+	"github.com/vitaliiPsl/crappy-ai/internal/mcp/oauth"
 )
 
 type Manager struct {
 	clients map[string]Client
 }
 
-func New(configs []Config) *Manager {
+type Options struct {
+	OAuthSessionStore oauth.SessionStore
+	OAuthPrompter     oauth.Prompter
+}
+
+type Option func(*Options)
+
+func WithOAuthSessionStore(store oauth.SessionStore) Option {
+	return func(options *Options) {
+		options.OAuthSessionStore = store
+	}
+}
+
+func WithOAuthPrompter(prompter oauth.Prompter) Option {
+	return func(options *Options) {
+		options.OAuthPrompter = prompter
+	}
+}
+
+func New(configs []Config, opts ...Option) *Manager {
+	options := Options{}
+	for _, opt := range opts {
+		opt(&options)
+	}
+
+	transport := NewTransportFactory(options)
+
 	clients := make(map[string]Client, len(configs))
 	for _, cfg := range configs {
-		clients[cfg.Name] = NewClient(cfg, newTransport)
+		clients[cfg.Name] = NewClient(cfg, transport)
 	}
 
 	return &Manager{

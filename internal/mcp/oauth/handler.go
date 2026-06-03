@@ -17,13 +17,19 @@ type HandlerConfig struct {
 	ClientName  string
 	ClientLabel string
 	Version     string
-	HTTPClient  *http.Client
-	Prompter    Prompter
+
+	HTTPClient *http.Client
+	Prompter   Prompter
+
+	SessionKey   SessionKey
+	SessionStore SessionStore
 }
 
 type handler struct {
 	authorizer    mcpauth.OAuthHandler
 	authorization authorizationBehavior
+	sessionKey    SessionKey
+	sessionStore  SessionStore
 }
 
 func NewPassiveHandler(config HandlerConfig) (mcpauth.OAuthHandler, error) {
@@ -47,13 +53,76 @@ func newHandler(config HandlerConfig, authorization authorizationBehavior) (mcpa
 	return &handler{
 		authorizer:    authorizer,
 		authorization: authorization,
+		sessionKey:    config.SessionKey,
+		sessionStore:  config.SessionStore,
 	}, nil
 }
 
 func (h *handler) TokenSource(ctx context.Context) (oauth2.TokenSource, error) {
-	return h.authorizer.TokenSource(ctx)
+	source, err := h.authorizer.TokenSource(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if source != nil {
+		return h.savingTokenSource(source), nil
+	}
+
+	return h.storedTokenSource(ctx)
 }
 
 func (h *handler) Authorize(ctx context.Context, req *http.Request, resp *http.Response) error {
-	return h.authorization.Authorize(ctx, h.authorizer, req, resp)
+	if err := h.authorization.Authorize(ctx, h.authorizer, req, resp); err != nil {
+		return err
+	}
+
+	return h.saveAuthorizerToken(ctx)
+}
+
+func (h *handler) storedTokenSource(ctx context.Context) (oauth2.TokenSource, error) {
+	if h.sessionStore == nil {
+		return nil, nil
+	}
+
+	session, err := h.sessionStore.Load(ctx, h.sessionKey)
+	if err != nil {
+		return nil, err
+	}
+
+	if session == nil {
+		return nil, nil
+	}
+
+	token := session.oauthToken()
+	if !token.Valid() {
+		return nil, nil
+	}
+
+	return oauth2.StaticTokenSource(token), nil
+}
+
+func (h *handler) saveAuthorizerToken(ctx context.Context) error {
+	if h.sessionStore == nil {
+		return nil
+	}
+
+	source, err := h.authorizer.TokenSource(ctx)
+	if err != nil || source == nil {
+		return err
+	}
+
+	token, err := source.Token()
+	if err != nil || token == nil || token.AccessToken == "" {
+		return err
+	}
+
+	return h.sessionStore.Save(ctx, h.sessionKey, sessionFromToken(h.sessionKey.ServerURL, token))
+}
+
+func (h *handler) savingTokenSource(source oauth2.TokenSource) oauth2.TokenSource {
+	if h.sessionStore == nil {
+		return source
+	}
+
+	return newSavingTokenSource(source, h.sessionKey, h.sessionStore)
 }
