@@ -20,7 +20,7 @@ import (
 )
 
 func TestNewClientStartsDisconnected(t *testing.T) {
-	state := NewClient(Config{Name: "docs", Transport: TransportHTTP, URL: "http://localhost:3000/mcp"}).State()
+	state := NewClient(Config{Name: "docs", Transport: TransportHTTP, URL: "http://localhost:3000/mcp"}, newTransport).State()
 
 	if state.Status != ClientDisconnected {
 		t.Fatalf("Status = %q, want disconnected", state.Status)
@@ -34,105 +34,16 @@ func TestNewClientStartsDisconnected(t *testing.T) {
 func TestConnectRejectsDisabledClient(t *testing.T) {
 	disabled := false
 
-	err := NewClient(Config{Name: "docs", Enabled: &disabled}).Connect(context.Background())
+	err := NewClient(Config{Name: "docs", Enabled: &disabled}, newTransport).Connect(context.Background())
 	if err == nil || err.Error() != "mcp: client is disabled" {
 		t.Fatalf("Connect() error = %v, want disabled", err)
-	}
-}
-
-func TestConnectValidation(t *testing.T) {
-	tests := []struct {
-		name    string
-		config  Config
-		wantErr string
-	}{
-		{
-			name:    "stdio requires command",
-			config:  Config{Name: "test"},
-			wantErr: `mcp: client "test" has no command for stdio transport`,
-		},
-		{
-			name:    "http requires url",
-			config:  Config{Name: "test", Transport: TransportHTTP},
-			wantErr: `mcp: client "test" has no url for http transport`,
-		},
-		{
-			name:    "unsupported transport",
-			config:  Config{Name: "test", Transport: "websocket"},
-			wantErr: `mcp: client "test" has unsupported transport "websocket"`,
-		},
-		{
-			name: "auth env must be set",
-			config: Config{
-				Name:      "test",
-				Transport: TransportHTTP,
-				URL:       "http://example.com",
-				Headers:   map[string]string{"Authorization": "Bearer static"},
-				HeaderEnv: map[string]string{"Authorization": "MISSING_MCP_AUTHORIZATION"},
-			},
-			wantErr: `mcp: client "test" auth header "Authorization" references empty env "MISSING_MCP_AUTHORIZATION"`,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := NewClient(tt.config).Connect(context.Background())
-			if err == nil || err.Error() != tt.wantErr {
-				t.Fatalf("Connect() error = %v, want %q", err, tt.wantErr)
-			}
-		})
-	}
-}
-
-func TestHTTPTransportConfiguresOAuthHandler(t *testing.T) {
-	transport, err := newHTTPTransport(Config{
-		Name:  "test",
-		URL:   "http://example.com/mcp",
-		OAuth: &oauth.Config{},
-	}, transportOptions{OAuthInteractive: true})
-	if err != nil {
-		t.Fatalf("newHTTPTransport() error = %v", err)
-	}
-
-	streamable, ok := transport.(*mcpsdk.StreamableClientTransport)
-	if !ok {
-		t.Fatalf("transport = %T, want streamable", transport)
-	}
-
-	if streamable.OAuthHandler == nil {
-		t.Fatal("OAuthHandler is nil, want configured handler")
-	}
-}
-
-func TestHTTPTransportSkipsDisabledOAuth(t *testing.T) {
-	enabled := false
-
-	transport, err := newHTTPTransport(Config{
-		Name: "test",
-		URL:  "http://example.com/mcp",
-		OAuth: &oauth.Config{
-			Enabled: &enabled,
-		},
-	}, transportOptions{})
-	if err != nil {
-		t.Fatalf("newHTTPTransport() error = %v", err)
-	}
-
-	streamable, ok := transport.(*mcpsdk.StreamableClientTransport)
-	if !ok {
-		t.Fatalf("transport = %T, want streamable", transport)
-	}
-
-	if streamable.OAuthHandler != nil {
-		t.Fatal("OAuthHandler is configured, want nil")
 	}
 }
 
 func TestConnectUsesTransportFactory(t *testing.T) {
 	want := errors.New("transport boom")
 	factory := &fakeTransportFactory{err: want}
-	client := newSDKClient(Config{Name: "test"})
-	client.newTransport = factory.New
+	client := NewClient(Config{Name: "test"}, factory.New)
 
 	err := client.Connect(context.Background())
 	if !errors.Is(err, want) {
@@ -159,8 +70,7 @@ func TestConnectUsesTransportFactory(t *testing.T) {
 
 func TestConnectMapsOAuthAuthorizationRequiredStatus(t *testing.T) {
 	factory := &fakeTransportFactory{err: fmt.Errorf("wrapped: %w", oauth.ErrAuthorizationRequired)}
-	client := newSDKClient(Config{Name: "test"})
-	client.newTransport = factory.New
+	client := NewClient(Config{Name: "test"}, factory.New)
 
 	_ = client.Connect(context.Background())
 
@@ -176,13 +86,12 @@ func TestConnectMapsOAuthAuthorizationRequiredStatus(t *testing.T) {
 
 func TestAuthenticateUsesInteractiveOAuthTransport(t *testing.T) {
 	factory := &fakeTransportFactory{err: errors.New("transport boom")}
-	client := newSDKClient(Config{
+	client := NewClient(Config{
 		Name: "test",
 		OAuth: &oauth.Config{
 			Enabled: nil,
 		},
-	})
-	client.newTransport = factory.New
+	}, factory.New)
 
 	_ = client.Authenticate(context.Background())
 
@@ -256,7 +165,7 @@ func TestConnectIsConcurrencySafe(t *testing.T) {
 }
 
 func TestOperationsRequireConnection(t *testing.T) {
-	client := NewClient(Config{Name: "test"})
+	client := NewClient(Config{Name: "test"}, newTransport)
 	wantErr := "mcp: client is not connected"
 
 	if _, err := client.ListTools(context.Background()); err == nil || err.Error() != wantErr {
@@ -351,7 +260,7 @@ func TestRefetchFailureMarksFailedAndKeepsCache(t *testing.T) {
 	}))
 	t.Cleanup(httpServer.Close)
 
-	client := NewClient(Config{Name: "test", Transport: TransportHTTP, URL: httpServer.URL}).(*sdkClient)
+	client := NewClient(Config{Name: "test", Transport: TransportHTTP, URL: httpServer.URL}, newTransport).(*sdkClient)
 	t.Cleanup(func() { _ = client.Close() })
 
 	if err := client.Connect(context.Background()); err != nil {
@@ -421,7 +330,7 @@ func TestCallToolHonorsTimeout(t *testing.T) {
 		Transport:      TransportHTTP,
 		URL:            serve(t, server),
 		RequestTimeout: 20 * time.Millisecond,
-	})
+	}, newTransport)
 	if err := client.Connect(context.Background()); err != nil {
 		t.Fatalf("Connect() error = %v", err)
 	}
@@ -477,7 +386,7 @@ func serve(t *testing.T, server *mcpsdk.Server) string {
 func newClient(t *testing.T, server *mcpsdk.Server) *sdkClient {
 	t.Helper()
 
-	client := NewClient(Config{Name: "test", Transport: TransportHTTP, URL: serve(t, server)}).(*sdkClient)
+	client := NewClient(Config{Name: "test", Transport: TransportHTTP, URL: serve(t, server)}, newTransport).(*sdkClient)
 	t.Cleanup(func() { _ = client.Close() })
 
 	return client

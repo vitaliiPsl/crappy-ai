@@ -20,7 +20,7 @@ const (
 
 type sdkClient struct {
 	config       Config
-	newTransport func(Config, transportOptions) (mcpsdk.Transport, error)
+	newTransport TransportFactory
 
 	connMu sync.Mutex
 	mu     sync.RWMutex
@@ -32,14 +32,10 @@ type sdkClient struct {
 	err    error
 }
 
-func NewClient(config Config) Client {
-	return newSDKClient(config)
-}
-
-func newSDKClient(config Config) *sdkClient {
+func NewClient(config Config, transport TransportFactory) Client {
 	return &sdkClient{
 		config:       config,
-		newTransport: newTransport,
+		newTransport: transport,
 		status:       ClientDisconnected,
 	}
 }

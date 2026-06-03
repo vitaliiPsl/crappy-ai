@@ -12,6 +12,8 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/mcp/oauth"
 )
 
+type TransportFactory func(Config, transportOptions) (mcpsdk.Transport, error)
+
 type transportOptions struct {
 	OAuthInteractive bool
 	OAuthPrompter    oauth.Prompter

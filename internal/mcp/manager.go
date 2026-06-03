@@ -15,7 +15,7 @@ type Manager struct {
 func New(configs []Config) *Manager {
 	clients := make(map[string]Client, len(configs))
 	for _, cfg := range configs {
-		clients[cfg.Name] = newSDKClient(cfg)
+		clients[cfg.Name] = NewClient(cfg, newTransport)
 	}
 
 	return &Manager{
