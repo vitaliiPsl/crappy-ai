@@ -77,9 +77,7 @@ func (a *Authorizer) discover(ctx context.Context, metadataURL string) (endpoint
 		return endpoints{}, err
 	}
 
-	issuer := prm.AuthorizationServers[0]
-
-	asm, err := a.authServerMeta(ctx, issuer)
+	asm, err := a.authServerMeta(ctx, prm.AuthorizationServers)
 	if err != nil {
 		return endpoints{}, err
 	}
@@ -110,19 +108,29 @@ func (a *Authorizer) resourceMetadata(ctx context.Context, metadataURL string) (
 	return nil, fmt.Errorf("oauth: no protected resource metadata for %q", a.config.Key.ServerURL)
 }
 
-func (a *Authorizer) authServerMeta(ctx context.Context, issuer string) (*oauthex.AuthServerMeta, error) {
-	for _, metadataURL := range authServerMetadataURLs(issuer) {
-		asm, err := oauthex.GetAuthServerMeta(ctx, metadataURL, issuer, a.config.HTTPClient)
-		if err != nil {
-			return nil, err
-		}
+func (a *Authorizer) authServerMeta(ctx context.Context, issuers []string) (*oauthex.AuthServerMeta, error) {
+	var lastErr error
 
-		if asm != nil {
-			return asm, nil
+	for _, issuer := range issuers {
+		for _, metadataURL := range authServerMetadataURLs(issuer) {
+			asm, err := oauthex.GetAuthServerMeta(ctx, metadataURL, issuer, a.config.HTTPClient)
+			if err != nil {
+				lastErr = err
+
+				continue
+			}
+
+			if asm != nil {
+				return asm, nil
+			}
 		}
 	}
 
-	return nil, fmt.Errorf("oauth: no authorization server metadata for issuer %q", issuer)
+	if lastErr != nil {
+		return nil, lastErr
+	}
+
+	return nil, fmt.Errorf("oauth: no authorization server metadata for issuers %v", issuers)
 }
 
 func (a *Authorizer) client(ctx context.Context, registrationURL string) (string, string, error) {
@@ -160,7 +168,7 @@ func (a *Authorizer) exchange(ctx context.Context, cfg oauth2.Config, resource s
 
 	authURL := cfg.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.S256ChallengeOption(verifier), resourceParam)
 
-	code, returnedState, err := a.config.Callback.Wait(ctx, authURL)
+	code, returnedState, err := a.config.Callback.Wait(ctx, authURL, cfg.RedirectURL)
 	if err != nil {
 		return nil, err
 	}

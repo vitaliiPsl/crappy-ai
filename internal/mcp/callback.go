@@ -28,10 +28,10 @@ func NewBrowserCallback() *BrowserCallback {
 	return &BrowserCallback{}
 }
 
-func (c *BrowserCallback) Wait(ctx context.Context, authURL string) (string, string, error) {
-	redirect, err := redirectURI(authURL)
+func (c *BrowserCallback) Wait(ctx context.Context, authURL string, redirectURL string) (string, string, error) {
+	redirect, err := url.Parse(redirectURL)
 	if err != nil {
-		return "", "", err
+		return "", "", fmt.Errorf("mcp: parse oauth redirect URL: %w", err)
 	}
 
 	resultCh := make(chan callbackResult, 1)
@@ -55,20 +55,6 @@ func (c *BrowserCallback) Wait(ctx context.Context, authURL string) (string, str
 	case result := <-resultCh:
 		return result.code, result.state, result.err
 	}
-}
-
-func redirectURI(authURL string) (*url.URL, error) {
-	u, err := url.Parse(authURL)
-	if err != nil {
-		return nil, err
-	}
-
-	raw := u.Query().Get("redirect_uri")
-	if raw == "" {
-		return nil, errors.New("mcp: authorization URL has no redirect_uri")
-	}
-
-	return url.Parse(raw)
 }
 
 func serveCallback(server *http.Server, listener net.Listener, resultCh chan<- callbackResult) {
