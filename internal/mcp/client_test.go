@@ -242,7 +242,7 @@ func TestToolListChangedRefreshesCache(t *testing.T) {
 	})
 }
 
-func TestRefetchFailureMarksFailedAndKeepsCache(t *testing.T) {
+func TestRefetchFailureKeepsConnectedAndKeepsCache(t *testing.T) {
 	var failCalls atomic.Bool
 
 	handler := mcpsdk.NewStreamableHTTPHandler(func(*http.Request) *mcpsdk.Server {
@@ -276,13 +276,8 @@ func TestRefetchFailureMarksFailedAndKeepsCache(t *testing.T) {
 
 	client.refetchTools(context.Background())
 
-	state := client.State()
-	if state.Status != ClientFailed {
-		t.Fatalf("Status = %q, want failed", state.Status)
-	}
-
-	if state.Error == "" {
-		t.Fatal("Error is empty, want refetch error recorded")
+	if got := client.State().Status; got != ClientConnected {
+		t.Fatalf("Status = %q, want connected", got)
 	}
 
 	if !sameTools(before, client.tools) {
@@ -340,6 +335,42 @@ func TestCallToolHonorsTimeout(t *testing.T) {
 	_, err := client.CallTool(context.Background(), kit.NewToolCall("1", "slow", map[string]any{"name": "Ada"}))
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("CallTool() error = %v, want context.DeadlineExceeded", err)
+	}
+
+	if got := client.State().Status; got != ClientConnected {
+		t.Fatalf("Status = %q, want connected", got)
+	}
+}
+
+func TestCallToolFailureKeepsConnected(t *testing.T) {
+	var failCalls atomic.Bool
+
+	handler := mcpsdk.NewStreamableHTTPHandler(func(*http.Request) *mcpsdk.Server {
+		return newServer(t, "greet")
+	}, nil)
+
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if failCalls.Load() && r.Method == http.MethodPost {
+			http.Error(w, "boom", http.StatusInternalServerError)
+
+			return
+		}
+
+		handler.ServeHTTP(w, r)
+	}))
+	t.Cleanup(httpServer.Close)
+
+	client := NewClient(Config{Name: "test", Transport: TransportHTTP, URL: httpServer.URL}, newTransport).(*sdkClient)
+	t.Cleanup(func() { _ = client.Close() })
+
+	if err := client.Connect(context.Background()); err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+
+	failCalls.Store(true)
+
+	if _, err := client.CallTool(context.Background(), kit.NewToolCall("1", "greet", map[string]any{"name": "Ada"})); err == nil {
+		t.Fatal("CallTool() error = nil, want request failure")
 	}
 
 	if got := client.State().Status; got != ClientConnected {

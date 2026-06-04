@@ -117,9 +117,7 @@ func (c *sdkClient) CallTool(ctx context.Context, call kit.ToolCall) (kit.ToolRe
 		Arguments: call.Arguments,
 	})
 	if err != nil {
-		if !isContextError(err) {
-			c.handleError(err)
-		}
+		c.handleRequestError(err)
 
 		return kit.ToolResult{}, err
 	}
@@ -136,7 +134,7 @@ func (c *sdkClient) connectLocked(ctx context.Context, opts transportOptions) er
 
 	session, err := c.dial(ctx, opts)
 	if err != nil {
-		c.handleError(err)
+		c.handleConnectionError(err)
 
 		return err
 	}
@@ -145,7 +143,7 @@ func (c *sdkClient) connectLocked(ctx context.Context, opts transportOptions) er
 	if err != nil {
 		_ = session.Close()
 
-		c.handleError(err)
+		c.handleConnectionError(err)
 
 		return err
 	}
@@ -158,6 +156,8 @@ func (c *sdkClient) connectLocked(ctx context.Context, opts transportOptions) er
 
 	c.status = ClientConnected
 	c.err = nil
+
+	go c.watch(session)
 
 	return nil
 }
@@ -239,9 +239,7 @@ func (c *sdkClient) refetchTools(ctx context.Context) {
 
 	tools, err := c.fetchTools(ctx, session)
 	if err != nil {
-		if !isContextError(err) {
-			c.handleError(err)
-		}
+		c.handleRequestError(err)
 
 		return
 	}
@@ -249,6 +247,22 @@ func (c *sdkClient) refetchTools(ctx context.Context) {
 	c.mu.Lock()
 	c.tools = tools
 	c.mu.Unlock()
+}
+
+func (c *sdkClient) watch(session *mcpsdk.ClientSession) {
+	_ = session.Wait()
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.session != session {
+		return
+	}
+
+	c.session = nil
+	c.tools = nil
+	c.status = ClientDisconnected
+	c.err = nil
 }
 
 func (c *sdkClient) activeSession() (*mcpsdk.ClientSession, error) {
@@ -270,7 +284,7 @@ func (c *sdkClient) setStatus(status ClientStatus, err error) {
 	c.err = err
 }
 
-func (c *sdkClient) handleError(err error) {
+func (c *sdkClient) handleConnectionError(err error) {
 	if errors.Is(err, oauth.ErrAuthorizationRequired) {
 		c.setStatus(ClientAuthRequired, oauth.ErrAuthorizationRequired)
 
@@ -280,6 +294,8 @@ func (c *sdkClient) handleError(err error) {
 	c.setStatus(ClientFailed, err)
 }
 
-func isContextError(err error) bool {
-	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+func (c *sdkClient) handleRequestError(err error) {
+	if errors.Is(err, oauth.ErrAuthorizationRequired) {
+		c.setStatus(ClientAuthRequired, oauth.ErrAuthorizationRequired)
+	}
 }
