@@ -11,7 +11,9 @@ import (
 )
 
 type Manager struct {
-	clients map[string]Client
+	mu        sync.RWMutex
+	clients   map[string]Client
+	transport TransportFactory
 }
 
 type Options struct {
@@ -47,7 +49,8 @@ func New(configs []Config, opts ...Option) *Manager {
 	}
 
 	return &Manager{
-		clients: clients,
+		clients:   clients,
+		transport: transport,
 	}
 }
 
@@ -70,7 +73,7 @@ func (m *Manager) Connect(ctx context.Context) error {
 }
 
 func (m *Manager) Reconnect(ctx context.Context, name string) error {
-	client, ok := m.clients[name]
+	client, ok := m.client(name)
 	if !ok {
 		return fmt.Errorf("mcp: unknown client %q", name)
 	}
@@ -83,7 +86,7 @@ func (m *Manager) Reconnect(ctx context.Context, name string) error {
 }
 
 func (m *Manager) Authenticate(ctx context.Context, name string) error {
-	client, ok := m.clients[name]
+	client, ok := m.client(name)
 	if !ok {
 		return fmt.Errorf("mcp: unknown client %q", name)
 	}
@@ -91,9 +94,38 @@ func (m *Manager) Authenticate(ctx context.Context, name string) error {
 	return client.Authenticate(ctx)
 }
 
+func (m *Manager) SetEnabled(ctx context.Context, name string, enabled bool) error {
+	client, ok := m.client(name)
+	if !ok {
+		return fmt.Errorf("mcp: unknown client %q", name)
+	}
+
+	cfg := client.Config()
+	if cfg.IsEnabled() == enabled {
+		return nil
+	}
+
+	cfg.Enabled = &enabled
+	next := NewClient(cfg, m.transport)
+
+	if err := client.Close(); err != nil {
+		return err
+	}
+
+	m.mu.Lock()
+	m.clients[name] = next
+	m.mu.Unlock()
+
+	if !enabled {
+		return nil
+	}
+
+	return next.Connect(ctx)
+}
+
 func (m *Manager) Close() error {
 	var errs []error
-	for _, client := range m.clients {
+	for _, client := range m.Clients() {
 		if err := client.Close(); err != nil {
 			errs = append(errs, err)
 		}
@@ -129,6 +161,9 @@ func (m *Manager) States() []ClientState {
 }
 
 func (m *Manager) sorted() []Client {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	clients := make([]Client, 0, len(m.clients))
 	for _, client := range m.clients {
 		clients = append(clients, client)
@@ -139,4 +174,13 @@ func (m *Manager) sorted() []Client {
 	})
 
 	return clients
+}
+
+func (m *Manager) client(name string) (Client, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	client, ok := m.clients[name]
+
+	return client, ok
 }

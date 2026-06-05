@@ -98,6 +98,19 @@ func TestManagerConnectReturnsErrors(t *testing.T) {
 	}
 }
 
+func TestManagerConnectSkipsDisabledClients(t *testing.T) {
+	disabled := false
+	client := &fakeClient{config: Config{Name: "github", Enabled: &disabled}}
+
+	if err := newManager(client).Connect(context.Background()); err != nil {
+		t.Fatalf("Connect: %v", err)
+	}
+
+	if client.connects != 0 {
+		t.Fatalf("connects = %d, want 0", client.connects)
+	}
+}
+
 func TestManagerStatesReturnsClientStates(t *testing.T) {
 	client := &fakeClient{
 		status: ClientFailed,
@@ -111,6 +124,68 @@ func TestManagerStatesReturnsClientStates(t *testing.T) {
 
 	if states[0].Status != ClientFailed || states[0].Error != "boom" {
 		t.Fatalf("state = %+v, want failed boom", states[0])
+	}
+}
+
+func TestManagerSetEnabledDisablesByReplacingClient(t *testing.T) {
+	client := &fakeClient{config: Config{Name: "github"}}
+	manager := newManager(client)
+
+	if err := manager.SetEnabled(context.Background(), "github", false); err != nil {
+		t.Fatalf("SetEnabled: %v", err)
+	}
+
+	if client.closes != 1 {
+		t.Fatalf("old client closes = %d, want 1", client.closes)
+	}
+
+	configs := manager.Configs()
+	if len(configs) != 1 || configs[0].IsEnabled() {
+		t.Fatalf("configs = %+v, want disabled github", configs)
+	}
+
+	states := manager.States()
+	if len(states) != 1 || states[0].Status != ClientDisconnected {
+		t.Fatalf("states = %+v, want disconnected replacement", states)
+	}
+}
+
+func TestManagerSetEnabledEnablesByReplacingAndConnectingClient(t *testing.T) {
+	disabled := false
+	want := errors.New("transport boom")
+	old := &fakeClient{config: Config{Name: "github", Enabled: &disabled}}
+	factory := &fakeTransportFactory{err: want}
+	manager := newManager(old)
+	manager.transport = factory.New
+
+	err := manager.SetEnabled(context.Background(), "github", true)
+	if !errors.Is(err, want) {
+		t.Fatalf("SetEnabled error = %v, want %v", err, want)
+	}
+
+	if old.closes != 1 {
+		t.Fatalf("old client closes = %d, want 1", old.closes)
+	}
+
+	if factory.calls != 1 {
+		t.Fatalf("transport calls = %d, want 1", factory.calls)
+	}
+
+	configs := manager.Configs()
+	if len(configs) != 1 || !configs[0].IsEnabled() {
+		t.Fatalf("configs = %+v, want enabled github", configs)
+	}
+
+	states := manager.States()
+	if len(states) != 1 || states[0].Status != ClientFailed || states[0].Error != want.Error() {
+		t.Fatalf("states = %+v, want failed replacement with transport error", states)
+	}
+}
+
+func TestManagerSetEnabledUnknownClient(t *testing.T) {
+	err := newManager(&fakeClient{config: Config{Name: "github"}}).SetEnabled(context.Background(), "missing", false)
+	if err == nil || err.Error() != `mcp: unknown client "missing"` {
+		t.Fatalf("SetEnabled error = %v, want unknown client", err)
 	}
 }
 

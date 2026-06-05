@@ -15,7 +15,7 @@ import (
 
 const (
 	headerText    = "MCP Clients"
-	hintsText     = "j/Down Move • r Refresh • a Auth • c Reconnect • Esc Back"
+	hintsText     = "j/Down Move • e Toggle • r Refresh • a Auth • c Reconnect • Esc Back"
 	emptyTitle    = "No MCP clients configured"
 	emptySubtitle = "Add mcp to settings.yaml."
 
@@ -71,6 +71,15 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 		return m, nil
 
+	case clientsLoadedMsg:
+		m.configs = msg.configs
+		m.states = msg.states
+		m.cursor = clampCursor(m.cursor, len(m.configs))
+		m.refreshContent()
+		m.scrollToCursor()
+
+		return m, nil
+
 	case tea.KeyMsg:
 		return m.handleKey(msg)
 	}
@@ -105,6 +114,8 @@ func (m Model) handleKey(key tea.KeyMsg) (Model, tea.Cmd) {
 		return m.moveCursor(1)
 	case "r":
 		return m, m.loadStates()
+	case "e":
+		return m.toggleSelected()
 	case "a":
 		return m.authenticateSelected()
 	case "c":
@@ -156,6 +167,36 @@ func (m Model) loadConfigs() tea.Cmd {
 func (m Model) loadStates() tea.Cmd {
 	return func() tea.Msg {
 		return statesLoadedMsg{states: m.server.GetMCPClientStates()}
+	}
+}
+
+func (m Model) toggleSelected() (Model, tea.Cmd) {
+	if m.cursor < 0 || m.cursor >= len(m.configs) {
+		return m, nil
+	}
+
+	cfg := m.configs[m.cursor]
+	enabled := !cfg.IsEnabled()
+	cfg.Enabled = &enabled
+	m.configs[m.cursor] = cfg
+
+	if m.cursor < len(m.states) {
+		if enabled {
+			m.states[m.cursor] = coremcp.ClientState{Status: coremcp.ClientConnecting}
+		} else {
+			m.states[m.cursor] = coremcp.ClientState{Status: coremcp.ClientDisconnected}
+		}
+	}
+
+	m.refreshContent()
+
+	return m, func() tea.Msg {
+		_ = m.server.SetMCPClientEnabled(context.Background(), cfg.Name, enabled)
+
+		return clientsLoadedMsg{
+			configs: m.server.GetMCPClientConfigs(),
+			states:  m.server.GetMCPClientStates(),
+		}
 	}
 }
 
@@ -246,7 +287,7 @@ func renderClient(cfg coremcp.Config, state coremcp.ClientState, selected bool) 
 	}
 
 	lines := []string{
-		cursor + clientBadge(cfg, state) + titleSep + title,
+		cursor + title + titleSep + clientBadge(cfg, state),
 		metaStyle.Render(metaPad + strings.Join(statusMeta(cfg), metaSep)),
 	}
 

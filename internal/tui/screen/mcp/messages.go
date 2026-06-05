@@ -11,3 +11,8 @@ type configsLoadedMsg struct {
 type statesLoadedMsg struct {
 	states []coremcp.ClientState
 }
+
+type clientsLoadedMsg struct {
+	configs []coremcp.Config
+	states  []coremcp.ClientState
+}
