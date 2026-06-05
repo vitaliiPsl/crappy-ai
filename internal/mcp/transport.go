@@ -12,34 +12,20 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/mcp/oauth"
 )
 
-type TransportFactory func(Config, transportOptions) (mcpsdk.Transport, error)
+type TransportFactory func(Config) (mcpsdk.Transport, error)
 
-type transportOptions struct {
-	OAuthInteractive  bool
-	OAuthSessionStore oauth.Store
-	OAuthCallback     oauth.Callback
-}
-
-func NewTransportFactory(options Options) TransportFactory {
-	return func(cfg Config, opts transportOptions) (mcpsdk.Transport, error) {
-		if opts.OAuthSessionStore == nil {
-			opts.OAuthSessionStore = options.OAuthSessionStore
-		}
-
-		if opts.OAuthCallback == nil {
-			opts.OAuthCallback = options.OAuthCallback
-		}
-
-		return newTransport(cfg, opts)
+func NewTransportFactory(oauthSessionStore oauth.Store, oauthCallback oauth.Callback) TransportFactory {
+	return func(cfg Config) (mcpsdk.Transport, error) {
+		return newTransport(cfg, oauthSessionStore, oauthCallback)
 	}
 }
 
-func newTransport(cfg Config, opts transportOptions) (mcpsdk.Transport, error) {
+func newTransport(cfg Config, oauthSessionStore oauth.Store, oauthCallback oauth.Callback) (mcpsdk.Transport, error) {
 	switch cfg.Transport {
 	case "", TransportStdio:
 		return newStdioTransport(cfg)
 	case TransportHTTP:
-		return newHTTPTransport(cfg, opts)
+		return newHTTPTransport(cfg, oauthSessionStore, oauthCallback)
 	default:
 		return nil, fmt.Errorf("mcp: client %q has unsupported transport %q", cfg.Name, cfg.Transport)
 	}
@@ -58,7 +44,7 @@ func newStdioTransport(cfg Config) (mcpsdk.Transport, error) {
 	}, nil
 }
 
-func newHTTPTransport(cfg Config, opts transportOptions) (mcpsdk.Transport, error) {
+func newHTTPTransport(cfg Config, oauthSessionStore oauth.Store, oauthCallback oauth.Callback) (mcpsdk.Transport, error) {
 	if cfg.URL == "" {
 		return nil, fmt.Errorf("mcp: client %q has no url for http transport", cfg.Name)
 	}
@@ -68,7 +54,7 @@ func newHTTPTransport(cfg Config, opts transportOptions) (mcpsdk.Transport, erro
 		return nil, err
 	}
 
-	oauthHandler, err := newOAuthHandler(cfg, httpClient, opts)
+	oauthHandler, err := newOAuthHandler(cfg, httpClient, oauthSessionStore, oauthCallback)
 	if err != nil {
 		return nil, fmt.Errorf("mcp: client %q oauth: %w", cfg.Name, err)
 	}
@@ -80,7 +66,7 @@ func newHTTPTransport(cfg Config, opts transportOptions) (mcpsdk.Transport, erro
 	}, nil
 }
 
-func newOAuthHandler(cfg Config, httpClient *http.Client, opts transportOptions) (mcpauth.OAuthHandler, error) {
+func newOAuthHandler(cfg Config, httpClient *http.Client, oauthSessionStore oauth.Store, oauthCallback oauth.Callback) (mcpauth.OAuthHandler, error) {
 	if cfg.OAuth == nil || !cfg.OAuth.IsEnabled() {
 		return nil, nil
 	}
@@ -92,7 +78,7 @@ func newOAuthHandler(cfg Config, httpClient *http.Client, opts transportOptions)
 
 	config := oauth.HandlerConfig{
 		Key:         oauth.NewKey(cfg.Name, cfg.URL),
-		Store:       opts.OAuthSessionStore,
+		Store:       oauthSessionStore,
 		RedirectURL: redirectURL,
 		Scopes:      cfg.OAuth.Scopes,
 		HTTPClient:  httpClient,
@@ -105,10 +91,8 @@ func newOAuthHandler(cfg Config, httpClient *http.Client, opts transportOptions)
 		},
 	}
 
-	// Only an interactive request gets a callback; without one the handler
-	// reports ErrAuthorizationRequired instead of prompting the user.
-	if opts.OAuthInteractive {
-		config.Callback = opts.OAuthCallback
+	if oauthCallback != nil {
+		config.Callback = oauthCallback
 	}
 
 	return oauth.New(config), nil

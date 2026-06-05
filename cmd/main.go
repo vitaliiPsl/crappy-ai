@@ -89,8 +89,8 @@ func run() error {
 
 	mcpManager := mcp.New(
 		settingsStore.Get().MCPClients,
-		mcp.WithOAuthSessionStore(oauthStore),
-		mcp.WithOAuthCallback(mcp.NewBrowserCallback()),
+		oauthStore,
+		mcp.NewBrowserCallback(),
 	)
 	go func() { _ = mcpManager.Connect(ctx) }()
 

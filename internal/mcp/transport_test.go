@@ -45,7 +45,7 @@ func TestConnectValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := NewClient(tt.config, newTransport).Connect(context.Background())
+			err := NewClient(tt.config, testTransport).Connect(context.Background())
 			if err == nil || err.Error() != tt.wantErr {
 				t.Fatalf("Connect() error = %v, want %q", err, tt.wantErr)
 			}
@@ -58,7 +58,7 @@ func TestHTTPTransportConfiguresOAuthHandler(t *testing.T) {
 		Name:  "test",
 		URL:   "http://example.com/mcp",
 		OAuth: &oauth.Config{},
-	}, transportOptions{OAuthInteractive: true})
+	}, nil, noopCallback{})
 	if err != nil {
 		t.Fatalf("newHTTPTransport() error = %v", err)
 	}
@@ -82,7 +82,7 @@ func TestHTTPTransportSkipsDisabledOAuth(t *testing.T) {
 		OAuth: &oauth.Config{
 			Enabled: &enabled,
 		},
-	}, transportOptions{})
+	}, nil, nil)
 	if err != nil {
 		t.Fatalf("newHTTPTransport() error = %v", err)
 	}
@@ -95,4 +95,10 @@ func TestHTTPTransportSkipsDisabledOAuth(t *testing.T) {
 	if streamable.OAuthHandler != nil {
 		t.Fatal("OAuthHandler is configured, want nil")
 	}
+}
+
+type noopCallback struct{}
+
+func (noopCallback) Wait(context.Context, string, string) (string, string, error) {
+	return "", "", nil
 }

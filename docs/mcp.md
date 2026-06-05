@@ -48,6 +48,8 @@ mcp:
 
 `type` selects the transport: `stdio` or `http`. It defaults to `stdio`.
 
+`enabled` turns a server on or off. It defaults to true, so a server is active unless you set `enabled: false`.
+
 ## Transports
 
 ### stdio
@@ -144,7 +146,7 @@ mcp:
       enabled: true
 ```
 
-When the server asks for authorization, Crappy marks the MCP client as `auth required`. Open the MCP clients screen and press `a` on that client to start the OAuth flow. Crappy then starts a local callback server, opens the authorization URL in your browser, and retries the MCP connection after the callback completes. The callback server only lives for that one authentication attempt and shuts down after success, failure, or cancellation.
+When the server asks for authorization, Crappy marks the MCP client as `auth required` and waits. When you start authentication for that server, Crappy starts a local callback server, opens the authorization URL in your browser, and retries the MCP connection after the callback completes. The callback server only lives for that one authentication attempt and shuts down after success, failure, or cancellation.
 
 By default the callback URL is:
 
@@ -164,11 +166,11 @@ mcp:
       callback_port: 14546
 ```
 
-When you press `a` to authenticate, Crappy opens the authorization URL in your browser. If the browser cannot be opened, the authentication attempt fails and the MCP client reports the error.
+When you start authentication, Crappy opens the authorization URL in your browser. If the browser cannot be opened, the authentication attempt fails and the MCP client reports the error.
 
-Crappy supports three OAuth client registration modes.
+Crappy supports two OAuth client registration modes.
 
-With dynamic registration, the authorization server gives Crappy a client ID during the OAuth flow. This is the default when no `client_id` or `client_id_metadata_url` is configured:
+With dynamic registration, the authorization server issues Crappy a client ID during the OAuth flow. This is the default when no `client_id` is configured:
 
 ```yaml
 mcp:
@@ -179,7 +181,7 @@ mcp:
       enabled: true
 ```
 
-For a pre-registered OAuth client, provide the client ID and, if needed, a client secret:
+For a pre-registered OAuth client, provide the client ID and, if needed, a client secret. Use `client_secret` for a literal value or `client_secret_env` to read it from an environment variable:
 
 ```yaml
 mcp:
@@ -192,19 +194,19 @@ mcp:
       redirect_url: http://127.0.0.1:14545/oauth/callback
 ```
 
-For an OAuth server that supports Client ID Metadata Documents, provide the metadata document URL:
+By default Crappy requests the scopes the server advertises in its metadata. Override them with `scopes`:
 
 ```yaml
 mcp:
-  - name: internal
+  - name: sentry
     type: http
-    url: https://mcp.internal.example.com/mcp
+    url: https://mcp.sentry.dev/mcp
     oauth:
-      client_id_metadata_url: https://example.com/crappy/oauth-client.json
-      redirect_url: http://127.0.0.1:14545/oauth/callback
+      enabled: true
+      scopes:
+        - read
+        - write
 ```
-
-Set `dynamic_registration: false` if the server must not try dynamic registration.
 
 ## Timeouts
 
@@ -224,7 +226,7 @@ mcp:
 
 Each value is a duration string such as `500ms`, `10s`, or `2m`, and applies per operation, so every request gets the full budget. When a timeout is unset, that operation is not time-bounded and waits as long as the server takes.
 
-Keeping them separate lets a connection fail fast while a slow tool call still gets a generous budget. If an operation exceeds its timeout, that request fails and the server moves to `failed`.
+Keeping them separate lets a connection fail fast while a slow tool call still gets a generous budget. If connecting exceeds `connect_timeout`, the server moves to `failed`. If a request exceeds `request_timeout`, that single call fails but the connection stays `connected`, so later calls can still succeed.
 
 ## Tools
 
@@ -246,13 +248,15 @@ Crappy connects to MCP servers in the background at startup, so it never blocks 
 
 A server moves through these states:
 
-- `disconnected` — not connected yet
+- `disconnected` — not connected yet, or a previous connection dropped
 - `connecting` — establishing the connection
 - `connected` — ready, tools available
-- `auth_required` — the server needs OAuth; authenticate it from the MCP clients screen
-- `failed` — the last attempt errored
+- `auth_required` — the server needs OAuth; authenticate it to connect
+- `failed` — the connection attempt errored
 
-If a connection drops or a non-auth call fails, the server moves to `failed`. If an OAuth-enabled server asks for authorization, the server moves to `auth_required` instead. A failed server shows its error so you can see why it could not connect.
+A server moves to `failed` when a connection attempt errors for a non-auth reason, and it shows that error so you can see what went wrong. If an OAuth-enabled server asks for authorization instead, it moves to `auth_required`. If an established connection later drops, the server returns to `disconnected`.
+
+A failed tool call does not change a connected server's state on its own — the server stays `connected` and later calls can still succeed — unless the server demands authorization, which moves it to `auth_required`.
 
 ## See Also
 

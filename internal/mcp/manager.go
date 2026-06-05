@@ -11,46 +11,29 @@ import (
 )
 
 type Manager struct {
-	mu        sync.RWMutex
-	clients   map[string]Client
-	transport TransportFactory
+	mu            sync.RWMutex
+	clients       map[string]Client
+	newClient     ClientFactory
+	authenticator Authenticator
 }
 
-type Options struct {
-	OAuthSessionStore oauth.Store
-	OAuthCallback     oauth.Callback
-}
+type ClientFactory func(Config) Client
 
-type Option func(*Options)
-
-func WithOAuthSessionStore(store oauth.Store) Option {
-	return func(options *Options) {
-		options.OAuthSessionStore = store
+func New(configs []Config, oauthSessionStore oauth.Store, oauthCallback oauth.Callback) *Manager {
+	transport := NewTransportFactory(oauthSessionStore, nil)
+	factory := func(cfg Config) Client {
+		return NewClient(cfg, transport)
 	}
-}
-
-func WithOAuthCallback(callback oauth.Callback) Option {
-	return func(options *Options) {
-		options.OAuthCallback = callback
-	}
-}
-
-func New(configs []Config, opts ...Option) *Manager {
-	options := Options{}
-	for _, opt := range opts {
-		opt(&options)
-	}
-
-	transport := NewTransportFactory(options)
 
 	clients := make(map[string]Client, len(configs))
 	for _, cfg := range configs {
-		clients[cfg.Name] = NewClient(cfg, transport)
+		clients[cfg.Name] = factory(cfg)
 	}
 
 	return &Manager{
-		clients:   clients,
-		transport: transport,
+		clients:       clients,
+		newClient:     factory,
+		authenticator: NewOAuthAuthenticator(oauthSessionStore, oauthCallback),
 	}
 }
 
@@ -91,32 +74,30 @@ func (m *Manager) Authenticate(ctx context.Context, name string) error {
 		return fmt.Errorf("mcp: unknown client %q", name)
 	}
 
-	return client.Authenticate(ctx)
+	if err := m.authenticator.Authenticate(ctx, client.Config()); err != nil {
+		return err
+	}
+
+	return m.ApplyConfig(ctx, client.Config())
 }
 
-func (m *Manager) SetEnabled(ctx context.Context, name string, enabled bool) error {
-	client, ok := m.client(name)
+func (m *Manager) ApplyConfig(ctx context.Context, config Config) error {
+	client, ok := m.client(config.Name)
 	if !ok {
-		return fmt.Errorf("mcp: unknown client %q", name)
+		return fmt.Errorf("mcp: unknown client %q", config.Name)
 	}
 
-	cfg := client.Config()
-	if cfg.IsEnabled() == enabled {
-		return nil
-	}
-
-	cfg.Enabled = &enabled
-	next := NewClient(cfg, m.transport)
+	next := m.newClient(config)
 
 	if err := client.Close(); err != nil {
 		return err
 	}
 
 	m.mu.Lock()
-	m.clients[name] = next
+	m.clients[config.Name] = next
 	m.mu.Unlock()
 
-	if !enabled {
+	if !config.IsEnabled() {
 		return nil
 	}
 
@@ -138,26 +119,18 @@ func (m *Manager) Clients() []Client {
 	return m.sorted()
 }
 
-func (m *Manager) Configs() []Config {
+func (m *Manager) Snapshots() []ClientSnapshot {
 	clients := m.sorted()
 
-	configs := make([]Config, len(clients))
+	snapshots := make([]ClientSnapshot, len(clients))
 	for i, client := range clients {
-		configs[i] = client.Config()
+		snapshots[i] = ClientSnapshot{
+			Config: client.Config(),
+			State:  client.State(),
+		}
 	}
 
-	return configs
-}
-
-func (m *Manager) States() []ClientState {
-	clients := m.sorted()
-
-	states := make([]ClientState, len(clients))
-	for i, client := range clients {
-		states[i] = client.State()
-	}
-
-	return states
+	return snapshots
 }
 
 func (m *Manager) sorted() []Client {

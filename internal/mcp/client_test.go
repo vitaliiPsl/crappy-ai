@@ -12,15 +12,14 @@ import (
 	"testing"
 	"time"
 
+	mcpauth "github.com/modelcontextprotocol/go-sdk/auth"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
-
-	"github.com/vitaliiPsl/crappy-ai/internal/mcp/oauth"
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
 )
 
 func TestNewClientStartsDisconnected(t *testing.T) {
-	state := NewClient(Config{Name: "docs", Transport: TransportHTTP, URL: "http://localhost:3000/mcp"}, newTransport).State()
+	state := NewClient(Config{Name: "docs", Transport: TransportHTTP, URL: "http://localhost:3000/mcp"}, testTransport).State()
 
 	if state.Status != ClientDisconnected {
 		t.Fatalf("Status = %q, want disconnected", state.Status)
@@ -34,7 +33,7 @@ func TestNewClientStartsDisconnected(t *testing.T) {
 func TestConnectRejectsDisabledClient(t *testing.T) {
 	disabled := false
 
-	err := NewClient(Config{Name: "docs", Enabled: &disabled}, newTransport).Connect(context.Background())
+	err := NewClient(Config{Name: "docs", Enabled: &disabled}, testTransport).Connect(context.Background())
 	if err == nil || err.Error() != "mcp: client is disabled" {
 		t.Fatalf("Connect() error = %v, want disabled", err)
 	}
@@ -58,18 +57,14 @@ func TestConnectUsesTransportFactory(t *testing.T) {
 		t.Fatalf("transport factory config = %+v, want test config", factory.config)
 	}
 
-	if factory.options.OAuthInteractive {
-		t.Fatal("transport factory OAuthInteractive = true, want false")
-	}
-
 	state := client.State()
 	if state.Status != ClientFailed || state.Error != want.Error() {
 		t.Fatalf("state = %+v, want failed with transport error", state)
 	}
 }
 
-func TestConnectMapsOAuthAuthorizationRequiredStatus(t *testing.T) {
-	factory := &fakeTransportFactory{err: fmt.Errorf("wrapped: %w", oauth.ErrAuthorizationRequired)}
+func TestConnectMapsSDKOAuthErrorStatus(t *testing.T) {
+	factory := &fakeTransportFactory{err: fmt.Errorf("wrapped: %w", mcpauth.ErrOAuth)}
 	client := NewClient(Config{Name: "test"}, factory.New)
 
 	_ = client.Connect(context.Background())
@@ -79,24 +74,8 @@ func TestConnectMapsOAuthAuthorizationRequiredStatus(t *testing.T) {
 		t.Fatalf("Status = %q, want auth_required", state.Status)
 	}
 
-	if state.Error != oauth.ErrAuthorizationRequired.Error() {
-		t.Fatalf("Error = %q, want auth required", state.Error)
-	}
-}
-
-func TestAuthenticateUsesInteractiveOAuthTransport(t *testing.T) {
-	factory := &fakeTransportFactory{err: errors.New("transport boom")}
-	client := NewClient(Config{
-		Name: "test",
-		OAuth: &oauth.Config{
-			Enabled: nil,
-		},
-	}, factory.New)
-
-	_ = client.Authenticate(context.Background())
-
-	if !factory.options.OAuthInteractive {
-		t.Fatal("transport factory OAuthInteractive = false, want true")
+	if !strings.Contains(state.Error, mcpauth.ErrOAuth.Error()) {
+		t.Fatalf("Error = %q, want sdk oauth error", state.Error)
 	}
 }
 
@@ -165,7 +144,7 @@ func TestConnectIsConcurrencySafe(t *testing.T) {
 }
 
 func TestOperationsRequireConnection(t *testing.T) {
-	client := NewClient(Config{Name: "test"}, newTransport)
+	client := NewClient(Config{Name: "test"}, testTransport)
 	wantErr := "mcp: client is not connected"
 
 	if _, err := client.ListTools(context.Background()); err == nil || err.Error() != wantErr {
@@ -260,7 +239,7 @@ func TestRefetchFailureKeepsConnectedAndKeepsCache(t *testing.T) {
 	}))
 	t.Cleanup(httpServer.Close)
 
-	client := NewClient(Config{Name: "test", Transport: TransportHTTP, URL: httpServer.URL}, newTransport).(*sdkClient)
+	client := NewClient(Config{Name: "test", Transport: TransportHTTP, URL: httpServer.URL}, testTransport).(*sdkClient)
 	t.Cleanup(func() { _ = client.Close() })
 
 	if err := client.Connect(context.Background()); err != nil {
@@ -325,7 +304,7 @@ func TestCallToolHonorsTimeout(t *testing.T) {
 		Transport:      TransportHTTP,
 		URL:            serve(t, server),
 		RequestTimeout: 20 * time.Millisecond,
-	}, newTransport)
+	}, testTransport)
 	if err := client.Connect(context.Background()); err != nil {
 		t.Fatalf("Connect() error = %v", err)
 	}
@@ -360,7 +339,7 @@ func TestCallToolFailureKeepsConnected(t *testing.T) {
 	}))
 	t.Cleanup(httpServer.Close)
 
-	client := NewClient(Config{Name: "test", Transport: TransportHTTP, URL: httpServer.URL}, newTransport).(*sdkClient)
+	client := NewClient(Config{Name: "test", Transport: TransportHTTP, URL: httpServer.URL}, testTransport).(*sdkClient)
 	t.Cleanup(func() { _ = client.Close() })
 
 	if err := client.Connect(context.Background()); err != nil {
@@ -417,7 +396,7 @@ func serve(t *testing.T, server *mcpsdk.Server) string {
 func newClient(t *testing.T, server *mcpsdk.Server) *sdkClient {
 	t.Helper()
 
-	client := NewClient(Config{Name: "test", Transport: TransportHTTP, URL: serve(t, server)}, newTransport).(*sdkClient)
+	client := NewClient(Config{Name: "test", Transport: TransportHTTP, URL: serve(t, server)}, testTransport).(*sdkClient)
 	t.Cleanup(func() { _ = client.Close() })
 
 	return client
@@ -456,16 +435,18 @@ func eventually(t *testing.T, timeout time.Duration, ok func() bool) {
 }
 
 type fakeTransportFactory struct {
-	config  Config
-	options transportOptions
-	err     error
-	calls   int
+	config Config
+	err    error
+	calls  int
 }
 
-func (f *fakeTransportFactory) New(config Config, opts transportOptions) (mcpsdk.Transport, error) {
+func (f *fakeTransportFactory) New(config Config) (mcpsdk.Transport, error) {
 	f.config = config
-	f.options = opts
 	f.calls++
 
 	return nil, f.err
+}
+
+func testTransport(cfg Config) (mcpsdk.Transport, error) {
+	return newTransport(cfg, nil, nil)
 }

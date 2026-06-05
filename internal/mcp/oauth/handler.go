@@ -2,15 +2,13 @@ package oauth
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"net/http"
 	"sync"
 
 	mcpauth "github.com/modelcontextprotocol/go-sdk/auth"
 	"golang.org/x/oauth2"
 )
-
-var ErrAuthorizationRequired = errors.New("mcp: oauth authorization required")
 
 type Callback interface {
 	Wait(ctx context.Context, authURL string, redirectURL string) (code string, state string, err error)
@@ -81,7 +79,7 @@ func (h *handler) Authorize(ctx context.Context, _ *http.Request, resp *http.Res
 	if h.config.Callback == nil {
 		closeResponse(resp)
 
-		return ErrAuthorizationRequired
+		return fmt.Errorf("mcp: oauth authorization required: %w", mcpauth.ErrOAuth)
 	}
 
 	session, err := h.authorizer.Authorize(ctx, resp)

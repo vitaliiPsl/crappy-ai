@@ -6,9 +6,8 @@ import (
 	"fmt"
 	"sync"
 
+	mcpauth "github.com/modelcontextprotocol/go-sdk/auth"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
-
-	"github.com/vitaliiPsl/crappy-ai/internal/mcp/oauth"
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
 )
@@ -67,22 +66,7 @@ func (c *sdkClient) Connect(ctx context.Context) error {
 		return nil
 	}
 
-	return c.connectLocked(ctx, transportOptions{})
-}
-
-func (c *sdkClient) Authenticate(ctx context.Context) error {
-	c.connMu.Lock()
-	defer c.connMu.Unlock()
-
-	if c.config.OAuth == nil || !c.config.OAuth.IsEnabled() {
-		return fmt.Errorf("mcp: client %q has no oauth configuration", c.config.Name)
-	}
-
-	if err := c.closeLocked(); err != nil {
-		return err
-	}
-
-	return c.connectLocked(ctx, transportOptions{OAuthInteractive: true})
+	return c.connectLocked(ctx)
 }
 
 func (c *sdkClient) Close() error {
@@ -125,14 +109,14 @@ func (c *sdkClient) CallTool(ctx context.Context, call kit.ToolCall) (kit.ToolRe
 	return convertToolResult(call, res), nil
 }
 
-func (c *sdkClient) connectLocked(ctx context.Context, opts transportOptions) error {
+func (c *sdkClient) connectLocked(ctx context.Context) error {
 	if !c.config.IsEnabled() {
 		return fmt.Errorf("mcp: client is disabled")
 	}
 
 	c.setStatus(ClientConnecting, nil)
 
-	session, err := c.dial(ctx, opts)
+	session, err := c.dial(ctx)
 	if err != nil {
 		c.handleConnectionError(err)
 
@@ -180,11 +164,11 @@ func (c *sdkClient) closeLocked() error {
 	return session.Close()
 }
 
-func (c *sdkClient) dial(ctx context.Context, opts transportOptions) (*mcpsdk.ClientSession, error) {
+func (c *sdkClient) dial(ctx context.Context) (*mcpsdk.ClientSession, error) {
 	ctx, cancelConnect := withTimeout(ctx, c.config.ConnectTimeout)
 	defer cancelConnect()
 
-	transport, err := c.newTransport(c.config, opts)
+	transport, err := c.newTransport(c.config)
 	if err != nil {
 		return nil, err
 	}
@@ -285,8 +269,8 @@ func (c *sdkClient) setStatus(status ClientStatus, err error) {
 }
 
 func (c *sdkClient) handleConnectionError(err error) {
-	if errors.Is(err, oauth.ErrAuthorizationRequired) {
-		c.setStatus(ClientAuthRequired, oauth.ErrAuthorizationRequired)
+	if errors.Is(err, mcpauth.ErrOAuth) {
+		c.setStatus(ClientAuthRequired, err)
 
 		return
 	}
@@ -295,7 +279,7 @@ func (c *sdkClient) handleConnectionError(err error) {
 }
 
 func (c *sdkClient) handleRequestError(err error) {
-	if errors.Is(err, oauth.ErrAuthorizationRequired) {
-		c.setStatus(ClientAuthRequired, oauth.ErrAuthorizationRequired)
+	if errors.Is(err, mcpauth.ErrOAuth) {
+		c.setStatus(ClientAuthRequired, err)
 	}
 }

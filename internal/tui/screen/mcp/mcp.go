@@ -32,8 +32,7 @@ const (
 type Model struct {
 	server *server.Server
 
-	configs []coremcp.Config
-	states  []coremcp.ClientState
+	clients []coremcp.ClientSnapshot
 	cursor  int
 
 	viewport viewport.Model
@@ -52,29 +51,14 @@ func New(srv *server.Server) Model {
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.loadConfigs(), m.loadStates())
+	return m.loadClients()
 }
 
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case configsLoadedMsg:
-		m.configs = msg.configs
-		m.cursor = clampCursor(m.cursor, len(m.configs))
-		m.refreshContent()
-		m.scrollToCursor()
-
-		return m, nil
-
-	case statesLoadedMsg:
-		m.states = msg.states
-		m.refreshContent()
-
-		return m, nil
-
 	case clientsLoadedMsg:
-		m.configs = msg.configs
-		m.states = msg.states
-		m.cursor = clampCursor(m.cursor, len(m.configs))
+		m.clients = msg.clients
+		m.cursor = clampCursor(m.cursor, len(m.clients))
 		m.refreshContent()
 		m.scrollToCursor()
 
@@ -113,7 +97,7 @@ func (m Model) handleKey(key tea.KeyMsg) (Model, tea.Cmd) {
 	case "down", "j":
 		return m.moveCursor(1)
 	case "r":
-		return m, m.loadStates()
+		return m, m.loadClients()
 	case "e":
 		return m.toggleSelected()
 	case "a":
@@ -133,7 +117,7 @@ func (m Model) handleKey(key tea.KeyMsg) (Model, tea.Cmd) {
 
 func (m Model) moveCursor(delta int) (Model, tea.Cmd) {
 	next := m.cursor + delta
-	if next < 0 || next >= len(m.configs) {
+	if next < 0 || next >= len(m.clients) {
 		return m, nil
 	}
 
@@ -149,100 +133,88 @@ func (m *Model) resizeViewport() {
 }
 
 func (m *Model) refreshContent() {
-	if len(m.configs) == 0 {
+	if len(m.clients) == 0 {
 		m.viewport.SetContent(renderEmpty(m.width, m.viewport.Height()))
 
 		return
 	}
 
-	m.viewport.SetContent(renderList(m.configs, m.states, m.cursor))
+	m.viewport.SetContent(renderList(m.clients, m.cursor))
 }
 
-func (m Model) loadConfigs() tea.Cmd {
+func (m Model) loadClients() tea.Cmd {
 	return func() tea.Msg {
-		return configsLoadedMsg{configs: m.server.GetMCPClientConfigs()}
-	}
-}
-
-func (m Model) loadStates() tea.Cmd {
-	return func() tea.Msg {
-		return statesLoadedMsg{states: m.server.GetMCPClientStates()}
+		return clientsLoadedMsg{clients: m.server.GetMCPClientSnapshots()}
 	}
 }
 
 func (m Model) toggleSelected() (Model, tea.Cmd) {
-	if m.cursor < 0 || m.cursor >= len(m.configs) {
+	if m.cursor < 0 || m.cursor >= len(m.clients) {
 		return m, nil
 	}
 
-	cfg := m.configs[m.cursor]
+	client := m.clients[m.cursor]
+	cfg := client.Config
 	enabled := !cfg.IsEnabled()
 	cfg.Enabled = &enabled
-	m.configs[m.cursor] = cfg
+	client.Config = cfg
 
-	if m.cursor < len(m.states) {
-		if enabled {
-			m.states[m.cursor] = coremcp.ClientState{Status: coremcp.ClientConnecting}
-		} else {
-			m.states[m.cursor] = coremcp.ClientState{Status: coremcp.ClientDisconnected}
-		}
+	if enabled {
+		client.State = coremcp.ClientState{Status: coremcp.ClientConnecting}
+	} else {
+		client.State = coremcp.ClientState{Status: coremcp.ClientDisconnected}
 	}
+
+	m.clients[m.cursor] = client
 
 	m.refreshContent()
 
 	return m, func() tea.Msg {
 		_ = m.server.SetMCPClientEnabled(context.Background(), cfg.Name, enabled)
 
-		return clientsLoadedMsg{
-			configs: m.server.GetMCPClientConfigs(),
-			states:  m.server.GetMCPClientStates(),
-		}
+		return clientsLoadedMsg{clients: m.server.GetMCPClientSnapshots()}
 	}
 }
 
 func (m Model) reconnectSelected() (Model, tea.Cmd) {
-	if m.cursor < 0 || m.cursor >= len(m.configs) {
+	if m.cursor < 0 || m.cursor >= len(m.clients) {
 		return m, nil
 	}
 
-	cfg := m.configs[m.cursor]
+	cfg := m.clients[m.cursor].Config
 	if !cfg.IsEnabled() {
 		return m, nil
 	}
 
 	// Flip the badge to "connecting" right away so the keypress visibly does
 	// something; the reconnect resolves it to connected/failed when it lands.
-	if m.cursor < len(m.states) {
-		m.states[m.cursor] = coremcp.ClientState{Status: coremcp.ClientConnecting}
-		m.refreshContent()
-	}
+	m.clients[m.cursor].State = coremcp.ClientState{Status: coremcp.ClientConnecting}
+	m.refreshContent()
 
 	return m, func() tea.Msg {
 		_ = m.server.ReconnectMCPClient(context.Background(), cfg.Name)
 
-		return statesLoadedMsg{states: m.server.GetMCPClientStates()}
+		return clientsLoadedMsg{clients: m.server.GetMCPClientSnapshots()}
 	}
 }
 
 func (m Model) authenticateSelected() (Model, tea.Cmd) {
-	if m.cursor < 0 || m.cursor >= len(m.configs) {
+	if m.cursor < 0 || m.cursor >= len(m.clients) {
 		return m, nil
 	}
 
-	cfg := m.configs[m.cursor]
+	cfg := m.clients[m.cursor].Config
 	if !cfg.IsEnabled() || cfg.OAuth == nil || !cfg.OAuth.IsEnabled() {
 		return m, nil
 	}
 
-	if m.cursor < len(m.states) {
-		m.states[m.cursor] = coremcp.ClientState{Status: coremcp.ClientConnecting}
-		m.refreshContent()
-	}
+	m.clients[m.cursor].State = coremcp.ClientState{Status: coremcp.ClientConnecting}
+	m.refreshContent()
 
 	return m, func() tea.Msg {
 		_ = m.server.AuthenticateMCPClient(context.Background(), cfg.Name)
 
-		return statesLoadedMsg{states: m.server.GetMCPClientStates()}
+		return clientsLoadedMsg{clients: m.server.GetMCPClientSnapshots()}
 	}
 }
 
@@ -257,23 +229,20 @@ func renderEmpty(width, height int) string {
 		Render(content)
 }
 
-func renderList(configs []coremcp.Config, states []coremcp.ClientState, cursor int) string {
+func renderList(clients []coremcp.ClientSnapshot, cursor int) string {
 	var b strings.Builder
-	for i, cfg := range configs {
-		var state coremcp.ClientState
-		if i < len(states) {
-			state = states[i]
-		}
-
-		b.WriteString(renderClient(cfg, state, i == cursor))
+	for i, client := range clients {
+		b.WriteString(renderClient(client, i == cursor))
 		b.WriteString("\n\n")
 	}
 
 	return strings.TrimRight(b.String(), "\n")
 }
 
-func renderClient(cfg coremcp.Config, state coremcp.ClientState, selected bool) string {
+func renderClient(client coremcp.ClientSnapshot, selected bool) string {
 	cursor := noCursorPrefix
+	cfg := client.Config
+	state := client.State
 
 	name := cfg.Name
 	if name == "" {
@@ -291,11 +260,15 @@ func renderClient(cfg coremcp.Config, state coremcp.ClientState, selected bool) 
 		metaStyle.Render(metaPad + strings.Join(statusMeta(cfg), metaSep)),
 	}
 
-	if state.Error != "" {
+	if shouldShowError(state) {
 		lines = append(lines, errorStyle.Render(metaPad+state.Error))
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+func shouldShowError(state coremcp.ClientState) bool {
+	return state.Error != "" && state.Status != coremcp.ClientAuthRequired
 }
 
 func statusMeta(cfg coremcp.Config) []string {

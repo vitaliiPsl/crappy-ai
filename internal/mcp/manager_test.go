@@ -15,7 +15,6 @@ type fakeClient struct {
 	err    error
 
 	connects int
-	auths    int
 	closes   int
 	called   kit.ToolCall
 	result   kit.ToolResult
@@ -45,12 +44,6 @@ func (c *fakeClient) Connect(context.Context) error {
 	return c.err
 }
 
-func (c *fakeClient) Authenticate(context.Context) error {
-	c.auths++
-
-	return c.err
-}
-
 func (c *fakeClient) Close() error {
 	c.closes++
 
@@ -67,13 +60,32 @@ func (c *fakeClient) CallTool(_ context.Context, call kit.ToolCall) (kit.ToolRes
 	return c.result, c.err
 }
 
+type fakeAuthenticator struct {
+	config Config
+	err    error
+	calls  int
+}
+
+func (a *fakeAuthenticator) Authenticate(_ context.Context, cfg Config) error {
+	a.config = cfg
+	a.calls++
+
+	return a.err
+}
+
 func newManager(clients ...Client) *Manager {
 	byName := make(map[string]Client, len(clients))
 	for _, client := range clients {
 		byName[client.Config().Name] = client
 	}
 
-	return &Manager{clients: byName}
+	return &Manager{
+		clients: byName,
+		newClient: func(cfg Config) Client {
+			return &fakeClient{config: cfg, status: ClientDisconnected}
+		},
+		authenticator: &fakeAuthenticator{},
+	}
 }
 
 func TestManagerConnectConnectsClients(t *testing.T) {
@@ -111,81 +123,112 @@ func TestManagerConnectSkipsDisabledClients(t *testing.T) {
 	}
 }
 
-func TestManagerStatesReturnsClientStates(t *testing.T) {
+func TestManagerSnapshotsReturnsClientConfigAndState(t *testing.T) {
 	client := &fakeClient{
+		config: Config{Name: "github"},
 		status: ClientFailed,
 		err:    errors.New("boom"),
 	}
 
-	states := newManager(client).States()
-	if len(states) != 1 {
-		t.Fatalf("len(states) = %d, want 1", len(states))
+	snapshots := newManager(client).Snapshots()
+	if len(snapshots) != 1 {
+		t.Fatalf("len(snapshots) = %d, want 1", len(snapshots))
 	}
 
-	if states[0].Status != ClientFailed || states[0].Error != "boom" {
-		t.Fatalf("state = %+v, want failed boom", states[0])
+	if snapshots[0].Config.Name != "github" {
+		t.Fatalf("config = %+v, want github", snapshots[0].Config)
+	}
+
+	if snapshots[0].State.Status != ClientFailed || snapshots[0].State.Error != "boom" {
+		t.Fatalf("state = %+v, want failed boom", snapshots[0].State)
 	}
 }
 
-func TestManagerSetEnabledDisablesByReplacingClient(t *testing.T) {
+func TestManagerApplyConfigDisablesByReplacingClient(t *testing.T) {
 	client := &fakeClient{config: Config{Name: "github"}}
 	manager := newManager(client)
+	cfg := client.Config()
+	disabled := false
+	cfg.Enabled = &disabled
 
-	if err := manager.SetEnabled(context.Background(), "github", false); err != nil {
-		t.Fatalf("SetEnabled: %v", err)
+	if err := manager.ApplyConfig(context.Background(), cfg); err != nil {
+		t.Fatalf("ApplyConfig: %v", err)
 	}
 
 	if client.closes != 1 {
 		t.Fatalf("old client closes = %d, want 1", client.closes)
 	}
 
-	configs := manager.Configs()
-	if len(configs) != 1 || configs[0].IsEnabled() {
-		t.Fatalf("configs = %+v, want disabled github", configs)
+	snapshots := manager.Snapshots()
+	if len(snapshots) != 1 || snapshots[0].Config.IsEnabled() {
+		t.Fatalf("snapshots = %+v, want disabled github", snapshots)
 	}
 
-	states := manager.States()
-	if len(states) != 1 || states[0].Status != ClientDisconnected {
-		t.Fatalf("states = %+v, want disconnected replacement", states)
+	if snapshots[0].State.Status != ClientDisconnected {
+		t.Fatalf("state = %+v, want disconnected replacement", snapshots[0].State)
 	}
 }
 
-func TestManagerSetEnabledEnablesByReplacingAndConnectingClient(t *testing.T) {
+func TestManagerApplyConfigEnablesByReplacingAndConnectingClient(t *testing.T) {
 	disabled := false
-	want := errors.New("transport boom")
 	old := &fakeClient{config: Config{Name: "github", Enabled: &disabled}}
-	factory := &fakeTransportFactory{err: want}
+	next := &fakeClient{status: ClientDisconnected}
 	manager := newManager(old)
-	manager.transport = factory.New
+	manager.newClient = func(cfg Config) Client {
+		next.config = cfg
 
-	err := manager.SetEnabled(context.Background(), "github", true)
-	if !errors.Is(err, want) {
-		t.Fatalf("SetEnabled error = %v, want %v", err, want)
+		return next
+	}
+	cfg := old.Config()
+	cfg.Enabled = nil
+
+	if err := manager.ApplyConfig(context.Background(), cfg); err != nil {
+		t.Fatalf("ApplyConfig: %v", err)
 	}
 
 	if old.closes != 1 {
 		t.Fatalf("old client closes = %d, want 1", old.closes)
 	}
 
-	if factory.calls != 1 {
-		t.Fatalf("transport calls = %d, want 1", factory.calls)
+	if next.connects != 1 {
+		t.Fatalf("replacement connects = %d, want 1", next.connects)
 	}
 
-	configs := manager.Configs()
-	if len(configs) != 1 || !configs[0].IsEnabled() {
-		t.Fatalf("configs = %+v, want enabled github", configs)
-	}
-
-	states := manager.States()
-	if len(states) != 1 || states[0].Status != ClientFailed || states[0].Error != want.Error() {
-		t.Fatalf("states = %+v, want failed replacement with transport error", states)
+	snapshots := manager.Snapshots()
+	if len(snapshots) != 1 || !snapshots[0].Config.IsEnabled() {
+		t.Fatalf("snapshots = %+v, want enabled github", snapshots)
 	}
 }
 
-func TestManagerSetEnabledUnknownClient(t *testing.T) {
-	err := newManager(&fakeClient{config: Config{Name: "github"}}).SetEnabled(context.Background(), "missing", false)
+func TestManagerApplyConfigReturnsConnectErrorFromReplacement(t *testing.T) {
+	disabled := false
+	want := errors.New("connect boom")
+	old := &fakeClient{config: Config{Name: "github", Enabled: &disabled}}
+	next := &fakeClient{status: ClientDisconnected, err: want}
+	manager := newManager(old)
+	manager.newClient = func(cfg Config) Client {
+		next.config = cfg
+
+		return next
+	}
+	cfg := old.Config()
+	cfg.Enabled = nil
+
+	err := manager.ApplyConfig(context.Background(), cfg)
+	if !errors.Is(err, want) {
+		t.Fatalf("ApplyConfig error = %v, want %v", err, want)
+	}
+
+	snapshots := manager.Snapshots()
+	if len(snapshots) != 1 || snapshots[0].State.Status != ClientDisconnected || snapshots[0].State.Error != want.Error() {
+		t.Fatalf("snapshots = %+v, want replacement state with connect error", snapshots)
+	}
+}
+
+func TestManagerApplyConfigUnknownClient(t *testing.T) {
+	err := newManager(&fakeClient{config: Config{Name: "github"}}).ApplyConfig(context.Background(), Config{Name: "missing"})
 	if err == nil || err.Error() != `mcp: unknown client "missing"` {
-		t.Fatalf("SetEnabled error = %v, want unknown client", err)
+		t.Fatalf("ApplyConfig error = %v, want unknown client", err)
 	}
 }
 
@@ -208,14 +251,47 @@ func TestManagerReconnectUnknownClient(t *testing.T) {
 	}
 }
 
-func TestManagerAuthenticateClient(t *testing.T) {
+func TestManagerAuthenticateReplacesAndConnectsClient(t *testing.T) {
 	client := &fakeClient{config: Config{Name: "github"}}
+	next := &fakeClient{status: ClientDisconnected}
+	authenticator := &fakeAuthenticator{}
+	manager := newManager(client)
+	manager.authenticator = authenticator
+	manager.newClient = func(cfg Config) Client {
+		next.config = cfg
 
-	if err := newManager(client).Authenticate(context.Background(), "github"); err != nil {
+		return next
+	}
+
+	if err := manager.Authenticate(context.Background(), "github"); err != nil {
 		t.Fatalf("Authenticate: %v", err)
 	}
 
-	if client.auths != 1 {
-		t.Fatalf("auths = %d, want 1", client.auths)
+	if authenticator.calls != 1 || authenticator.config.Name != "github" {
+		t.Fatalf("authenticator = %d/%+v, want github call", authenticator.calls, authenticator.config)
+	}
+
+	if client.closes != 1 {
+		t.Fatalf("old client closes = %d, want 1", client.closes)
+	}
+
+	if next.connects != 1 {
+		t.Fatalf("replacement connects = %d, want 1", next.connects)
+	}
+}
+
+func TestManagerAuthenticateReturnsAuthenticatorError(t *testing.T) {
+	want := errors.New("auth boom")
+	client := &fakeClient{config: Config{Name: "github"}}
+	manager := newManager(client)
+	manager.authenticator = &fakeAuthenticator{err: want}
+
+	err := manager.Authenticate(context.Background(), "github")
+	if !errors.Is(err, want) {
+		t.Fatalf("Authenticate error = %v, want %v", err, want)
+	}
+
+	if client.closes != 0 || client.connects != 0 {
+		t.Fatalf("closes/connects = %d/%d, want 0/0", client.closes, client.connects)
 	}
 }

@@ -7,14 +7,16 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	mcpauth "github.com/modelcontextprotocol/go-sdk/auth"
 )
 
 func TestPassiveAuthorizeReturnsAuthorizationRequired(t *testing.T) {
 	handler := New(HandlerConfig{Store: newMemoryStore()})
 
 	err := handler.Authorize(context.Background(), nil, &http.Response{Body: http.NoBody})
-	if !errors.Is(err, ErrAuthorizationRequired) {
-		t.Fatalf("Authorize() error = %v, want ErrAuthorizationRequired", err)
+	if !errors.Is(err, mcpauth.ErrOAuth) {
+		t.Fatalf("Authorize() error = %v, want sdk oauth error", err)
 	}
 }
 

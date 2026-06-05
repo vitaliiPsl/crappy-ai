@@ -14,11 +14,14 @@ type Client interface {
 	State() ClientState
 
 	Connect(ctx context.Context) error
-	Authenticate(ctx context.Context) error
 	Close() error
 
 	ListTools(ctx context.Context) ([]kit.Tool, error)
 	CallTool(ctx context.Context, call kit.ToolCall) (kit.ToolResult, error)
+}
+
+type Authenticator interface {
+	Authenticate(ctx context.Context, cfg Config) error
 }
 
 type TransportType string
@@ -41,6 +44,11 @@ const (
 type ClientState struct {
 	Status ClientStatus
 	Error  string
+}
+
+type ClientSnapshot struct {
+	Config Config
+	State  ClientState
 }
 
 type Config struct {

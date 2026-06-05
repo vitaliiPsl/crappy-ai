@@ -7,20 +7,12 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/mcp"
 )
 
-func (s *Server) GetMCPClientConfigs() []mcp.Config {
+func (s *Server) GetMCPClientSnapshots() []mcp.ClientSnapshot {
 	if s.mcpManager == nil {
 		return nil
 	}
 
-	return s.mcpManager.Configs()
-}
-
-func (s *Server) GetMCPClientStates() []mcp.ClientState {
-	if s.mcpManager == nil {
-		return nil
-	}
-
-	return s.mcpManager.States()
+	return s.mcpManager.Snapshots()
 }
 
 func (s *Server) ReconnectMCPClient(ctx context.Context, name string) error {
@@ -46,6 +38,8 @@ func (s *Server) SetMCPClientEnabled(ctx context.Context, name string, enabled b
 
 	settings := s.settingsStore.Get()
 
+	var config mcp.Config
+
 	found := false
 	for i := range settings.MCPClients {
 		if settings.MCPClients[i].Name != name {
@@ -53,6 +47,7 @@ func (s *Server) SetMCPClientEnabled(ctx context.Context, name string, enabled b
 		}
 
 		settings.MCPClients[i].Enabled = &enabled
+		config = settings.MCPClients[i]
 		found = true
 
 		break
@@ -66,5 +61,5 @@ func (s *Server) SetMCPClientEnabled(ctx context.Context, name string, enabled b
 		return err
 	}
 
-	return s.mcpManager.SetEnabled(ctx, name, enabled)
+	return s.mcpManager.ApplyConfig(ctx, config)
 }
