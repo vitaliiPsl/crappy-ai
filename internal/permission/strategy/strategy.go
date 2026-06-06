@@ -32,9 +32,21 @@ func forTool(tool string) Strategy {
 		return urlStrategy{}
 	case ToolBash:
 		return bashStrategy{}
+	case ToolJobStatus, ToolJobResult, ToolJobCancel, ToolJobList:
+		return jobStrategy{}
 	default:
 		return defaultStrategy{}
 	}
+}
+
+type jobStrategy struct{}
+
+func (jobStrategy) Resolve(permissions model.Permissions, call kit.ToolCall) model.ResolveResult {
+	if matchesRuleSet(permissions.Deny, call.Name, "", nil) {
+		return model.ResolveResult{Decision: model.Deny}
+	}
+
+	return model.ResolveResult{Decision: model.Allow}
 }
 
 func (defaultStrategy) Resolve(permissions model.Permissions, call kit.ToolCall) model.ResolveResult {

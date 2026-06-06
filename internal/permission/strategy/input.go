@@ -9,6 +9,10 @@ const (
 	ToolEditFile  = "edit_file"
 	ToolWebFetch  = "web_fetch"
 	ToolBash      = "bash"
+	ToolJobStatus = "job_status"
+	ToolJobResult = "job_result"
+	ToolJobCancel = "job_cancel"
+	ToolJobList   = "job_list"
 )
 
 const (
