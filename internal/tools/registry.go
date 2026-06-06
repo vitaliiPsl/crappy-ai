@@ -6,6 +6,7 @@ import (
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
 
+	"github.com/vitaliiPsl/crappy-ai/internal/background"
 	"github.com/vitaliiPsl/crappy-ai/internal/tools/bash"
 	filesystem "github.com/vitaliiPsl/crappy-ai/internal/tools/fs"
 	"github.com/vitaliiPsl/crappy-ai/internal/tools/web"
@@ -15,11 +16,15 @@ type Registry struct {
 	entries map[string]kit.Tool
 }
 
-func NewRegistry() *Registry {
-	r := &Registry{entries: make(map[string]kit.Tool)}
+func NewRegistry(backgroundManager *background.Manager) *Registry {
+	r := &Registry{
+		entries: make(map[string]kit.Tool),
+	}
+
+	bashTool := wrapBackground(bash.NewBash(), backgroundManager)
 
 	registerTools(r.entries,
-		bash.NewBash(),
+		bashTool,
 		web.NewFetch(),
 		filesystem.NewReadFile(),
 		filesystem.NewWriteFile(),
@@ -70,4 +75,13 @@ func registerTools(entries map[string]kit.Tool, tools ...kit.Tool) {
 
 		entries[name] = tool
 	}
+}
+
+func wrapBackground(t kit.Tool, manager *background.Manager) kit.Tool {
+	wrapped, err := background.Wrap(t, manager)
+	if err != nil {
+		panic(fmt.Sprintf("wrap tool %q for background: %v", t.Definition().Name, err))
+	}
+
+	return wrapped
 }

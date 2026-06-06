@@ -115,6 +115,8 @@ Crappy has tools for files, web pages, and shell commands:
 - `web_fetch` reads public pages when a task depends on external documentation.
 - `bash` runs commands such as tests, formatters, linters, and project scripts.
 
+Long-running shell commands can run in the background and be inspected or canceled with job tools.
+
 Permissions decide whether each tool call is allowed, denied, or asks first:
 
 ```yaml
@@ -128,7 +130,7 @@ permissions:
       pattern: "rm *"
 ```
 
-See [Tools](docs/tools.md) and [Permissions](docs/permissions.md).
+See [Tools](docs/tools.md), [Background Execution](docs/background.md), and [Permissions](docs/permissions.md).
 
 ## Skills
 

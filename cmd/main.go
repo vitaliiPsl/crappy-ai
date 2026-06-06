@@ -8,6 +8,7 @@ import (
 	"os/signal"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant"
+	"github.com/vitaliiPsl/crappy-ai/internal/background"
 	"github.com/vitaliiPsl/crappy-ai/internal/cli"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/mcp"
@@ -80,12 +81,15 @@ func run() error {
 
 	modelRegistry := models.NewRegistry(settingsStore)
 	skillRegistry := skills.NewRegistry(settingsStore)
-	toolRegistry := tools.NewRegistry()
-
-	permissionService := permission.NewService(configStore, nil)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
+
+	backgroundManager := background.NewManager(ctx)
+	defer backgroundManager.Close()
+
+	toolRegistry := tools.NewRegistry(backgroundManager)
+	permissionService := permission.NewService(configStore, nil)
 
 	mcpManager := mcp.New(
 		settingsStore.Get().MCPClients,
@@ -104,6 +108,7 @@ func run() error {
 		skillRegistry,
 		toolRegistry,
 		permissionService,
+		backgroundManager,
 		mcpManager,
 	)
 

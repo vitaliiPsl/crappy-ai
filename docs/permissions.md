@@ -272,6 +272,12 @@ diff <(ls a) <(ls b)
 
 Broad command-pattern rules like `git *` do not automatically approve commands with substitutions. Deny and ask rules can still match commands inside substitutions.
 
+### Background Bash
+
+Background `bash` calls use the same permission rules as foreground `bash` calls. The `background` argument only changes execution scheduling; it does not change permission matching.
+
+See [Background Execution](background.md) for job tools and lifecycle details.
+
 ## MCP Permissions
 
 Tools from [MCP servers](mcp.md) are named `mcp__<server>__<tool>`, such as `mcp__github__search`. They are matched by the `tool` field itself, which supports wildcards, so the `pattern` field is not used.

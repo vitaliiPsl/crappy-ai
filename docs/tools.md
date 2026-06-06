@@ -88,7 +88,13 @@ Crappy runs commands through your shell. If `SHELL` is not set, it uses `sh`.
 
 Use `bash` for tests, formatters, linters, project scripts, Git commands, and build tools.
 
-Avoid long-running commands like servers and file watchers unless you are prepared to cancel them.
+For long-running commands like servers and file watchers, Crappy can run `bash` in the background. See [Background Execution](background.md).
+
+### `job_status`, `job_result`, `job_list`, `job_cancel`
+
+Inspect, list, and cancel background jobs.
+
+Crappy uses these after a background-capable tool, such as `bash`, starts a job. See [Background Execution](background.md).
 
 ### `use_skill`
 

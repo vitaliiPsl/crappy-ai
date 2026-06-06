@@ -11,11 +11,13 @@ import (
 	"github.com/vitaliiPsl/crappy-adk/x/tool"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension"
+	bgext "github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/background"
 	mcpext "github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/mcp"
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/planning"
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/skills"
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/summarization"
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/memory"
+	"github.com/vitaliiPsl/crappy-ai/internal/background"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/mcp"
 	"github.com/vitaliiPsl/crappy-ai/internal/models"
@@ -44,6 +46,7 @@ func New(
 	skillRegistry *coreskills.Registry,
 	toolRegistry *tools.Registry,
 	permissions *permission.Service,
+	background *background.Manager,
 	mcpManager *mcp.Manager,
 ) *Assistant {
 	return &Assistant{
@@ -55,6 +58,7 @@ func New(
 		permissions:   permissions,
 		extensions: []extension.Extension{
 			summarization.New(),
+			bgext.New(background),
 			planning.New(artifactStore),
 			skills.New(skillRegistry),
 			mcpext.New(mcpManager),

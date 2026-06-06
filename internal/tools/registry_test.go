@@ -1,11 +1,14 @@
 package tools
 
 import (
+	"context"
 	"strings"
 	"testing"
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
 	"github.com/vitaliiPsl/crappy-adk/kittest"
+
+	"github.com/vitaliiPsl/crappy-ai/internal/background"
 )
 
 func newTestRegistry(t *testing.T, tools ...kit.Tool) *Registry {
@@ -18,7 +21,10 @@ func newTestRegistry(t *testing.T, tools ...kit.Tool) *Registry {
 }
 
 func TestGetTools(t *testing.T) {
-	registry := NewRegistry()
+	manager := background.NewManager(context.Background())
+	defer manager.Close()
+
+	registry := NewRegistry(manager)
 
 	want := []string{
 		"bash",
