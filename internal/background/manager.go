@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -13,7 +14,7 @@ type Manager struct {
 	cancel  context.CancelFunc
 	store   Store
 	mu      sync.Mutex
-	next    uint64
+	next    atomic.Uint64
 	running map[string]*runningJob
 }
 
@@ -55,7 +56,7 @@ func (m *Manager) Close() {
 	}
 }
 
-func (m *Manager) Start(toolName string, run func(context.Context) (string, error)) (Job, error) {
+func (m *Manager) Start(sessionID, toolName string, run func(context.Context) (string, error)) (Job, error) {
 	if err := m.ctx.Err(); err != nil {
 		return Job{}, err
 	}
@@ -66,13 +67,11 @@ func (m *Manager) Start(toolName string, run func(context.Context) (string, erro
 		done:   make(chan struct{}),
 	}
 
-	m.mu.Lock()
-	m.next++
-	id := fmt.Sprintf("job_%d", m.next)
-	m.mu.Unlock()
+	id := fmt.Sprintf("job_%d", m.next.Add(1))
 
 	job := Job{
 		ID:        id,
+		SessionID: sessionID,
 		Tool:      toolName,
 		Status:    StatusRunning,
 		StartedAt: time.Now(),
@@ -109,14 +108,34 @@ func (m *Manager) Start(toolName string, run func(context.Context) (string, erro
 	return job, nil
 }
 
-func (m *Manager) Get(id string) (Job, error) {
-	return m.store.Get(id)
+func (m *Manager) Get(sessionID, id string) (Job, error) {
+	job, err := m.store.Get(id)
+	if err != nil {
+		return Job{}, err
+	}
+
+	if !matchesSession(job, sessionID) {
+		return Job{}, fmt.Errorf("%w: %s", ErrNotFound, id)
+	}
+
+	return job, nil
 }
 
-func (m *Manager) List() ([]Job, error) {
+func (m *Manager) List(sessionID string) ([]Job, error) {
 	jobs, err := m.store.List()
 	if err != nil {
 		return nil, err
+	}
+
+	if sessionID != "" {
+		filtered := jobs[:0]
+		for _, job := range jobs {
+			if matchesSession(job, sessionID) {
+				filtered = append(filtered, job)
+			}
+		}
+
+		jobs = filtered
 	}
 
 	sort.Slice(jobs, func(i, j int) bool {
@@ -126,27 +145,36 @@ func (m *Manager) List() ([]Job, error) {
 	return jobs, nil
 }
 
-func (m *Manager) Wait(ctx context.Context, id string) (Job, error) {
+func (m *Manager) Wait(ctx context.Context, sessionID, id string) (Job, error) {
+	job, err := m.Get(sessionID, id)
+	if err != nil {
+		return Job{}, err
+	}
+
 	m.mu.Lock()
 	running := m.running[id]
 	m.mu.Unlock()
 
 	if running == nil {
-		return m.Get(id)
+		return job, nil
 	}
 
 	select {
 	case <-running.done:
-		return m.Get(id)
+		return m.Get(sessionID, id)
 	case <-ctx.Done():
 		return Job{}, ctx.Err()
 	}
 }
 
-func (m *Manager) Cancel(id string) (Job, error) {
+func (m *Manager) Cancel(sessionID, id string) (Job, error) {
 	job, err := m.store.Get(id)
 	if err != nil {
 		return Job{}, err
+	}
+
+	if !matchesSession(job, sessionID) {
+		return Job{}, fmt.Errorf("%w: %s", ErrNotFound, id)
 	}
 
 	m.mu.Lock()
@@ -213,4 +241,8 @@ func closeDone(job *runningJob) {
 	default:
 		close(job.done)
 	}
+}
+
+func matchesSession(job Job, sessionID string) bool {
+	return sessionID == "" || job.SessionID == sessionID
 }

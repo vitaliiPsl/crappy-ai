@@ -13,7 +13,9 @@ func TestManagerStartWaitSuccess(t *testing.T) {
 
 	release := make(chan struct{})
 
-	started, err := manager.Start("worker", func(context.Context) (string, error) {
+	jobs := manager.ForSession("session-1")
+
+	started, err := jobs.Start("worker", func(context.Context) (string, error) {
 		<-release
 
 		return "done", nil
@@ -22,13 +24,13 @@ func TestManagerStartWaitSuccess(t *testing.T) {
 		t.Fatalf("Start: %v", err)
 	}
 
-	if started.ID == "" || started.Tool != "worker" || started.Status != StatusRunning {
+	if started.ID == "" || started.SessionID != "session-1" || started.Tool != "worker" || started.Status != StatusRunning {
 		t.Fatalf("started = %+v, want running worker job with ID", started)
 	}
 
 	close(release)
 
-	done, err := manager.Wait(context.Background(), started.ID)
+	done, err := jobs.Wait(context.Background(), started.ID)
 	if err != nil {
 		t.Fatalf("Wait: %v", err)
 	}
@@ -44,14 +46,16 @@ func TestManagerStartFailure(t *testing.T) {
 
 	wantErr := errors.New("boom")
 
-	started, err := manager.Start("worker", func(context.Context) (string, error) {
+	jobs := manager.ForSession("session-1")
+
+	started, err := jobs.Start("worker", func(context.Context) (string, error) {
 		return "", wantErr
 	})
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 
-	done, err := manager.Wait(context.Background(), started.ID)
+	done, err := jobs.Wait(context.Background(), started.ID)
 	if err != nil {
 		t.Fatalf("Wait: %v", err)
 	}
@@ -67,7 +71,9 @@ func TestManagerCancelRunningJob(t *testing.T) {
 
 	ctxDone := make(chan struct{})
 
-	started, err := manager.Start("worker", func(ctx context.Context) (string, error) {
+	jobs := manager.ForSession("session-1")
+
+	started, err := jobs.Start("worker", func(ctx context.Context) (string, error) {
 		<-ctx.Done()
 		close(ctxDone)
 
@@ -77,7 +83,7 @@ func TestManagerCancelRunningJob(t *testing.T) {
 		t.Fatalf("Start: %v", err)
 	}
 
-	canceled, err := manager.Cancel(started.ID)
+	canceled, err := jobs.Cancel(started.ID)
 	if err != nil {
 		t.Fatalf("Cancel: %v", err)
 	}
@@ -88,7 +94,7 @@ func TestManagerCancelRunningJob(t *testing.T) {
 
 	<-ctxDone
 
-	done, err := manager.Wait(context.Background(), started.ID)
+	done, err := jobs.Wait(context.Background(), started.ID)
 	if err != nil {
 		t.Fatalf("Wait: %v", err)
 	}
@@ -113,7 +119,7 @@ func TestManagerStartConcurrentIDsAreUnique(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			started, err := manager.Start("worker", func(context.Context) (string, error) {
+			started, err := manager.ForSession("session-1").Start("worker", func(context.Context) (string, error) {
 				return "ok", nil
 			})
 			if err != nil {
@@ -147,27 +153,29 @@ func TestManagerListNewestFirst(t *testing.T) {
 	manager := NewManager(context.Background())
 	defer manager.Close()
 
-	first, err := manager.Start("first", func(context.Context) (string, error) { return "first", nil })
+	jobs := manager.ForSession("session-1")
+
+	first, err := jobs.Start("first", func(context.Context) (string, error) { return "first", nil })
 	if err != nil {
 		t.Fatalf("Start first: %v", err)
 	}
 
-	second, err := manager.Start("second", func(context.Context) (string, error) { return "second", nil })
+	second, err := jobs.Start("second", func(context.Context) (string, error) { return "second", nil })
 	if err != nil {
 		t.Fatalf("Start second: %v", err)
 	}
 
-	jobs, err := manager.List()
+	list, err := jobs.List()
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
 
-	if len(jobs) != 2 {
-		t.Fatalf("jobs len = %d, want 2", len(jobs))
+	if len(list) != 2 {
+		t.Fatalf("jobs len = %d, want 2", len(list))
 	}
 
-	if jobs[0].ID != second.ID || jobs[1].ID != first.ID {
-		t.Fatalf("jobs order = [%s %s], want newest first [%s %s]", jobs[0].ID, jobs[1].ID, second.ID, first.ID)
+	if list[0].ID != second.ID || list[1].ID != first.ID {
+		t.Fatalf("jobs order = [%s %s], want newest first [%s %s]", list[0].ID, list[1].ID, second.ID, first.ID)
 	}
 }
 
@@ -175,8 +183,66 @@ func TestManagerWaitMissing(t *testing.T) {
 	manager := NewManager(context.Background())
 	defer manager.Close()
 
-	_, err := manager.Wait(context.Background(), "missing")
+	_, err := manager.ForSession("session-1").Wait(context.Background(), "missing")
 	if !errors.Is(err, ErrNotFound) {
 		t.Fatalf("Wait error = %v, want ErrNotFound", err)
+	}
+}
+
+func TestManagerFiltersBySession(t *testing.T) {
+	manager := NewManager(context.Background())
+	defer manager.Close()
+
+	sessionOneJobs := manager.ForSession("session-1")
+	sessionTwoJobs := manager.ForSession("session-2")
+	allJobs := manager.ForSession("")
+
+	sessionOne, err := sessionOneJobs.Start("one", func(context.Context) (string, error) { return "one", nil })
+	if err != nil {
+		t.Fatalf("Start session one: %v", err)
+	}
+
+	sessionTwo, err := sessionTwoJobs.Start("two", func(context.Context) (string, error) { return "two", nil })
+	if err != nil {
+		t.Fatalf("Start session two: %v", err)
+	}
+
+	jobs, err := sessionOneJobs.List()
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+
+	if len(jobs) != 1 || jobs[0].ID != sessionOne.ID {
+		t.Fatalf("session jobs = %+v, want only %s", jobs, sessionOne.ID)
+	}
+
+	all, err := allJobs.List()
+	if err != nil {
+		t.Fatalf("List all: %v", err)
+	}
+
+	if len(all) != 2 {
+		t.Fatalf("all jobs len = %d, want 2", len(all))
+	}
+
+	if _, err := sessionOneJobs.Get(sessionTwo.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("Get other session error = %v, want ErrNotFound", err)
+	}
+
+	if _, err := sessionOneJobs.Wait(context.Background(), sessionTwo.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("Wait other session error = %v, want ErrNotFound", err)
+	}
+
+	if _, err := sessionOneJobs.Cancel(sessionTwo.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("Cancel other session error = %v, want ErrNotFound", err)
+	}
+
+	got, err := allJobs.Get(sessionTwo.ID)
+	if err != nil {
+		t.Fatalf("Get all sessions: %v", err)
+	}
+
+	if got.ID != sessionTwo.ID {
+		t.Fatalf("got job = %s, want %s", got.ID, sessionTwo.ID)
 	}
 }

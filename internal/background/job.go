@@ -26,6 +26,7 @@ const (
 
 type Job struct {
 	ID          string     `json:"job_id"`
+	SessionID   string     `json:"session_id,omitempty"`
 	Tool        string     `json:"tool"`
 	Status      Status     `json:"status"`
 	Output      string     `json:"output,omitempty"`

@@ -30,7 +30,8 @@ const (
 )
 
 type Model struct {
-	server *server.Server
+	server    *server.Server
+	sessionID string
 
 	jobs   []background.Job
 	cursor int
@@ -40,13 +41,14 @@ type Model struct {
 	height   int
 }
 
-func New(srv *server.Server) Model {
+func New(srv *server.Server, sessionID string) Model {
 	vp := viewport.New()
 	vp.SoftWrap = false
 
 	return Model{
-		server:   srv,
-		viewport: vp,
+		server:    srv,
+		sessionID: sessionID,
+		viewport:  vp,
 	}
 }
 
@@ -139,9 +141,9 @@ func (m Model) cancelSelected() (Model, tea.Cmd) {
 	m.refreshContent()
 
 	return m, func() tea.Msg {
-		m.server.CancelBackgroundJob(job.ID)
+		m.server.CancelBackgroundJob(m.sessionID, job.ID)
 
-		return jobsLoadedMsg{jobs: m.server.BackgroundJobs()}
+		return jobsLoadedMsg{jobs: m.server.BackgroundJobs(m.sessionID)}
 	}
 }
 
@@ -161,7 +163,7 @@ func (m *Model) refreshContent() {
 
 func (m Model) loadJobs() tea.Cmd {
 	return func() tea.Msg {
-		return jobsLoadedMsg{jobs: m.server.BackgroundJobs()}
+		return jobsLoadedMsg{jobs: m.server.BackgroundJobs(m.sessionID)}
 	}
 }
 

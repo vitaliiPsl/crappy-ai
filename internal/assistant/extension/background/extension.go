@@ -32,9 +32,11 @@ func (e *ext) Name() string {
 	return "background"
 }
 
-func (e *ext) Options(extension.Context) (agent.Option, error) {
+func (e *ext) Options(ctx extension.Context) (agent.Option, error) {
+	jobs := e.manager.ForSession(ctx.SessionID)
+
 	return agent.WithExtensions(
 		agent.WithInstructions(Instructions),
-		agent.WithTools(bg.Tools(e.manager)...),
+		agent.WithTools(bg.Tools(jobs)...),
 	), nil
 }

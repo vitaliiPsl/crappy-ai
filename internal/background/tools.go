@@ -11,51 +11,51 @@ type jobArgs struct {
 
 type listArgs struct{}
 
-func Tools(manager *Manager) []kit.Tool {
+func Tools(jobs Jobs) []kit.Tool {
 	return []kit.Tool{
-		statusTool(manager),
-		resultTool(manager),
-		cancelTool(manager),
-		listTool(manager),
+		statusTool(jobs),
+		resultTool(jobs),
+		cancelTool(jobs),
+		listTool(jobs),
 	}
 }
 
-func statusTool(manager *Manager) kit.Tool {
+func statusTool(jobs Jobs) kit.Tool {
 	return tool.MustNew(
 		ToolStatus,
 		"Get the current status of a background job.",
 		func(_ *kit.RunContext, input jobArgs) (Job, error) {
-			return manager.Get(input.ID)
+			return jobs.Get(input.ID)
 		},
 	)
 }
 
-func resultTool(manager *Manager) kit.Tool {
+func resultTool(jobs Jobs) kit.Tool {
 	return tool.MustNew(
 		ToolResult,
 		"Get the result of a background job. Running jobs return their current status without output.",
 		func(_ *kit.RunContext, input jobArgs) (Job, error) {
-			return manager.Get(input.ID)
+			return jobs.Get(input.ID)
 		},
 	)
 }
 
-func cancelTool(manager *Manager) kit.Tool {
+func cancelTool(jobs Jobs) kit.Tool {
 	return tool.MustNew(
 		ToolCancel,
 		"Cancel a running background job.",
 		func(_ *kit.RunContext, input jobArgs) (Job, error) {
-			return manager.Cancel(input.ID)
+			return jobs.Cancel(input.ID)
 		},
 	)
 }
 
-func listTool(manager *Manager) kit.Tool {
+func listTool(jobs Jobs) kit.Tool {
 	return tool.MustNew(
 		ToolList,
 		"List background jobs, newest first.",
 		func(_ *kit.RunContext, _ listArgs) ([]Job, error) {
-			return manager.List()
+			return jobs.List()
 		},
 	)
 }

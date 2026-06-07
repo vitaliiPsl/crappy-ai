@@ -52,7 +52,10 @@ func Wrap(tool kit.Tool, manager *Manager) (kit.Tool, error) {
 				return "", err
 			}
 
-			job, err := manager.Start(tool.Definition().Name, func(ctx context.Context) (string, error) {
+			sessionID := SessionID(rc.Context)
+			jobs := manager.ForSession(sessionID)
+
+			job, err := jobs.Start(tool.Definition().Name, func(ctx context.Context) (string, error) {
 				jobRC := *rc
 				jobRC.Context = ctx
 				jobRC.Events = kit.NoopEmitter[kit.AgentEvent]{}

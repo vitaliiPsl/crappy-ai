@@ -98,7 +98,9 @@ func (a *Assistant) Run(ctx context.Context, sessionID string, req RunRequest) (
 			return struct{}{}, err
 		}
 
-		stream := ag.Stream(ctx, userMsg)
+		runCtx := background.WithSessionID(ctx, sessionID)
+
+		stream := ag.Stream(runCtx, userMsg)
 		for kitEvent := range stream.Iter() {
 			ev, ok := session.FromKitEvent(sessionID, kitEvent)
 			if !ok {

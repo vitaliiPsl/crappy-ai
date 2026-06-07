@@ -108,7 +108,9 @@ func TestWrapBackgroundStartsJob(t *testing.T) {
 		t.Fatalf("Wrap: %v", err)
 	}
 
-	output, err := wrapped.Execute(kit.NewRunContext(context.Background()), map[string]any{
+	rc := kit.NewRunContext(WithSessionID(context.Background(), "session-1"))
+
+	output, err := wrapped.Execute(rc, map[string]any{
 		"command": "go test ./...",
 		ArgName:   true,
 	})
@@ -121,14 +123,14 @@ func TestWrapBackgroundStartsJob(t *testing.T) {
 		t.Fatalf("unmarshal job: %v", err)
 	}
 
-	if job.ID == "" || job.Status != StatusRunning {
-		t.Fatalf("job = %+v, want running job with ID", job)
+	if job.ID == "" || job.SessionID != "session-1" || job.Status != StatusRunning {
+		t.Fatalf("job = %+v, want running job with session ID", job)
 	}
 
 	<-started
 	close(release)
 
-	done, err := manager.Wait(context.Background(), job.ID)
+	done, err := manager.ForSession("session-1").Wait(context.Background(), job.ID)
 	if err != nil {
 		t.Fatalf("Wait: %v", err)
 	}

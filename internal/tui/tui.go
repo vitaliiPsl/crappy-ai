@@ -309,7 +309,7 @@ func (m *Model) openMCP() tea.Cmd {
 
 func (m *Model) openJobs() tea.Cmd {
 	m.prev = m.active
-	screen := jobsScreen.New(m.server)
+	screen := jobsScreen.New(m.server, m.sessionID)
 	m.jobs = &screen
 	m.active = screenJobs
 	m.resize()
