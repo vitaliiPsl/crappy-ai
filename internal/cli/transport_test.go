@@ -327,7 +327,7 @@ func newTestServer(t *testing.T, asst server.Assistant) *server.Server {
 
 	configStore := config.NewStore(config.Config{Cwd: t.TempDir()}, "")
 
-	return server.New(asst, nil, configStore, store, nil, nil, nil)
+	return server.New(asst, nil, configStore, store, nil, nil, nil, nil)
 }
 
 func captureOutput(t *testing.T, fn func() error) (string, string, error) {

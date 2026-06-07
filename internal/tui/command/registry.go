@@ -16,6 +16,7 @@ func NewRegistry(skillSource SkillSource) *Registry {
 	r.Register(NewSessionsCommand())
 	r.Register(NewSettingsCommand())
 	r.Register(NewMCPCommand())
+	r.Register(NewJobsCommand())
 	r.Register(NewCompactCommand())
 	r.Register(NewHelpCommand(r))
 

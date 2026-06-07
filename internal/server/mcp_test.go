@@ -15,7 +15,7 @@ func TestSetMCPClientEnabledPersistsAndUpdatesManager(t *testing.T) {
 		MCPClients: []mcp.Config{{Name: "github"}},
 	}, settingsPath)
 	manager := mcp.New(settingsStore.Get().MCPClients, nil, nil)
-	srv := New(nil, settingsStore, nil, nil, nil, nil, manager)
+	srv := New(nil, settingsStore, nil, nil, nil, nil, nil, manager)
 
 	if err := srv.SetMCPClientEnabled(context.Background(), "github", false); err != nil {
 		t.Fatalf("SetMCPClientEnabled: %v", err)
@@ -36,7 +36,7 @@ func TestSetMCPClientEnabledUnknownClient(t *testing.T) {
 	settingsStore := settings.NewStore(settings.Settings{
 		MCPClients: []mcp.Config{{Name: "github"}},
 	}, filepath.Join(t.TempDir(), "settings.yaml"))
-	srv := New(nil, settingsStore, nil, nil, nil, nil, mcp.New(settingsStore.Get().MCPClients, nil, nil))
+	srv := New(nil, settingsStore, nil, nil, nil, nil, nil, mcp.New(settingsStore.Get().MCPClients, nil, nil))
 
 	err := srv.SetMCPClientEnabled(context.Background(), "missing", false)
 	if err == nil || err.Error() != `mcp: unknown client "missing"` {

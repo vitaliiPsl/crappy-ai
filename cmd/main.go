@@ -119,6 +119,7 @@ func run() error {
 		sessStore,
 		modelRegistry,
 		skillRegistry,
+		backgroundManager,
 		mcpManager,
 	)
 

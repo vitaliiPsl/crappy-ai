@@ -8,6 +8,7 @@ import (
 
 	"github.com/vitaliiPsl/crappy-ai/internal/server"
 	"github.com/vitaliiPsl/crappy-ai/internal/tui/command"
+	jobsScreen "github.com/vitaliiPsl/crappy-ai/internal/tui/screen/jobs"
 	mcpScreen "github.com/vitaliiPsl/crappy-ai/internal/tui/screen/mcp"
 	sessionScreen "github.com/vitaliiPsl/crappy-ai/internal/tui/screen/session"
 	sessionsScreen "github.com/vitaliiPsl/crappy-ai/internal/tui/screen/sessions"
@@ -25,6 +26,7 @@ const (
 	screenSessions
 	screenSettings
 	screenMCP
+	screenJobs
 )
 
 type Model struct {
@@ -39,6 +41,7 @@ type Model struct {
 	sessions  *sessionsScreen.Model
 	settings  *settingsScreen.Model
 	mcp       *mcpScreen.Model
+	jobs      *jobsScreen.Model
 
 	width  int
 	height int
@@ -101,6 +104,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.openPrev()
 	case mcpScreen.ClosedMsg:
 		return m, m.openPrev()
+	case jobsScreen.ClosedMsg:
+		return m, m.openPrev()
 	case command.NavNewSessionMsg:
 		if m.session != nil {
 			m.session.Cleanup()
@@ -125,6 +130,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		return m, m.openMCP()
+	case command.NavJobsMsg:
+		if m.active == screenSession && m.session != nil {
+			m.session.Cleanup()
+		}
+
+		return m, m.openJobs()
 	}
 
 	switch m.active {
@@ -171,6 +182,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		*m.mcp, cmd = m.mcp.Update(msg)
 
 		return m, cmd
+
+	case screenJobs:
+		if m.jobs == nil {
+			return m, nil
+		}
+
+		var cmd tea.Cmd
+
+		*m.jobs, cmd = m.jobs.Update(msg)
+
+		return m, cmd
 	}
 
 	return m, nil
@@ -195,6 +217,10 @@ func (m Model) View() tea.View {
 	case screenMCP:
 		if m.mcp != nil {
 			content = m.mcp.View()
+		}
+	case screenJobs:
+		if m.jobs != nil {
+			content = m.jobs.View()
 		}
 	}
 
@@ -232,6 +258,12 @@ func (m *Model) resize() {
 		}
 
 		m.mcp.SetSize(innerWidth, m.height)
+	case screenJobs:
+		if m.jobs == nil {
+			return
+		}
+
+		m.jobs.SetSize(innerWidth, m.height)
 	}
 }
 
@@ -275,6 +307,16 @@ func (m *Model) openMCP() tea.Cmd {
 	return m.mcp.Init()
 }
 
+func (m *Model) openJobs() tea.Cmd {
+	m.prev = m.active
+	screen := jobsScreen.New(m.server)
+	m.jobs = &screen
+	m.active = screenJobs
+	m.resize()
+
+	return m.jobs.Init()
+}
+
 func (m *Model) openPrev() tea.Cmd {
 	switch m.prev {
 	case screenSession:
@@ -303,6 +345,15 @@ func (m *Model) openPrev() tea.Cmd {
 		}
 
 		m.active = screenMCP
+		m.resize()
+
+		return nil
+	case screenJobs:
+		if m.jobs == nil {
+			return m.openJobs()
+		}
+
+		m.active = screenJobs
 		m.resize()
 
 		return nil

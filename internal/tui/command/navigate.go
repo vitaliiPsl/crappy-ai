@@ -61,3 +61,17 @@ func (c *MCPCommand) Definition() Definition {
 func (c *MCPCommand) Execute(_ context.Context, _ Request) tea.Cmd {
 	return func() tea.Msg { return NavMCPMsg{} }
 }
+
+type JobsCommand struct{}
+
+func NewJobsCommand() *JobsCommand {
+	return &JobsCommand{}
+}
+
+func (c *JobsCommand) Definition() Definition {
+	return Definition{Name: "jobs", Description: "Open the background jobs screen"}
+}
+
+func (c *JobsCommand) Execute(_ context.Context, _ Request) tea.Cmd {
+	return func() tea.Msg { return NavJobsMsg{} }
+}
