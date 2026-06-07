@@ -24,7 +24,7 @@ func (e *ext) Name() string {
 
 func (e *ext) Options(ctx extension.Context) (agent.Option, error) {
 	var tools []kit.Tool
-	for _, client := range e.manager.Clients() {
+	for _, client := range e.manager.List() {
 		if client.State().Status != mcpcore.ClientConnected {
 			continue
 		}

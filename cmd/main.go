@@ -91,14 +91,15 @@ func run() error {
 	toolRegistry := tools.NewRegistry(backgroundManager)
 	permissionService := permission.NewService(configStore, nil)
 
-	mcpManager := mcp.New(
+	mcpManager := mcp.NewManager(
+		ctx,
 		settingsStore.Get().MCPClients,
 		oauthStore,
 		mcp.NewBrowserCallback(),
 	)
-	go func() { _ = mcpManager.Connect(ctx) }()
+	defer mcpManager.Close()
 
-	defer func() { _ = mcpManager.Close() }()
+	mcpManager.Start()
 
 	asst := assistant.New(
 		configStore,

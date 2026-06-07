@@ -10,8 +10,9 @@ import (
 )
 
 type Manager struct {
-	ctx     context.Context
-	cancel  context.CancelFunc
+	ctx    context.Context
+	cancel context.CancelFunc
+
 	store   Store
 	mu      sync.Mutex
 	next    atomic.Uint64
@@ -24,10 +25,6 @@ type runningJob struct {
 }
 
 func NewManager(ctx context.Context) *Manager {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
 	ctx, cancel := context.WithCancel(ctx)
 
 	return &Manager{

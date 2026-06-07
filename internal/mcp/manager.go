@@ -11,6 +11,10 @@ import (
 )
 
 type Manager struct {
+	ctx       context.Context
+	cancel    context.CancelFunc
+	startOnce sync.Once
+
 	mu            sync.RWMutex
 	clients       map[string]Client
 	newClient     ClientFactory
@@ -20,6 +24,12 @@ type Manager struct {
 type ClientFactory func(Config) Client
 
 func New(configs []Config, oauthSessionStore oauth.Store, oauthCallback oauth.Callback) *Manager {
+	return NewManager(context.Background(), configs, oauthSessionStore, oauthCallback)
+}
+
+func NewManager(ctx context.Context, configs []Config, oauthSessionStore oauth.Store, oauthCallback oauth.Callback) *Manager {
+	ctx, cancel := context.WithCancel(ctx)
+
 	transport := NewTransportFactory(oauthSessionStore, nil)
 	factory := func(cfg Config) Client {
 		return NewClient(cfg, transport)
@@ -31,21 +41,41 @@ func New(configs []Config, oauthSessionStore oauth.Store, oauthCallback oauth.Ca
 	}
 
 	return &Manager{
+		ctx:           ctx,
+		cancel:        cancel,
 		clients:       clients,
 		newClient:     factory,
 		authenticator: NewOAuthAuthenticator(oauthSessionStore, oauthCallback),
 	}
 }
 
-func (m *Manager) Connect(ctx context.Context) error {
-	clients := m.sorted()
+func (m *Manager) Start() {
+	m.startOnce.Do(func() {
+		go func() { _ = m.Connect() }()
+	})
+}
+
+func (m *Manager) Close() {
+	m.cancel()
+
+	for _, client := range m.List() {
+		_ = client.Close()
+	}
+}
+
+func (m *Manager) Connect() error {
+	if err := m.ctx.Err(); err != nil {
+		return err
+	}
+
+	clients := m.List()
 	errs := make([]error, len(clients))
 
 	var wg sync.WaitGroup
 	for i, client := range clients {
 		if client.Config().IsEnabled() {
 			wg.Go(func() {
-				errs[i] = client.Connect(ctx)
+				errs[i] = client.Connect(m.ctx)
 			})
 		}
 	}
@@ -56,9 +86,13 @@ func (m *Manager) Connect(ctx context.Context) error {
 }
 
 func (m *Manager) Reconnect(ctx context.Context, name string) error {
-	client, ok := m.client(name)
-	if !ok {
-		return fmt.Errorf("mcp: unknown client %q", name)
+	if err := m.ctx.Err(); err != nil {
+		return err
+	}
+
+	client, err := m.Get(name)
+	if err != nil {
+		return err
 	}
 
 	if err := client.Close(); err != nil {
@@ -69,9 +103,13 @@ func (m *Manager) Reconnect(ctx context.Context, name string) error {
 }
 
 func (m *Manager) Authenticate(ctx context.Context, name string) error {
-	client, ok := m.client(name)
-	if !ok {
-		return fmt.Errorf("mcp: unknown client %q", name)
+	if err := m.ctx.Err(); err != nil {
+		return err
+	}
+
+	client, err := m.Get(name)
+	if err != nil {
+		return err
 	}
 
 	if err := m.authenticator.Authenticate(ctx, client.Config()); err != nil {
@@ -82,9 +120,13 @@ func (m *Manager) Authenticate(ctx context.Context, name string) error {
 }
 
 func (m *Manager) ApplyConfig(ctx context.Context, config Config) error {
-	client, ok := m.client(config.Name)
-	if !ok {
-		return fmt.Errorf("mcp: unknown client %q", config.Name)
+	if err := m.ctx.Err(); err != nil {
+		return err
+	}
+
+	client, err := m.Get(config.Name)
+	if err != nil {
+		return err
 	}
 
 	next := m.newClient(config)
@@ -104,23 +146,12 @@ func (m *Manager) ApplyConfig(ctx context.Context, config Config) error {
 	return next.Connect(ctx)
 }
 
-func (m *Manager) Close() error {
-	var errs []error
-	for _, client := range m.Clients() {
-		if err := client.Close(); err != nil {
-			errs = append(errs, err)
-		}
-	}
-
-	return errors.Join(errs...)
-}
-
 func (m *Manager) Clients() []Client {
-	return m.sorted()
+	return m.List()
 }
 
 func (m *Manager) Snapshots() []ClientSnapshot {
-	clients := m.sorted()
+	clients := m.List()
 
 	snapshots := make([]ClientSnapshot, len(clients))
 	for i, client := range clients {
@@ -133,7 +164,7 @@ func (m *Manager) Snapshots() []ClientSnapshot {
 	return snapshots
 }
 
-func (m *Manager) sorted() []Client {
+func (m *Manager) List() []Client {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -149,11 +180,14 @@ func (m *Manager) sorted() []Client {
 	return clients
 }
 
-func (m *Manager) client(name string) (Client, bool) {
+func (m *Manager) Get(name string) (Client, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	client, ok := m.clients[name]
+	if !ok {
+		return nil, fmt.Errorf("mcp: unknown client %q", name)
+	}
 
-	return client, ok
+	return client, nil
 }

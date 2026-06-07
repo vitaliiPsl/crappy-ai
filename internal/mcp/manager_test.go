@@ -79,7 +79,11 @@ func newManager(clients ...Client) *Manager {
 		byName[client.Config().Name] = client
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	return &Manager{
+		ctx:     ctx,
+		cancel:  cancel,
 		clients: byName,
 		newClient: func(cfg Config) Client {
 			return &fakeClient{config: cfg, status: ClientDisconnected}
@@ -92,7 +96,7 @@ func TestManagerConnectConnectsClients(t *testing.T) {
 	first := &fakeClient{config: Config{Name: "first"}}
 	second := &fakeClient{config: Config{Name: "second"}}
 
-	if err := newManager(first, second).Connect(context.Background()); err != nil {
+	if err := newManager(first, second).Connect(); err != nil {
 		t.Fatalf("Connect: %v", err)
 	}
 
@@ -104,7 +108,7 @@ func TestManagerConnectConnectsClients(t *testing.T) {
 func TestManagerConnectReturnsErrors(t *testing.T) {
 	want := errors.New("boom")
 
-	err := newManager(&fakeClient{err: want}).Connect(context.Background())
+	err := newManager(&fakeClient{err: want}).Connect()
 	if !errors.Is(err, want) {
 		t.Fatalf("Connect error = %v, want %v", err, want)
 	}
@@ -114,7 +118,7 @@ func TestManagerConnectSkipsDisabledClients(t *testing.T) {
 	disabled := false
 	client := &fakeClient{config: Config{Name: "github", Enabled: &disabled}}
 
-	if err := newManager(client).Connect(context.Background()); err != nil {
+	if err := newManager(client).Connect(); err != nil {
 		t.Fatalf("Connect: %v", err)
 	}
 
