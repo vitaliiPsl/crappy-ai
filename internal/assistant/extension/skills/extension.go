@@ -1,9 +1,8 @@
 package skills
 
 import (
-	"github.com/vitaliiPsl/crappy-adk/agent"
-
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension"
+	"github.com/vitaliiPsl/crappy-ai/internal/assistant/spec"
 	coreskills "github.com/vitaliiPsl/crappy-ai/internal/skills"
 )
 
@@ -36,14 +35,37 @@ func (e *ext) Name() string {
 	return "skills"
 }
 
-func (e *ext) Options(_ extension.Context) (agent.Option, error) {
+func (e *ext) Context(extension.Context) ([]spec.ContextPiece, error) {
 	listing := coreskills.FormatListing(e.registry.GetSkills())
 	if listing == "" {
-		return agent.WithExtensions(), nil
+		return nil, nil
 	}
 
-	return agent.WithExtensions(
-		agent.WithInstructions(instructions+"\n"+listing),
-		agent.WithTools(newTool(e.registry)),
-	), nil
+	return []spec.ContextPiece{
+		{
+			Name:    "Available skills",
+			Source:  e.Name(),
+			Kind:    spec.ContextExtension,
+			Content: instructions + "\n" + listing,
+		},
+	}, nil
+}
+
+func (e *ext) Tools(extension.Context) ([]spec.ToolSpec, error) {
+	if coreskills.FormatListing(e.registry.GetSkills()) == "" {
+		return nil, nil
+	}
+
+	t := newTool(e.registry)
+
+	return []spec.ToolSpec{
+		{
+			Source: e.Name(),
+			Tool:   t,
+		},
+	}, nil
+}
+
+func (e *ext) Hooks(extension.Context) ([]spec.HookSpec, error) {
+	return nil, nil
 }

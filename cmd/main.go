@@ -17,7 +17,6 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/server"
 	"github.com/vitaliiPsl/crappy-ai/internal/settings"
 	"github.com/vitaliiPsl/crappy-ai/internal/skills"
-	"github.com/vitaliiPsl/crappy-ai/internal/tools"
 	"github.com/vitaliiPsl/crappy-ai/internal/tui"
 
 	oauthstore "github.com/vitaliiPsl/crappy-ai/internal/mcp/oauth/store"
@@ -88,7 +87,6 @@ func run() error {
 	backgroundManager := background.NewManager(ctx)
 	defer backgroundManager.Close()
 
-	toolRegistry := tools.NewRegistry(backgroundManager)
 	permissionService := permission.NewService(configStore, nil)
 
 	mcpManager := mcp.NewManager(
@@ -103,11 +101,11 @@ func run() error {
 
 	asst := assistant.New(
 		configStore,
+		settingsStore,
 		sessStore,
 		sessStore,
 		modelRegistry,
 		skillRegistry,
-		toolRegistry,
 		permissionService,
 		backgroundManager,
 		mcpManager,

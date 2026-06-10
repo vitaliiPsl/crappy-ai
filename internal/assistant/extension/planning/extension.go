@@ -1,9 +1,10 @@
 package planning
 
 import (
-	"github.com/vitaliiPsl/crappy-adk/agent"
+	"context"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension"
+	"github.com/vitaliiPsl/crappy-ai/internal/assistant/spec"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
 )
 
@@ -38,10 +39,36 @@ func (e *ext) Name() string {
 	return "planning"
 }
 
-func (e *ext) Options(ctx extension.Context) (agent.Option, error) {
-	return agent.WithExtensions(
-		agent.WithInstructions(Instructions),
-		agent.WithTools(newTool(ctx.SessionID, e.store)),
-		agent.WithOnModelRequest(injectPlan(ctx.SessionID, e.store)),
-	), nil
+func (e *ext) Context(ctx extension.Context) ([]spec.ContextPiece, error) {
+	return []spec.ContextPiece{
+		{
+			Name:    "Planning instructions",
+			Source:  e.Name(),
+			Kind:    spec.ContextExtension,
+			Content: Instructions,
+		},
+		{
+			Name:   "Current plan",
+			Source: e.Name(),
+			Kind:   spec.ContextArtifact,
+			Resolve: func(runCtx context.Context) (string, error) {
+				return currentPlanText(runCtx, ctx.SessionID, e.store)
+			},
+		},
+	}, nil
+}
+
+func (e *ext) Tools(ctx extension.Context) ([]spec.ToolSpec, error) {
+	t := newTool(ctx.SessionID, e.store)
+
+	return []spec.ToolSpec{
+		{
+			Source: e.Name(),
+			Tool:   t,
+		},
+	}, nil
+}
+
+func (e *ext) Hooks(extension.Context) ([]spec.HookSpec, error) {
+	return nil, nil
 }

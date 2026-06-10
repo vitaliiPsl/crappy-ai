@@ -1,10 +1,8 @@
 package mcp
 
 import (
-	"github.com/vitaliiPsl/crappy-adk/agent"
-	"github.com/vitaliiPsl/crappy-adk/kit"
-
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension"
+	"github.com/vitaliiPsl/crappy-ai/internal/assistant/spec"
 	mcpcore "github.com/vitaliiPsl/crappy-ai/internal/mcp"
 )
 
@@ -22,8 +20,12 @@ func (e *ext) Name() string {
 	return "mcp"
 }
 
-func (e *ext) Options(ctx extension.Context) (agent.Option, error) {
-	var tools []kit.Tool
+func (e *ext) Context(extension.Context) ([]spec.ContextPiece, error) {
+	return nil, nil
+}
+
+func (e *ext) Tools(ctx extension.Context) ([]spec.ToolSpec, error) {
+	var tools []spec.ToolSpec
 	for _, client := range e.manager.List() {
 		if client.State().Status != mcpcore.ClientConnected {
 			continue
@@ -34,8 +36,17 @@ func (e *ext) Options(ctx extension.Context) (agent.Option, error) {
 			continue
 		}
 
-		tools = append(tools, clientTools...)
+		for _, t := range clientTools {
+			tools = append(tools, spec.ToolSpec{
+				Source: "mcp:" + client.Config().Name,
+				Tool:   t,
+			})
+		}
 	}
 
-	return agent.WithTools(tools...), nil
+	return tools, nil
+}
+
+func (e *ext) Hooks(extension.Context) ([]spec.HookSpec, error) {
+	return nil, nil
 }

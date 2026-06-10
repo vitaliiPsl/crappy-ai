@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/server"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
 	sessionstore "github.com/vitaliiPsl/crappy-ai/internal/session/store"
+	"github.com/vitaliiPsl/crappy-ai/internal/settings"
 )
 
 type fakeAssistant struct {
@@ -326,8 +328,9 @@ func newTestServer(t *testing.T, asst server.Assistant) *server.Server {
 	}
 
 	configStore := config.NewStore(config.Config{Cwd: t.TempDir()}, "")
+	settingsStore := settings.NewStore(settings.Settings{}, filepath.Join(t.TempDir(), "settings.yaml"))
 
-	return server.New(asst, nil, configStore, store, nil, nil, nil, nil)
+	return server.New(asst, settingsStore, configStore, store, nil, nil, nil, nil)
 }
 
 func captureOutput(t *testing.T, fn func() error) (string, string, error) {

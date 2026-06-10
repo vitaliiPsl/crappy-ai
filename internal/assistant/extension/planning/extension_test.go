@@ -110,7 +110,7 @@ func TestWritePlanTool_PropagatesSaveError(t *testing.T) {
 	}
 }
 
-func TestInjectPlan_AppendsCurrentPlanToInstructions(t *testing.T) {
+func TestCurrentPlanText_FormatsSavedPlan(t *testing.T) {
 	store := newArtifactStore()
 	if err := store.SaveArtifact(context.Background(), testSessionID, ArtifactName, Plan{
 		Explanation: "Working backend first",
@@ -122,53 +122,43 @@ func TestInjectPlan_AppendsCurrentPlanToInstructions(t *testing.T) {
 		t.Fatalf("SaveArtifact: %v", err)
 	}
 
-	req, err := injectPlan(testSessionID, store)(
-		&kit.RunContext{Context: context.Background()},
-		kit.ModelRequest{Instructions: "Base instructions"},
-	)
+	got, err := currentPlanText(context.Background(), testSessionID, store)
 	if err != nil {
-		t.Fatalf("injectPlan: %v", err)
+		t.Fatalf("currentPlanText: %v", err)
 	}
 
 	for _, want := range []string{
-		"Base instructions",
 		"Current plan:",
 		"Working backend first",
 		"- [completed] Create artifact store",
 		"- [in_progress] Add planning extension",
 	} {
-		if !strings.Contains(req.Instructions, want) {
-			t.Fatalf("instructions missing %q:\n%s", want, req.Instructions)
+		if !strings.Contains(got, want) {
+			t.Fatalf("plan text missing %q:\n%s", want, got)
 		}
 	}
 }
 
-func TestInjectPlan_NoopsWithoutPlan(t *testing.T) {
+func TestCurrentPlanText_NoopsWithoutPlan(t *testing.T) {
 	store := newArtifactStore()
 
-	req, err := injectPlan(testSessionID, store)(
-		&kit.RunContext{Context: context.Background()},
-		kit.ModelRequest{Instructions: "Base instructions"},
-	)
+	got, err := currentPlanText(context.Background(), testSessionID, store)
 	if err != nil {
-		t.Fatalf("injectPlan: %v", err)
+		t.Fatalf("currentPlanText: %v", err)
 	}
 
-	if req.Instructions != "Base instructions" {
-		t.Fatalf("instructions = %q, want unchanged", req.Instructions)
+	if got != "" {
+		t.Fatalf("plan text = %q, want empty", got)
 	}
 }
 
-func TestInjectPlan_PropagatesLoadError(t *testing.T) {
+func TestCurrentPlanText_PropagatesLoadError(t *testing.T) {
 	wantErr := errors.New("cannot read artifact")
 	store := newArtifactStore()
 	store.loadErr = wantErr
 
-	_, err := injectPlan(testSessionID, store)(
-		&kit.RunContext{Context: context.Background()},
-		kit.ModelRequest{},
-	)
+	_, err := currentPlanText(context.Background(), testSessionID, store)
 	if !errors.Is(err, wantErr) {
-		t.Fatalf("injectPlan error = %v, want wraps %v", err, wantErr)
+		t.Fatalf("currentPlanText error = %v, want wraps %v", err, wantErr)
 	}
 }

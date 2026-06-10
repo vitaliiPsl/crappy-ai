@@ -8,31 +8,34 @@ import (
 
 	"github.com/vitaliiPsl/crappy-adk/agent"
 	"github.com/vitaliiPsl/crappy-adk/kit"
-	"github.com/vitaliiPsl/crappy-adk/x/tool"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension"
-	bgext "github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/background"
-	mcpext "github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/mcp"
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/planning"
-	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/skills"
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/summarization"
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/memory"
+	"github.com/vitaliiPsl/crappy-ai/internal/assistant/spec"
 	"github.com/vitaliiPsl/crappy-ai/internal/background"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/mcp"
 	"github.com/vitaliiPsl/crappy-ai/internal/models"
 	"github.com/vitaliiPsl/crappy-ai/internal/permission"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
-	coreskills "github.com/vitaliiPsl/crappy-ai/internal/skills"
+	"github.com/vitaliiPsl/crappy-ai/internal/settings"
+	"github.com/vitaliiPsl/crappy-ai/internal/skills"
 	"github.com/vitaliiPsl/crappy-ai/internal/tools"
+
+	bgext "github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/background"
+	mcpext "github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/mcp"
+	skillsext "github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/skills"
 )
 
 type Assistant struct {
 	configStore   *config.Store
+	settingsStore *settings.Store
 	sessionStore  session.Store
 	modelRegistry *models.Registry
-	skillRegistry *coreskills.Registry
-	toolRegistry  *tools.Registry
+	skillRegistry *skills.Registry
+	coreTools     []kit.Tool
 	permissions   *permission.Service
 
 	extensions []extension.Extension
@@ -40,27 +43,28 @@ type Assistant struct {
 
 func New(
 	configStore *config.Store,
+	settingsStore *settings.Store,
 	sessionStore session.Store,
 	artifactStore session.ArtifactStore,
 	modelRegistry *models.Registry,
-	skillRegistry *coreskills.Registry,
-	toolRegistry *tools.Registry,
+	skillRegistry *skills.Registry,
 	permissions *permission.Service,
 	background *background.Manager,
 	mcpManager *mcp.Manager,
 ) *Assistant {
 	return &Assistant{
 		configStore:   configStore,
+		settingsStore: settingsStore,
 		sessionStore:  sessionStore,
 		modelRegistry: modelRegistry,
 		skillRegistry: skillRegistry,
-		toolRegistry:  toolRegistry,
+		coreTools:     tools.Core(background),
 		permissions:   permissions,
 		extensions: []extension.Extension{
 			summarization.New(),
 			bgext.New(background),
 			planning.New(artifactStore),
-			skills.New(skillRegistry),
+			skillsext.New(skillRegistry),
 			mcpext.New(mcpManager),
 		},
 	}
@@ -76,14 +80,21 @@ func (a *Assistant) Run(ctx context.Context, sessionID string, req RunRequest) (
 		return nil, fmt.Errorf("build model: %w", err)
 	}
 
-	toolset := tool.NewSet(a.toolRegistry.GetTools()...)
-
-	opts, err := a.buildAgentOpts(extension.Context{Ctx: ctx, SessionID: sessionID, Config: cfg, Model: model})
+	runSpec, err := a.buildAgentSpec(extension.Context{Ctx: ctx, SessionID: sessionID, Config: cfg, Model: model})
 	if err != nil {
-		return nil, fmt.Errorf("build agent options: %w", err)
+		return nil, fmt.Errorf("build agent spec: %w", err)
 	}
 
-	ag, err := agent.New(model, mem, toolset, opts...)
+	compiled, err := spec.Compile(runSpec)
+	if err != nil {
+		return nil, fmt.Errorf("compile agent spec: %w", err)
+	}
+
+	if cfg.Thinking != "" {
+		compiled.Options = append(compiled.Options, agent.WithThinking(kit.ThinkingLevel(cfg.Thinking)))
+	}
+
+	ag, err := agent.New(model, mem, compiled.Tools, compiled.Options...)
 	if err != nil {
 		return nil, fmt.Errorf("build agent: %w", err)
 	}
@@ -126,7 +137,7 @@ func (a *Assistant) buildUserInput(sessionID string, req RunRequest) (kit.Messag
 			return kit.Message{}, session.Event{}, fmt.Errorf("load skill %q: %w", req.Skill.Name, err)
 		}
 
-		text = coreskills.FormatLoaded(skill, strings.Join(req.Skill.Args, " "))
+		text = skills.FormatLoaded(skill, strings.Join(req.Skill.Args, " "))
 	}
 
 	msg := kit.NewUserMessage(kit.NewTextContent(text))

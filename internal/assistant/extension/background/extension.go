@@ -1,9 +1,8 @@
 package background
 
 import (
-	"github.com/vitaliiPsl/crappy-adk/agent"
-
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension"
+	"github.com/vitaliiPsl/crappy-ai/internal/assistant/spec"
 	bg "github.com/vitaliiPsl/crappy-ai/internal/background"
 )
 
@@ -32,11 +31,32 @@ func (e *ext) Name() string {
 	return "background"
 }
 
-func (e *ext) Options(ctx extension.Context) (agent.Option, error) {
-	jobs := e.manager.ForSession(ctx.SessionID)
+func (e *ext) Context(extension.Context) ([]spec.ContextPiece, error) {
+	return []spec.ContextPiece{
+		{
+			Name:    "Background job instructions",
+			Source:  e.Name(),
+			Kind:    spec.ContextExtension,
+			Content: Instructions,
+		},
+	}, nil
+}
 
-	return agent.WithExtensions(
-		agent.WithInstructions(Instructions),
-		agent.WithTools(bg.Tools(jobs)...),
-	), nil
+func (e *ext) Tools(ctx extension.Context) ([]spec.ToolSpec, error) {
+	jobs := e.manager.ForSession(ctx.SessionID)
+	jobTools := bg.Tools(jobs)
+
+	tools := make([]spec.ToolSpec, 0, len(jobTools))
+	for _, t := range jobTools {
+		tools = append(tools, spec.ToolSpec{
+			Source: e.Name(),
+			Tool:   t,
+		})
+	}
+
+	return tools, nil
+}
+
+func (e *ext) Hooks(extension.Context) ([]spec.HookSpec, error) {
+	return nil, nil
 }
