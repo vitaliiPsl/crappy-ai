@@ -20,11 +20,7 @@ func (e *ext) Name() string {
 	return "mcp"
 }
 
-func (e *ext) Context(extension.Context) ([]spec.ContextPiece, error) {
-	return nil, nil
-}
-
-func (e *ext) Tools(ctx extension.Context) ([]spec.ToolSpec, error) {
+func (e *ext) Spec(ctx extension.Context) (spec.AgentSpec, error) {
 	var tools []spec.ToolSpec
 	for _, client := range e.manager.List() {
 		if client.State().Status != mcpcore.ClientConnected {
@@ -44,9 +40,7 @@ func (e *ext) Tools(ctx extension.Context) ([]spec.ToolSpec, error) {
 		}
 	}
 
-	return tools, nil
-}
-
-func (e *ext) Hooks(extension.Context) ([]spec.HookSpec, error) {
-	return nil, nil
+	return spec.AgentSpec{
+		Tools: tools,
+	}, nil
 }

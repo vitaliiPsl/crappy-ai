@@ -49,26 +49,12 @@ func (a *Assistant) buildAgentSpec(ctx extension.Context) (spec.AgentSpec, error
 	}
 
 	for _, ext := range a.extensions {
-		pieces, err := ext.Context(ctx)
+		extSpec, err := ext.Spec(ctx)
 		if err != nil {
-			return spec.AgentSpec{}, fmt.Errorf("extension %q context: %w", ext.Name(), err)
+			return spec.AgentSpec{}, fmt.Errorf("extension %q spec: %w", ext.Name(), err)
 		}
 
-		runSpec.Context = append(runSpec.Context, pieces...)
-
-		tools, err := ext.Tools(ctx)
-		if err != nil {
-			return spec.AgentSpec{}, fmt.Errorf("extension %q tools: %w", ext.Name(), err)
-		}
-
-		runSpec.Tools = append(runSpec.Tools, tools...)
-
-		hooks, err := ext.Hooks(ctx)
-		if err != nil {
-			return spec.AgentSpec{}, fmt.Errorf("extension %q hooks: %w", ext.Name(), err)
-		}
-
-		runSpec.Hooks = append(runSpec.Hooks, hooks...)
+		runSpec.Merge(extSpec)
 	}
 
 	return runSpec, nil

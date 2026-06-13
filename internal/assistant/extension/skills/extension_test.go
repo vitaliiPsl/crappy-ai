@@ -77,20 +77,12 @@ func TestExtensionAddsMetadataListingAndTool(t *testing.T) {
 
 	ext := New(registry)
 
-	pieces, err := ext.Context(extension.Context{})
+	extSpec, err := ext.Spec(extension.Context{})
 	if err != nil {
-		t.Fatalf("Context: %v", err)
+		t.Fatalf("Spec: %v", err)
 	}
 
-	tools, err := ext.Tools(extension.Context{})
-	if err != nil {
-		t.Fatalf("Tools: %v", err)
-	}
-
-	compiled, err := spec.Compile(spec.AgentSpec{
-		Context: pieces,
-		Tools:   tools,
-	})
+	compiled, err := spec.Compile(extSpec)
 	if err != nil {
 		t.Fatalf("Compile: %v", err)
 	}

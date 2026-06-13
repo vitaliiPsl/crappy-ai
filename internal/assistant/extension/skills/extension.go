@@ -35,37 +35,28 @@ func (e *ext) Name() string {
 	return "skills"
 }
 
-func (e *ext) Context(extension.Context) ([]spec.ContextPiece, error) {
+func (e *ext) Spec(extension.Context) (spec.AgentSpec, error) {
 	listing := coreskills.FormatListing(e.registry.GetSkills())
 	if listing == "" {
-		return nil, nil
-	}
-
-	return []spec.ContextPiece{
-		{
-			Name:    "Available skills",
-			Source:  e.Name(),
-			Kind:    spec.ContextExtension,
-			Content: instructions + "\n" + listing,
-		},
-	}, nil
-}
-
-func (e *ext) Tools(extension.Context) ([]spec.ToolSpec, error) {
-	if coreskills.FormatListing(e.registry.GetSkills()) == "" {
-		return nil, nil
+		return spec.AgentSpec{}, nil
 	}
 
 	t := newTool(e.registry)
 
-	return []spec.ToolSpec{
-		{
-			Source: e.Name(),
-			Tool:   t,
+	return spec.AgentSpec{
+		Context: []spec.ContextPiece{
+			{
+				Name:    "Available skills",
+				Source:  e.Name(),
+				Kind:    spec.ContextExtension,
+				Content: instructions + "\n" + listing,
+			},
+		},
+		Tools: []spec.ToolSpec{
+			{
+				Source: e.Name(),
+				Tool:   t,
+			},
 		},
 	}, nil
-}
-
-func (e *ext) Hooks(extension.Context) ([]spec.HookSpec, error) {
-	return nil, nil
 }

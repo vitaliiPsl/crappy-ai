@@ -31,18 +31,7 @@ func (e *ext) Name() string {
 	return "background"
 }
 
-func (e *ext) Context(extension.Context) ([]spec.ContextPiece, error) {
-	return []spec.ContextPiece{
-		{
-			Name:    "Background job instructions",
-			Source:  e.Name(),
-			Kind:    spec.ContextExtension,
-			Content: Instructions,
-		},
-	}, nil
-}
-
-func (e *ext) Tools(ctx extension.Context) ([]spec.ToolSpec, error) {
+func (e *ext) Spec(ctx extension.Context) (spec.AgentSpec, error) {
 	jobs := e.manager.ForSession(ctx.SessionID)
 	jobTools := bg.Tools(jobs)
 
@@ -54,9 +43,15 @@ func (e *ext) Tools(ctx extension.Context) ([]spec.ToolSpec, error) {
 		})
 	}
 
-	return tools, nil
-}
-
-func (e *ext) Hooks(extension.Context) ([]spec.HookSpec, error) {
-	return nil, nil
+	return spec.AgentSpec{
+		Context: []spec.ContextPiece{
+			{
+				Name:    "Background job instructions",
+				Source:  e.Name(),
+				Kind:    spec.ContextExtension,
+				Content: Instructions,
+			},
+		},
+		Tools: tools,
+	}, nil
 }

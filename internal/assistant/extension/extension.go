@@ -18,7 +18,5 @@ type Context struct {
 
 type Extension interface {
 	Name() string
-	Context(ctx Context) ([]spec.ContextPiece, error)
-	Tools(ctx Context) ([]spec.ToolSpec, error)
-	Hooks(ctx Context) ([]spec.HookSpec, error)
+	Spec(ctx Context) (spec.AgentSpec, error)
 }

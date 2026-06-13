@@ -14,6 +14,12 @@ type AgentSpec struct {
 	Hooks   []HookSpec
 }
 
+func (s *AgentSpec) Merge(other AgentSpec) {
+	s.Context = append(s.Context, other.Context...)
+	s.Tools = append(s.Tools, other.Tools...)
+	s.Hooks = append(s.Hooks, other.Hooks...)
+}
+
 type ContextKind string
 
 const (

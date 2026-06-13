@@ -39,36 +39,31 @@ func (e *ext) Name() string {
 	return "planning"
 }
 
-func (e *ext) Context(ctx extension.Context) ([]spec.ContextPiece, error) {
-	return []spec.ContextPiece{
-		{
-			Name:    "Planning instructions",
-			Source:  e.Name(),
-			Kind:    spec.ContextExtension,
-			Content: Instructions,
+func (e *ext) Spec(ctx extension.Context) (spec.AgentSpec, error) {
+	t := newTool(ctx.SessionID, e.store)
+
+	return spec.AgentSpec{
+		Context: []spec.ContextPiece{
+			{
+				Name:    "Planning instructions",
+				Source:  e.Name(),
+				Kind:    spec.ContextExtension,
+				Content: Instructions,
+			},
+			{
+				Name:   "Current plan",
+				Source: e.Name(),
+				Kind:   spec.ContextArtifact,
+				Resolve: func(runCtx context.Context) (string, error) {
+					return currentPlanText(runCtx, ctx.SessionID, e.store)
+				},
+			},
 		},
-		{
-			Name:   "Current plan",
-			Source: e.Name(),
-			Kind:   spec.ContextArtifact,
-			Resolve: func(runCtx context.Context) (string, error) {
-				return currentPlanText(runCtx, ctx.SessionID, e.store)
+		Tools: []spec.ToolSpec{
+			{
+				Source: e.Name(),
+				Tool:   t,
 			},
 		},
 	}, nil
-}
-
-func (e *ext) Tools(ctx extension.Context) ([]spec.ToolSpec, error) {
-	t := newTool(ctx.SessionID, e.store)
-
-	return []spec.ToolSpec{
-		{
-			Source: e.Name(),
-			Tool:   t,
-		},
-	}, nil
-}
-
-func (e *ext) Hooks(extension.Context) ([]spec.HookSpec, error) {
-	return nil, nil
 }

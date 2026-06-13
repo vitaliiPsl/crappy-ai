@@ -20,24 +20,18 @@ func (e *ext) Name() string {
 	return "summarization"
 }
 
-func (e *ext) Context(extension.Context) ([]spec.ContextPiece, error) {
-	return nil, nil
-}
-
-func (e *ext) Tools(extension.Context) ([]spec.ToolSpec, error) {
-	return nil, nil
-}
-
-func (e *ext) Hooks(ctx extension.Context) ([]spec.HookSpec, error) {
-	return []spec.HookSpec{
-		{
-			Name:   "Summarize when context is large",
-			Source: e.Name(),
-			Kind:   spec.HookTurnStart,
-			Option: xsummarization.WithSummarization(
-				whenLastInputExceeds(ctx.Model.Config(), thresholdRatio),
-				strategy(NewSummarizer(ctx.Model)),
-			),
+func (e *ext) Spec(ctx extension.Context) (spec.AgentSpec, error) {
+	return spec.AgentSpec{
+		Hooks: []spec.HookSpec{
+			{
+				Name:   "Summarize when context is large",
+				Source: e.Name(),
+				Kind:   spec.HookTurnStart,
+				Option: xsummarization.WithSummarization(
+					whenLastInputExceeds(ctx.Model.Config(), thresholdRatio),
+					strategy(NewSummarizer(ctx.Model)),
+				),
+			},
 		},
 	}, nil
 }
