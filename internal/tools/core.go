@@ -11,9 +11,9 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/tools/web"
 )
 
-func Core(backgroundManager *background.Manager) []kit.Tool {
+func Core(jobs background.Jobs) []kit.Tool {
 	return []kit.Tool{
-		wrapBackground(bash.NewBash(), backgroundManager),
+		wrapBackground(bash.NewBash(), jobs),
 		web.NewFetch(),
 		filesystem.NewReadFile(),
 		filesystem.NewWriteFile(),
@@ -22,8 +22,8 @@ func Core(backgroundManager *background.Manager) []kit.Tool {
 	}
 }
 
-func wrapBackground(t kit.Tool, manager *background.Manager) kit.Tool {
-	wrapped, err := background.Wrap(t, manager)
+func wrapBackground(t kit.Tool, jobs background.Jobs) kit.Tool {
+	wrapped, err := background.Wrap(t, jobs)
 	if err != nil {
 		panic(fmt.Sprintf("wrap tool %q for background: %v", t.Definition().Name, err))
 	}

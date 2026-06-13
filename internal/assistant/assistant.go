@@ -22,7 +22,6 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
 	"github.com/vitaliiPsl/crappy-ai/internal/settings"
 	"github.com/vitaliiPsl/crappy-ai/internal/skills"
-	"github.com/vitaliiPsl/crappy-ai/internal/tools"
 
 	bgext "github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/background"
 	mcpext "github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/mcp"
@@ -35,8 +34,8 @@ type Assistant struct {
 	sessionStore  session.Store
 	modelRegistry *models.Registry
 	skillRegistry *skills.Registry
-	coreTools     []kit.Tool
 	permissions   *permission.Service
+	background    *background.Manager
 
 	extensions []extension.Extension
 }
@@ -49,7 +48,7 @@ func New(
 	modelRegistry *models.Registry,
 	skillRegistry *skills.Registry,
 	permissions *permission.Service,
-	background *background.Manager,
+	backgroundManager *background.Manager,
 	mcpManager *mcp.Manager,
 ) *Assistant {
 	return &Assistant{
@@ -58,11 +57,11 @@ func New(
 		sessionStore:  sessionStore,
 		modelRegistry: modelRegistry,
 		skillRegistry: skillRegistry,
-		coreTools:     tools.Core(background),
 		permissions:   permissions,
+		background:    backgroundManager,
 		extensions: []extension.Extension{
 			summarization.New(),
-			bgext.New(background),
+			bgext.New(backgroundManager),
 			planning.New(artifactStore),
 			skillsext.New(skillRegistry),
 			mcpext.New(mcpManager),
@@ -109,9 +108,7 @@ func (a *Assistant) Run(ctx context.Context, sessionID string, req RunRequest) (
 			return struct{}{}, err
 		}
 
-		runCtx := background.WithSessionID(ctx, sessionID)
-
-		stream := ag.Stream(runCtx, userMsg)
+		stream := ag.Stream(ctx, userMsg)
 		for kitEvent := range stream.Iter() {
 			ev, ok := session.FromKitEvent(sessionID, kitEvent)
 			if !ok {

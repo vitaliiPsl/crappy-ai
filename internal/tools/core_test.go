@@ -23,7 +23,7 @@ func TestCore(t *testing.T) {
 		"list",
 	}
 
-	got := toolNames(Core(manager))
+	got := toolNames(Core(manager.ForSession("")))
 	if strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("tool names = %v, want %v", got, want)
 	}

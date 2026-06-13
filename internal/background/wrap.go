@@ -3,7 +3,6 @@ package background
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
@@ -22,11 +21,7 @@ func (t wrappedTool) Execute(rc *kit.RunContext, input map[string]any) (string, 
 	return t.run(rc, input)
 }
 
-func Wrap(tool kit.Tool, manager *Manager) (kit.Tool, error) {
-	if manager == nil {
-		return nil, errors.New("background manager is required")
-	}
-
+func Wrap(tool kit.Tool, jobs Jobs) (kit.Tool, error) {
 	def := tool.Definition()
 
 	schema, err := addBackgroundArgument(def.Schema)
@@ -51,9 +46,6 @@ func Wrap(tool kit.Tool, manager *Manager) (kit.Tool, error) {
 			if err := rc.Err(); err != nil {
 				return "", err
 			}
-
-			sessionID := SessionID(rc.Context)
-			jobs := manager.ForSession(sessionID)
 
 			job, err := jobs.Start(tool.Definition().Name, func(ctx context.Context) (string, error) {
 				jobRC := *rc

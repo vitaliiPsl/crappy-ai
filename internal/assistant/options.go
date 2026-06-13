@@ -10,6 +10,7 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension"
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/instructions"
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/spec"
+	"github.com/vitaliiPsl/crappy-ai/internal/tools"
 )
 
 const (
@@ -41,7 +42,7 @@ func (a *Assistant) buildAgentSpec(ctx extension.Context) (spec.AgentSpec, error
 				Content: instructions.Files(cfg.Cwd),
 			},
 		},
-		Tools: coreToolSpecs(a.coreTools),
+		Tools: coreToolSpecs(tools.Core(a.background.ForSession(ctx.SessionID))),
 		Hooks: []spec.HookSpec{
 			a.permissionHook(ctx.SessionID),
 			a.repeatedToolCallHook(toolLoopMaxRepeats, toolLoopWindow),

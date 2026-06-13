@@ -37,7 +37,10 @@ func TestWrapAddsBackgroundArgument(t *testing.T) {
 		},
 	}
 
-	wrapped, err := Wrap(base, NewManager(context.Background()))
+	manager := NewManager(context.Background())
+	defer manager.Close()
+
+	wrapped, err := Wrap(base, manager.ForSession(""))
 	if err != nil {
 		t.Fatalf("Wrap: %v", err)
 	}
@@ -65,7 +68,10 @@ func TestWrapForegroundStripsBackgroundArgument(t *testing.T) {
 		},
 	}
 
-	wrapped, err := Wrap(base, NewManager(context.Background()))
+	manager := NewManager(context.Background())
+	defer manager.Close()
+
+	wrapped, err := Wrap(base, manager.ForSession(""))
 	if err != nil {
 		t.Fatalf("Wrap: %v", err)
 	}
@@ -103,12 +109,12 @@ func TestWrapBackgroundStartsJob(t *testing.T) {
 		},
 	}
 
-	wrapped, err := Wrap(base, manager)
+	wrapped, err := Wrap(base, manager.ForSession("session-1"))
 	if err != nil {
 		t.Fatalf("Wrap: %v", err)
 	}
 
-	rc := kit.NewRunContext(WithSessionID(context.Background(), "session-1"))
+	rc := kit.NewRunContext(context.Background())
 
 	output, err := wrapped.Execute(rc, map[string]any{
 		"command": "go test ./...",
@@ -152,7 +158,10 @@ func TestWrapRejectsBackgroundArgumentCollision(t *testing.T) {
 		},
 	}
 
-	_, err := Wrap(base, NewManager(context.Background()))
+	manager := NewManager(context.Background())
+	defer manager.Close()
+
+	_, err := Wrap(base, manager.ForSession(""))
 	if err == nil {
 		t.Fatal("Wrap should reject existing background argument")
 	}
@@ -161,7 +170,10 @@ func TestWrapRejectsBackgroundArgumentCollision(t *testing.T) {
 func TestWrapBackgroundArgumentMustBeBoolean(t *testing.T) {
 	base := &testTool{def: kit.ToolDefinition{Name: "bash"}}
 
-	wrapped, err := Wrap(base, NewManager(context.Background()))
+	manager := NewManager(context.Background())
+	defer manager.Close()
+
+	wrapped, err := Wrap(base, manager.ForSession(""))
 	if err != nil {
 		t.Fatalf("Wrap: %v", err)
 	}
@@ -171,12 +183,5 @@ func TestWrapBackgroundArgumentMustBeBoolean(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("Execute should reject non-boolean background argument")
-	}
-}
-
-func TestWrapRequiresManager(t *testing.T) {
-	_, err := Wrap(&testTool{}, nil)
-	if err == nil {
-		t.Fatal("Wrap should require a manager")
 	}
 }
