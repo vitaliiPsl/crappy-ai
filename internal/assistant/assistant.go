@@ -6,66 +6,41 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/vitaliiPsl/crappy-adk/agent"
 	"github.com/vitaliiPsl/crappy-adk/kit"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension"
-	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/planning"
-	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/summarization"
+	"github.com/vitaliiPsl/crappy-ai/internal/assistant/factory"
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/memory"
-	"github.com/vitaliiPsl/crappy-ai/internal/assistant/spec"
-	"github.com/vitaliiPsl/crappy-ai/internal/background"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
-	"github.com/vitaliiPsl/crappy-ai/internal/mcp"
 	"github.com/vitaliiPsl/crappy-ai/internal/models"
-	"github.com/vitaliiPsl/crappy-ai/internal/permission"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
-	"github.com/vitaliiPsl/crappy-ai/internal/settings"
 	"github.com/vitaliiPsl/crappy-ai/internal/skills"
-
-	bgext "github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/background"
-	mcpext "github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/mcp"
-	skillsext "github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/skills"
 )
 
 type Assistant struct {
 	configStore   *config.Store
-	settingsStore *settings.Store
 	sessionStore  session.Store
 	modelRegistry *models.Registry
 	skillRegistry *skills.Registry
-	permissions   *permission.Service
-	background    *background.Manager
-
-	extensions []extension.Extension
+	factory       *factory.Factory
+	extensions    []extension.Extension
 }
 
 func New(
 	configStore *config.Store,
-	settingsStore *settings.Store,
 	sessionStore session.Store,
-	artifactStore session.ArtifactStore,
 	modelRegistry *models.Registry,
 	skillRegistry *skills.Registry,
-	permissions *permission.Service,
-	backgroundManager *background.Manager,
-	mcpManager *mcp.Manager,
+	agentFactory *factory.Factory,
+	extensions []extension.Extension,
 ) *Assistant {
 	return &Assistant{
 		configStore:   configStore,
-		settingsStore: settingsStore,
 		sessionStore:  sessionStore,
 		modelRegistry: modelRegistry,
 		skillRegistry: skillRegistry,
-		permissions:   permissions,
-		background:    backgroundManager,
-		extensions: []extension.Extension{
-			summarization.New(),
-			bgext.New(backgroundManager),
-			planning.New(artifactStore),
-			skillsext.New(skillRegistry),
-			mcpext.New(mcpManager),
-		},
+		factory:       agentFactory,
+		extensions:    extensions,
 	}
 }
 
@@ -74,28 +49,14 @@ func (a *Assistant) Run(ctx context.Context, sessionID string, req RunRequest) (
 
 	mem := memory.New(a.sessionStore, sessionID)
 
-	model, err := a.modelRegistry.Build(cfg)
+	model, err := a.modelRegistry.Build(cfg.Provider, cfg.Model)
 	if err != nil {
 		return nil, fmt.Errorf("build model: %w", err)
 	}
 
-	runSpec, err := a.buildAgentSpec(extension.Context{Ctx: ctx, SessionID: sessionID, Config: cfg, Model: model})
+	ag, err := a.factory.Build(extension.Context{Ctx: ctx, SessionID: sessionID, Config: cfg, Model: model}, a.extensions, mem)
 	if err != nil {
-		return nil, fmt.Errorf("build agent spec: %w", err)
-	}
-
-	compiled, err := spec.Compile(runSpec)
-	if err != nil {
-		return nil, fmt.Errorf("compile agent spec: %w", err)
-	}
-
-	if cfg.Thinking != "" {
-		compiled.Options = append(compiled.Options, agent.WithThinking(kit.ThinkingLevel(cfg.Thinking)))
-	}
-
-	ag, err := agent.New(model, mem, compiled.Tools, compiled.Options...)
-	if err != nil {
-		return nil, fmt.Errorf("build agent: %w", err)
+		return nil, err
 	}
 
 	userMsg, userEvent, err := a.buildUserInput(sessionID, req)

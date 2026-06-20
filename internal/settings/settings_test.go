@@ -16,17 +16,17 @@ func TestMergeProvidersPreservesDefaultsForPartialOverride(t *testing.T) {
 	base := Settings{
 		Providers: []ProviderSettings{
 			{
-				Name: models.ProviderAnthropic,
-				API:  models.ProviderAnthropic,
+				ID:  models.ProviderAnthropic,
+				API: models.ProviderAnthropic,
 			},
 			{
-				Name:      models.ProviderOpenAI,
+				ID:        models.ProviderOpenAI,
 				API:       models.ProviderOpenAI,
 				APIKeyEnv: "OPENAI_API_KEY",
 			},
 			{
-				Name: models.ProviderGoogle,
-				API:  models.ProviderGoogle,
+				ID:  models.ProviderGoogle,
+				API: models.ProviderGoogle,
 			},
 		},
 		Models: map[string][]kit.ModelConfig{
@@ -39,11 +39,11 @@ func TestMergeProvidersPreservesDefaultsForPartialOverride(t *testing.T) {
 	overlay := Settings{
 		Providers: []ProviderSettings{
 			{
-				Name:   models.ProviderOpenAI,
+				ID:     models.ProviderOpenAI,
 				APIKey: "secret",
 			},
 			{
-				Name:    "local",
+				ID:      "local",
 				API:     models.ProviderOpenAI,
 				BaseURL: "http://localhost:11434",
 			},
@@ -59,15 +59,15 @@ func TestMergeProvidersPreservesDefaultsForPartialOverride(t *testing.T) {
 		t.Fatalf("len(Providers) = %d, want 4", len(got.Providers))
 	}
 
-	if got.Providers[0].Name != models.ProviderAnthropic ||
-		got.Providers[1].Name != models.ProviderGoogle ||
-		got.Providers[2].Name != "local" ||
-		got.Providers[3].Name != models.ProviderOpenAI {
+	if got.Providers[0].ID != models.ProviderAnthropic ||
+		got.Providers[1].ID != models.ProviderGoogle ||
+		got.Providers[2].ID != "local" ||
+		got.Providers[3].ID != models.ProviderOpenAI {
 		t.Fatalf("provider order = %q, %q, %q, %q; want anthropic, google, local, openai",
-			got.Providers[0].Name,
-			got.Providers[1].Name,
-			got.Providers[2].Name,
-			got.Providers[3].Name,
+			got.Providers[0].ID,
+			got.Providers[1].ID,
+			got.Providers[2].ID,
+			got.Providers[3].ID,
 		)
 	}
 
@@ -123,7 +123,7 @@ func TestWriteFileUsesPrivatePermissions(t *testing.T) {
 
 	if err := writeFile(path, Settings{
 		Providers: []ProviderSettings{
-			{Name: models.ProviderOpenAI, APIKey: "secret"},
+			{ID: models.ProviderOpenAI, APIKey: "secret"},
 		},
 		ModelConfigs: map[string][]kit.ModelConfig{
 			"openai-local": {{ID: "gemma4"}},

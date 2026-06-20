@@ -35,7 +35,7 @@ func testConfigStore(t *testing.T, permissions model.Permissions) *config.Store 
 	t.Helper()
 
 	return config.NewStore(
-		config.Config{Mode: config.ModeDefault, Permissions: permissions},
+		config.Config{Mode: config.ModeDefault, Agent: config.Agent{Permissions: permissions}},
 		filepath.Join(t.TempDir(), "config.yaml"),
 	)
 }
@@ -81,8 +81,10 @@ func TestService_DeniesConfiguredRule(t *testing.T) {
 func TestService_YoloModeAllowsDeniedRuleWithoutPrompt(t *testing.T) {
 	configStore := testConfigStoreWithConfig(t, config.Config{
 		Mode: config.ModeYolo,
-		Permissions: model.Permissions{
-			Deny: []model.Rule{{Tool: strategy.ToolReadFile, Pattern: "//etc/**"}},
+		Agent: config.Agent{
+			Permissions: model.Permissions{
+				Deny: []model.Rule{{Tool: strategy.ToolReadFile, Pattern: "//etc/**"}},
+			},
 		},
 	})
 	h := &handler{err: errors.New("should not ask")}

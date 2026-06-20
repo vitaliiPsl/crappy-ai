@@ -3,7 +3,7 @@ package settings
 import "github.com/vitaliiPsl/crappy-ai/internal/settings/models"
 
 type ProviderSettings struct {
-	Name      string `yaml:"name"`
+	ID        string `yaml:"id"`
 	API       string `yaml:"api"`
 	BaseURL   string `yaml:"base_url,omitempty"`
 	APIKey    string `yaml:"api_key,omitempty"`
@@ -13,17 +13,17 @@ type ProviderSettings struct {
 func DefaultProviders() []ProviderSettings {
 	return []ProviderSettings{
 		{
-			Name:      models.ProviderAnthropic,
+			ID:        models.ProviderAnthropic,
 			API:       models.ProviderAnthropic,
 			APIKeyEnv: "ANTHROPIC_API_KEY",
 		},
 		{
-			Name:      models.ProviderOpenAI,
+			ID:        models.ProviderOpenAI,
 			API:       models.ProviderOpenAI,
 			APIKeyEnv: "OPENAI_API_KEY",
 		},
 		{
-			Name:      models.ProviderGoogle,
+			ID:        models.ProviderGoogle,
 			API:       models.ProviderGoogle,
 			APIKeyEnv: "GOOGLE_API_KEY",
 		},

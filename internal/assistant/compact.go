@@ -14,7 +14,7 @@ import (
 func (a *Assistant) Compact(ctx context.Context, sessionID string) (*kit.Stream[session.Event, struct{}], error) {
 	cfg := a.configStore.Get()
 
-	model, err := a.modelRegistry.Build(cfg)
+	model, err := a.modelRegistry.Build(cfg.Provider, cfg.Model)
 	if err != nil {
 		return nil, fmt.Errorf("build model: %w", err)
 	}

@@ -7,23 +7,26 @@ import (
 	settingsmodels "github.com/vitaliiPsl/crappy-ai/internal/settings/models"
 )
 
-//go:embed system_prompt.md
-var DefaultSystemPrompt string
+//go:embed prompt.md
+var DefaultPrompt string
 
 func defaults() Config {
 	return Config{
-		SystemPrompt: DefaultSystemPrompt,
-		Mode:         ModeDefault,
-		Provider:     settingsmodels.ProviderGoogle,
-		Model:        "gemini-3.1-flash-lite",
-		Thinking:     "medium",
-		Permissions: permissionmodel.Permissions{
-			Default: permissionmodel.Ask,
-			Allow: []permissionmodel.Rule{
-				{Tool: "list", Pattern: "./**"},
-				{Tool: "read_file", Pattern: "./**"},
-				{Tool: "use_skill"},
+		Agent: Agent{
+			Name:     RootAgentName,
+			Prompt:   DefaultPrompt,
+			Provider: settingsmodels.ProviderGoogle,
+			Model:    "gemini-3.1-flash-lite",
+			Thinking: "medium",
+			Permissions: permissionmodel.Permissions{
+				Default: permissionmodel.Ask,
+				Allow: []permissionmodel.Rule{
+					{Tool: "list", Pattern: "./**"},
+					{Tool: "read_file", Pattern: "./**"},
+					{Tool: "use_skill"},
+				},
 			},
 		},
+		Mode: ModeDefault,
 	}
 }

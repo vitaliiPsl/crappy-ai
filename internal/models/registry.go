@@ -6,7 +6,6 @@ import (
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
 
-	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/settings"
 )
 
@@ -24,36 +23,36 @@ func (r *Registry) GetProviders() []settings.ProviderSettings {
 	return r.settingsStore.Get().Providers
 }
 
-func (r *Registry) GetProvider(name string) (settings.ProviderSettings, error) {
-	p, ok := findProvider(r.settingsStore.Get().Providers, name)
+func (r *Registry) GetProvider(id string) (settings.ProviderSettings, error) {
+	p, ok := findProvider(r.settingsStore.Get().Providers, id)
 	if !ok {
-		return settings.ProviderSettings{}, fmt.Errorf("unknown provider %q", name)
+		return settings.ProviderSettings{}, fmt.Errorf("unknown provider %q", id)
 	}
 
 	return p, nil
 }
 
-func (r *Registry) Build(cfg config.Config) (kit.Model, error) {
-	return buildModel(r.settingsStore.Get(), cfg)
+func (r *Registry) Build(provider, model string) (kit.Model, error) {
+	return buildModel(r.settingsStore.Get(), provider, model)
 }
 
-func buildModel(s settings.Settings, cfg config.Config) (kit.Model, error) {
-	if cfg.Provider == "" {
+func buildModel(s settings.Settings, providerName, modelID string) (kit.Model, error) {
+	if providerName == "" {
 		return nil, fmt.Errorf("config: provider is not set")
 	}
 
-	if cfg.Model == "" {
+	if modelID == "" {
 		return nil, fmt.Errorf("config: model is not set")
 	}
 
-	provider, ok := findProvider(s.Providers, cfg.Provider)
+	provider, ok := findProvider(s.Providers, providerName)
 	if !ok {
-		return nil, fmt.Errorf("settings: unknown provider %q", cfg.Provider)
+		return nil, fmt.Errorf("settings: unknown provider %q", providerName)
 	}
 
 	adapter, ok := apiAdapters[provider.API]
 	if !ok {
-		return nil, fmt.Errorf("provider %q: unknown api %q", provider.Name, provider.API)
+		return nil, fmt.Errorf("provider %q: unknown api %q", provider.ID, provider.API)
 	}
 
 	apiKey := provider.APIKey
@@ -62,17 +61,17 @@ func buildModel(s settings.Settings, cfg config.Config) (kit.Model, error) {
 	}
 
 	if apiKey == "" {
-		return nil, fmt.Errorf("provider %q: no API key (set %s)", provider.Name, provider.APIKeyEnv)
+		return nil, fmt.Errorf("provider %q: no API key (set %s)", provider.ID, provider.APIKeyEnv)
 	}
 
-	modelConfig := findModel(s.Models[cfg.Provider], cfg.Model)
+	modelConfig := findModel(s.Models[providerName], modelID)
 
-	return adapter(apiKey, provider.BaseURL, cfg.Model, modelConfig)
+	return adapter(apiKey, provider.BaseURL, modelID, modelConfig)
 }
 
-func findProvider(providers []settings.ProviderSettings, name string) (settings.ProviderSettings, bool) {
+func findProvider(providers []settings.ProviderSettings, id string) (settings.ProviderSettings, bool) {
 	for _, p := range providers {
-		if p.Name == name {
+		if p.ID == id {
 			return p, true
 		}
 	}

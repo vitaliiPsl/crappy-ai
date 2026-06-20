@@ -40,13 +40,17 @@ func NewManager(ctx context.Context, configs []Config, oauthSessionStore oauth.S
 		clients[cfg.Name] = factory(cfg)
 	}
 
-	return &Manager{
+	manager := &Manager{
 		ctx:           ctx,
 		cancel:        cancel,
 		clients:       clients,
 		newClient:     factory,
 		authenticator: NewOAuthAuthenticator(oauthSessionStore, oauthCallback),
 	}
+
+	manager.Start()
+
+	return manager
 }
 
 func (m *Manager) Start() {

@@ -11,13 +11,13 @@ const (
 	modelSection        = "Model"
 	providerSection     = "Provider Credentials"
 
-	systemPromptLabel = "System Prompt"
-	providerLabel     = "Provider"
-	modelLabel        = "Model"
-	thinkingLabel     = "Thinking"
-	apiKeyLabel       = "API Key"
-	apiKeyEnvLabel    = "API Key Env"
-	baseURLLabel      = "Base URL"
+	promptLabel    = "Prompt"
+	providerLabel  = "Provider"
+	modelLabel     = "Model"
+	thinkingLabel  = "Thinking"
+	apiKeyLabel    = "API Key"
+	apiKeyEnvLabel = "API Key Env"
+	baseURLLabel   = "Base URL"
 )
 
 type fieldKind int
@@ -43,10 +43,10 @@ func buildFields() []fieldDef {
 	return []fieldDef{
 		{
 			section: conversationSection,
-			label:   systemPromptLabel,
+			label:   promptLabel,
 			kind:    fieldTextarea,
-			get:     func(m Model) string { return m.cfg.SystemPrompt },
-			set:     func(m *Model, value string) { m.cfg.SystemPrompt = value },
+			get:     func(m Model) string { return m.cfg.Prompt },
+			set:     func(m *Model, value string) { m.cfg.Prompt = value },
 		},
 		{
 			section: modelSection,
@@ -111,7 +111,7 @@ func buildFields() []fieldDef {
 func providerOptions(m Model) []string {
 	out := make([]string, 0, len(m.providers))
 	for _, p := range m.providers {
-		out = append(out, p.Name)
+		out = append(out, p.ID)
 	}
 
 	if len(out) == 0 && m.cfg.Provider != "" {
@@ -123,23 +123,23 @@ func providerOptions(m Model) []string {
 
 func (m Model) provider() coresettings.ProviderSettings {
 	for _, p := range m.settings.Providers {
-		if p.Name == m.cfg.Provider {
+		if p.ID == m.cfg.Provider {
 			return p
 		}
 	}
 
 	for _, p := range m.providers {
-		if p.Name == m.cfg.Provider {
+		if p.ID == m.cfg.Provider {
 			return p
 		}
 	}
 
-	return coresettings.ProviderSettings{Name: m.cfg.Provider, API: m.cfg.Provider}
+	return coresettings.ProviderSettings{ID: m.cfg.Provider, API: m.cfg.Provider}
 }
 
 func (m *Model) setProvider(provider coresettings.ProviderSettings) {
 	for i, p := range m.settings.Providers {
-		if p.Name == provider.Name {
+		if p.ID == provider.ID {
 			m.settings.Providers[i] = provider
 			m.providers = m.settings.Providers
 

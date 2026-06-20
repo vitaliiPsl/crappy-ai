@@ -37,7 +37,7 @@ Crappy creates these files automatically the first time it runs.
 The config file is the main place to tune assistant behavior.
 
 ```yaml
-system_prompt: |
+prompt: |
   You are Crappy, an AI assistant for work on the user's machine.
   ...
 
@@ -64,9 +64,28 @@ permissions:
 - `medium`
 - `high`
 
-`system_prompt` changes the assistant's behavior.
+`prompt` changes the assistant's behavior.
 
 `mode` controls the assistant's permission behavior. Use `default` for normal permission rules or `yolo` to allow all tool calls without prompting.
+
+## Subagents
+
+`agents` defines named subagents the assistant can delegate to with the `task` tool. Each entry reuses the same fields as the root agent, plus `name`, `description`, and a `tools` allowlist.
+
+```yaml
+agents:
+  - name: explorer
+    description: Read-only search agent for broad codebase exploration.
+    prompt: |
+      You are a read-only exploration agent. Search and summarize; do not edit.
+    tools: [read_file, list, bash]
+```
+
+- `name` and `description` identify the subagent in the available-subagents list.
+- `provider`, `model`, and `thinking` inherit from the root agent when omitted; everything else (`prompt`, `permissions`, `tools`) is the subagent's own.
+- `tools` is an allowlist — the subagent only sees those tools. Omitting the `task` tool prevents the subagent from spawning further subagents.
+
+A subagent runs in the background with isolated (throwaway) memory (for now); the `task` tool returns a `job_id`, and `job_result` collects the subagent's final output.
 
 `permissions` control which tools can run automatically, which ones ask first, and which ones are blocked.
 
@@ -81,7 +100,7 @@ models_path: ~/.crappy-ai/models.json
 skills_path: ~/.crappy-ai/skills
 
 providers:
-  - name: openai
+  - id: openai
     api: openai
     api_key_env: OPENAI_API_KEY
 
@@ -113,17 +132,17 @@ You can also set `api_key` directly in settings, but environment variables are s
 
 ## Provider Settings
 
-A provider entry has a `name` and an `api`.
+A provider entry has an `id` and an `api`.
 
 ```yaml
 providers:
-  - name: openai-local
+  - id: openai-local
     api: openai
     base_url: http://localhost:11434/v1
     api_key: local
 ```
 
-`name` is what you select in config.
+`id` is what you select in config.
 
 `api` tells Crappy which provider protocol to use.
 

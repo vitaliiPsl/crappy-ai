@@ -11,10 +11,10 @@ import (
 
 func TestModelOptionsUsesProviderName(t *testing.T) {
 	m := Model{
-		cfg: config.Config{Provider: "local", Model: "gpt-local"},
+		cfg: config.Config{Agent: config.Agent{Provider: "local", Model: "gpt-local"}},
 		settings: appsettings.Settings{
 			Providers: []appsettings.ProviderSettings{
-				{Name: "local", API: "openai"},
+				{ID: "local", API: "openai"},
 			},
 			Models: map[string][]kit.ModelConfig{
 				"local":  {{ID: "gpt-local"}},
@@ -31,10 +31,10 @@ func TestModelOptionsUsesProviderName(t *testing.T) {
 
 func TestModelOptionsDoesNotFallBackToProviderAPI(t *testing.T) {
 	m := Model{
-		cfg: config.Config{Provider: "local", Model: "llama3.1:8b"},
+		cfg: config.Config{Agent: config.Agent{Provider: "local", Model: "llama3.1:8b"}},
 		settings: appsettings.Settings{
 			Providers: []appsettings.ProviderSettings{
-				{Name: "local", API: "openai"},
+				{ID: "local", API: "openai"},
 			},
 			Models: map[string][]kit.ModelConfig{
 				"openai": {{ID: "gpt-5"}},
@@ -49,11 +49,11 @@ func TestModelOptionsDoesNotFallBackToProviderAPI(t *testing.T) {
 
 func TestSetActiveProviderDefaultsUnknownModel(t *testing.T) {
 	m := Model{
-		cfg: config.Config{Provider: "openai", Model: "gpt-old"},
+		cfg: config.Config{Agent: config.Agent{Provider: "openai", Model: "gpt-old"}},
 		settings: appsettings.Settings{
 			Providers: []appsettings.ProviderSettings{
-				{Name: "google", API: "google"},
-				{Name: "openai", API: "openai"},
+				{ID: "google", API: "google"},
+				{ID: "openai", API: "openai"},
 			},
 			Models: map[string][]kit.ModelConfig{
 				"google": {{ID: "gemini-new"}},
@@ -75,11 +75,11 @@ func TestSetActiveProviderDefaultsUnknownModel(t *testing.T) {
 
 func TestSetActiveProviderPreservesKnownModel(t *testing.T) {
 	m := Model{
-		cfg: config.Config{Provider: "openai", Model: "shared-model"},
+		cfg: config.Config{Agent: config.Agent{Provider: "openai", Model: "shared-model"}},
 		settings: appsettings.Settings{
 			Providers: []appsettings.ProviderSettings{
-				{Name: "local", API: "openai"},
-				{Name: "openai", API: "openai"},
+				{ID: "local", API: "openai"},
+				{ID: "openai", API: "openai"},
 			},
 			Models: map[string][]kit.ModelConfig{
 				"openai": {{ID: "shared-model"}},

@@ -26,19 +26,23 @@ func Load(path string, flags Flags) (*Store, error) {
 
 func fromEnv() Config {
 	return Config{
-		Provider: os.Getenv(EnvProvider),
-		Model:    os.Getenv(EnvModel),
-		Thinking: os.Getenv(EnvThinking),
-		Mode:     Mode(os.Getenv(EnvMode)),
+		Agent: Agent{
+			Provider: os.Getenv(EnvProvider),
+			Model:    os.Getenv(EnvModel),
+			Thinking: os.Getenv(EnvThinking),
+		},
+		Mode: Mode(os.Getenv(EnvMode)),
 	}
 }
 
 func fromFlags(f Flags) Config {
 	return Config{
-		Provider: f.Provider,
-		Model:    f.Model,
-		Thinking: f.Thinking,
-		Mode:     Mode(f.Mode),
-		Cwd:      f.Cwd,
+		Agent: Agent{
+			Provider: f.Provider,
+			Model:    f.Model,
+			Thinking: f.Thinking,
+		},
+		Mode: Mode(f.Mode),
+		Cwd:  f.Cwd,
 	}
 }

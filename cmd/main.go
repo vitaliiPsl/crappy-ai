@@ -8,19 +8,26 @@ import (
 	"os/signal"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant"
+	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension"
+	bgext "github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/background"
+	mcpext "github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/mcp"
+	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/planning"
+	skillsext "github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/skills"
+	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/subagents"
+	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/summarization"
+	"github.com/vitaliiPsl/crappy-ai/internal/assistant/factory"
 	"github.com/vitaliiPsl/crappy-ai/internal/background"
 	"github.com/vitaliiPsl/crappy-ai/internal/cli"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/mcp"
+	oauthstore "github.com/vitaliiPsl/crappy-ai/internal/mcp/oauth/store"
 	"github.com/vitaliiPsl/crappy-ai/internal/models"
 	"github.com/vitaliiPsl/crappy-ai/internal/permission"
 	"github.com/vitaliiPsl/crappy-ai/internal/server"
+	sessionstore "github.com/vitaliiPsl/crappy-ai/internal/session/store"
 	"github.com/vitaliiPsl/crappy-ai/internal/settings"
 	"github.com/vitaliiPsl/crappy-ai/internal/skills"
 	"github.com/vitaliiPsl/crappy-ai/internal/tui"
-
-	oauthstore "github.com/vitaliiPsl/crappy-ai/internal/mcp/oauth/store"
-	sessionstore "github.com/vitaliiPsl/crappy-ai/internal/session/store"
 )
 
 func main() {
@@ -32,7 +39,7 @@ func main() {
 
 func run() error {
 	var (
-		provider = flag.String("provider", "", "active provider name")
+		provider = flag.String("provider", "", "active provider id")
 		model    = flag.String("model", "", "active model id")
 		thinking = flag.String("thinking", "", "thinking level (disabled|low|medium|high)")
 		mode     = flag.String("mode", "", "permission mode (default|yolo)")
@@ -40,6 +47,9 @@ func run() error {
 	)
 
 	flag.Parse()
+
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
 
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -81,9 +91,6 @@ func run() error {
 	modelRegistry := models.NewRegistry(settingsStore)
 	skillRegistry := skills.NewRegistry(settingsStore)
 
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer cancel()
-
 	backgroundManager := background.NewManager(ctx)
 	defer backgroundManager.Close()
 
@@ -97,18 +104,28 @@ func run() error {
 	)
 	defer mcpManager.Close()
 
-	mcpManager.Start()
+	agentFactory := factory.New(permissionService, backgroundManager)
+
+	baseExtensions := []extension.Extension{
+		summarization.New(),
+		bgext.New(backgroundManager),
+		skillsext.New(skillRegistry),
+		mcpext.New(mcpManager),
+	}
+
+	rootExtensions := append(
+		append([]extension.Extension{}, baseExtensions...),
+		planning.New(sessStore),
+		subagents.New(agentFactory, baseExtensions, modelRegistry, backgroundManager),
+	)
 
 	asst := assistant.New(
 		configStore,
-		settingsStore,
-		sessStore,
 		sessStore,
 		modelRegistry,
 		skillRegistry,
-		permissionService,
-		backgroundManager,
-		mcpManager,
+		agentFactory,
+		rootExtensions,
 	)
 
 	srv := server.New(

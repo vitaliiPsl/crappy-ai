@@ -74,36 +74,36 @@ func merge(base, overlay Settings) Settings {
 }
 
 func mergeProviders(base, overlay []ProviderSettings) []ProviderSettings {
-	byName := make(map[string]ProviderSettings, len(base)+len(overlay))
+	byID := make(map[string]ProviderSettings, len(base)+len(overlay))
 	for _, p := range base {
-		byName[p.Name] = p
+		byID[p.ID] = p
 	}
 
 	for _, p := range overlay {
-		if existing, ok := byName[p.Name]; ok {
-			byName[p.Name] = mergeProvider(existing, p)
+		if existing, ok := byID[p.ID]; ok {
+			byID[p.ID] = mergeProvider(existing, p)
 
 			continue
 		}
 
-		byName[p.Name] = p
+		byID[p.ID] = p
 	}
 
-	merged := make([]ProviderSettings, 0, len(byName))
-	for _, p := range byName {
+	merged := make([]ProviderSettings, 0, len(byID))
+	for _, p := range byID {
 		merged = append(merged, p)
 	}
 
 	sort.Slice(merged, func(i, j int) bool {
-		return merged[i].Name < merged[j].Name
+		return merged[i].ID < merged[j].ID
 	})
 
 	return merged
 }
 
 func mergeProvider(base, overlay ProviderSettings) ProviderSettings {
-	if overlay.Name != "" {
-		base.Name = overlay.Name
+	if overlay.ID != "" {
+		base.ID = overlay.ID
 	}
 
 	if overlay.API != "" {
