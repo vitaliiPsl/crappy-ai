@@ -4,7 +4,7 @@ import (
 	"github.com/vitaliiPsl/crappy-adk/kit"
 	xsummarization "github.com/vitaliiPsl/crappy-adk/x/summarization"
 
-	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension"
+	"github.com/vitaliiPsl/crappy-ai/internal/assistant/factory"
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/spec"
 )
 
@@ -12,7 +12,7 @@ const thresholdRatio = 0.75
 
 type ext struct{}
 
-func New() extension.Extension {
+func New() factory.Extension {
 	return &ext{}
 }
 
@@ -20,7 +20,7 @@ func (e *ext) Name() string {
 	return "summarization"
 }
 
-func (e *ext) Spec(ctx extension.Context) (spec.AgentSpec, error) {
+func (e *ext) Spec(ctx factory.Context) (spec.AgentSpec, error) {
 	return spec.AgentSpec{
 		Hooks: []spec.HookSpec{
 			{

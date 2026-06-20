@@ -7,7 +7,6 @@ import (
 	"github.com/vitaliiPsl/crappy-adk/x/memory"
 	"github.com/vitaliiPsl/crappy-adk/x/tool"
 
-	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension"
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/factory"
 	"github.com/vitaliiPsl/crappy-ai/internal/models"
 )
@@ -22,7 +21,7 @@ type taskInput struct {
 	Task  string `json:"task" jsonschema:"A self-contained description of the work, including all context the subagent needs"`
 }
 
-func newTool(f *factory.Factory, extensions []extension.Extension, registry *models.Registry, ec extension.Context) kit.Tool {
+func newTool(f *factory.Factory, extensions []factory.Extension, registry *models.Registry, ec factory.Context) kit.Tool {
 	return tool.MustNew(
 		toolName,
 		toolDescription,
@@ -40,14 +39,16 @@ func newTool(f *factory.Factory, extensions []extension.Extension, registry *mod
 			childCfg := ec.Config
 			childCfg.Agent = sub
 
-			childEC := extension.Context{
-				Ctx:       rc.Context,
-				SessionID: ec.SessionID + "/sub:" + input.Agent,
-				Config:    childCfg,
-				Model:     model,
-			}
-
-			ag, err := f.Build(childEC, extensions, memory.NewHistory())
+			ag, err := f.Build(factory.BuildRequest{
+				Context: factory.Context{
+					Ctx:       rc.Context,
+					SessionID: ec.SessionID + "/sub:" + input.Agent,
+					Config:    childCfg,
+					Model:     model,
+				},
+				Memory:     memory.NewHistory(),
+				Extensions: extensions,
+			})
 			if err != nil {
 				return "", err
 			}

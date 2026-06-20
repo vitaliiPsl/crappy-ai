@@ -8,7 +8,6 @@ import (
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
 
-	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension"
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/factory"
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/memory"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
@@ -23,7 +22,7 @@ type Assistant struct {
 	modelRegistry *models.Registry
 	skillRegistry *skills.Registry
 	factory       *factory.Factory
-	extensions    []extension.Extension
+	extensions    []factory.Extension
 }
 
 func New(
@@ -32,7 +31,7 @@ func New(
 	modelRegistry *models.Registry,
 	skillRegistry *skills.Registry,
 	agentFactory *factory.Factory,
-	extensions []extension.Extension,
+	extensions []factory.Extension,
 ) *Assistant {
 	return &Assistant{
 		configStore:   configStore,
@@ -54,7 +53,16 @@ func (a *Assistant) Run(ctx context.Context, sessionID string, req RunRequest) (
 		return nil, fmt.Errorf("build model: %w", err)
 	}
 
-	ag, err := a.factory.Build(extension.Context{Ctx: ctx, SessionID: sessionID, Config: cfg, Model: model}, a.extensions, mem)
+	ag, err := a.factory.Build(factory.BuildRequest{
+		Context: factory.Context{
+			Ctx:       ctx,
+			SessionID: sessionID,
+			Config:    cfg,
+			Model:     model,
+		},
+		Memory:     mem,
+		Extensions: a.extensions,
+	})
 	if err != nil {
 		return nil, err
 	}

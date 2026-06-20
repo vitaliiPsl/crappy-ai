@@ -1,7 +1,7 @@
 package skills
 
 import (
-	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension"
+	"github.com/vitaliiPsl/crappy-ai/internal/assistant/factory"
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/spec"
 	coreskills "github.com/vitaliiPsl/crappy-ai/internal/skills"
 )
@@ -27,7 +27,7 @@ type ext struct {
 	registry *coreskills.Registry
 }
 
-func New(registry *coreskills.Registry) extension.Extension {
+func New(registry *coreskills.Registry) factory.Extension {
 	return &ext{registry: registry}
 }
 
@@ -35,7 +35,7 @@ func (e *ext) Name() string {
 	return "skills"
 }
 
-func (e *ext) Spec(extension.Context) (spec.AgentSpec, error) {
+func (e *ext) Spec(factory.Context) (spec.AgentSpec, error) {
 	listing := coreskills.FormatListing(e.registry.GetSkills())
 	if listing == "" {
 		return spec.AgentSpec{}, nil

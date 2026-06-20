@@ -1,7 +1,7 @@
 package background
 
 import (
-	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension"
+	"github.com/vitaliiPsl/crappy-ai/internal/assistant/factory"
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/spec"
 	bg "github.com/vitaliiPsl/crappy-ai/internal/background"
 )
@@ -23,7 +23,7 @@ type ext struct {
 	manager *bg.Manager
 }
 
-func New(manager *bg.Manager) extension.Extension {
+func New(manager *bg.Manager) factory.Extension {
 	return &ext{manager: manager}
 }
 
@@ -31,7 +31,7 @@ func (e *ext) Name() string {
 	return "background"
 }
 
-func (e *ext) Spec(ctx extension.Context) (spec.AgentSpec, error) {
+func (e *ext) Spec(ctx factory.Context) (spec.AgentSpec, error) {
 	jobs := e.manager.ForSession(ctx.SessionID)
 	jobTools := bg.Tools(jobs)
 

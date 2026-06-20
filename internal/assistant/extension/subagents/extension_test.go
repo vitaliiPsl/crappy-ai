@@ -10,7 +10,7 @@ import (
 	"github.com/vitaliiPsl/crappy-adk/kittest"
 	xmemory "github.com/vitaliiPsl/crappy-adk/x/memory"
 
-	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension"
+	"github.com/vitaliiPsl/crappy-ai/internal/assistant/factory"
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/spec"
 	"github.com/vitaliiPsl/crappy-ai/internal/background"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
@@ -20,7 +20,7 @@ func TestExtensionNoAgentsAddsNothing(t *testing.T) {
 	bg := background.NewManager(context.Background())
 	defer bg.Close()
 
-	extSpec, err := New(nil, nil, nil, bg).Spec(extension.Context{})
+	extSpec, err := New(nil, nil, nil, bg).Spec(factory.Context{})
 	if err != nil {
 		t.Fatalf("Spec: %v", err)
 	}
@@ -41,7 +41,7 @@ func TestExtensionAddsListingAndTaskTool(t *testing.T) {
 		},
 	})
 
-	ec := extension.Context{
+	ec := factory.Context{
 		Config: config.Config{
 			Agents: []config.Agent{
 				{Name: "explorer", Description: "Read-only explorer."},
@@ -85,7 +85,7 @@ func TestExtensionAddsListingAndTaskTool(t *testing.T) {
 }
 
 func TestTaskToolUnknownSubagent(t *testing.T) {
-	ec := extension.Context{
+	ec := factory.Context{
 		Config: config.Config{
 			Agents: []config.Agent{{Name: "explorer"}},
 		},

@@ -8,7 +8,6 @@ import (
 	"os/signal"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant"
-	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension"
 	bgext "github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/background"
 	mcpext "github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/mcp"
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/planning"
@@ -106,7 +105,7 @@ func run() error {
 
 	agentFactory := factory.New(permissionService, backgroundManager)
 
-	baseExtensions := []extension.Extension{
+	baseExtensions := []factory.Extension{
 		summarization.New(),
 		bgext.New(backgroundManager),
 		skillsext.New(skillRegistry),
@@ -114,7 +113,7 @@ func run() error {
 	}
 
 	rootExtensions := append(
-		append([]extension.Extension{}, baseExtensions...),
+		append([]factory.Extension{}, baseExtensions...),
 		planning.New(sessStore),
 		subagents.New(agentFactory, baseExtensions, modelRegistry, backgroundManager),
 	)

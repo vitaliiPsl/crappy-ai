@@ -3,7 +3,6 @@ package subagents
 import (
 	"strings"
 
-	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension"
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/factory"
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/spec"
 	"github.com/vitaliiPsl/crappy-ai/internal/background"
@@ -29,12 +28,12 @@ Available subagents:
 
 type ext struct {
 	factory           *factory.Factory
-	extensions        []extension.Extension
+	extensions        []factory.Extension
 	modelRegistry     *models.Registry
 	backgroundManager *background.Manager
 }
 
-func New(agentFactory *factory.Factory, extensions []extension.Extension, modelRegistry *models.Registry, backgroundManager *background.Manager) extension.Extension {
+func New(agentFactory *factory.Factory, extensions []factory.Extension, modelRegistry *models.Registry, backgroundManager *background.Manager) factory.Extension {
 	return &ext{
 		factory:           agentFactory,
 		extensions:        extensions,
@@ -47,7 +46,7 @@ func (e *ext) Name() string {
 	return "subagents"
 }
 
-func (e *ext) Spec(ec extension.Context) (spec.AgentSpec, error) {
+func (e *ext) Spec(ec factory.Context) (spec.AgentSpec, error) {
 	if len(ec.Config.Agents) == 0 {
 		return spec.AgentSpec{}, nil
 	}

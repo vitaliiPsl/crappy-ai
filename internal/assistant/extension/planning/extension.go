@@ -3,7 +3,7 @@ package planning
 import (
 	"context"
 
-	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension"
+	"github.com/vitaliiPsl/crappy-ai/internal/assistant/factory"
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/spec"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
 )
@@ -31,7 +31,7 @@ type ext struct {
 	store session.ArtifactStore
 }
 
-func New(store session.ArtifactStore) extension.Extension {
+func New(store session.ArtifactStore) factory.Extension {
 	return &ext{store: store}
 }
 
@@ -39,7 +39,7 @@ func (e *ext) Name() string {
 	return "planning"
 }
 
-func (e *ext) Spec(ctx extension.Context) (spec.AgentSpec, error) {
+func (e *ext) Spec(ctx factory.Context) (spec.AgentSpec, error) {
 	t := newTool(ctx.SessionID, e.store)
 
 	return spec.AgentSpec{

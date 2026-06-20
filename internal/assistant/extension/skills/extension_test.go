@@ -12,7 +12,7 @@ import (
 	"github.com/vitaliiPsl/crappy-adk/kittest"
 	xmemory "github.com/vitaliiPsl/crappy-adk/x/memory"
 
-	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension"
+	"github.com/vitaliiPsl/crappy-ai/internal/assistant/factory"
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/spec"
 	coreskills "github.com/vitaliiPsl/crappy-ai/internal/skills"
 	"github.com/vitaliiPsl/crappy-ai/internal/skills/skillstest"
@@ -77,7 +77,7 @@ func TestExtensionAddsMetadataListingAndTool(t *testing.T) {
 
 	ext := New(registry)
 
-	extSpec, err := ext.Spec(extension.Context{})
+	extSpec, err := ext.Spec(factory.Context{})
 	if err != nil {
 		t.Fatalf("Spec: %v", err)
 	}
