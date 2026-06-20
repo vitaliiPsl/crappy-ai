@@ -8,12 +8,6 @@ import (
 	"os/signal"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant"
-	bgext "github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/background"
-	mcpext "github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/mcp"
-	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/planning"
-	skillsext "github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/skills"
-	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/subagents"
-	"github.com/vitaliiPsl/crappy-ai/internal/assistant/extension/summarization"
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/factory"
 	"github.com/vitaliiPsl/crappy-ai/internal/background"
 	"github.com/vitaliiPsl/crappy-ai/internal/cli"
@@ -27,6 +21,13 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/settings"
 	"github.com/vitaliiPsl/crappy-ai/internal/skills"
 	"github.com/vitaliiPsl/crappy-ai/internal/tui"
+
+	bgext "github.com/vitaliiPsl/crappy-ai/internal/extensions/background"
+	mcpext "github.com/vitaliiPsl/crappy-ai/internal/extensions/mcp"
+	"github.com/vitaliiPsl/crappy-ai/internal/extensions/planning"
+	skillsext "github.com/vitaliiPsl/crappy-ai/internal/extensions/skills"
+	"github.com/vitaliiPsl/crappy-ai/internal/extensions/subagents"
+	"github.com/vitaliiPsl/crappy-ai/internal/extensions/summarization"
 )
 
 func main() {
