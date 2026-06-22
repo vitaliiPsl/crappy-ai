@@ -11,7 +11,6 @@ import (
 	xmemory "github.com/vitaliiPsl/crappy-adk/x/memory"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/factory"
-	"github.com/vitaliiPsl/crappy-ai/internal/assistant/spec"
 	"github.com/vitaliiPsl/crappy-ai/internal/background"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 )
@@ -54,7 +53,7 @@ func TestExtensionAddsListingAndTaskTool(t *testing.T) {
 		t.Fatalf("Spec: %v", err)
 	}
 
-	compiled, err := spec.Compile(extSpec)
+	compiled, err := factory.Compile(extSpec)
 	if err != nil {
 		t.Fatalf("Compile: %v", err)
 	}

@@ -1,4 +1,4 @@
-package spec
+package factory
 
 import (
 	"strings"
@@ -18,7 +18,7 @@ func Compile(s AgentSpec) (Compiled, error) {
 		Tools: tool.NewSet(),
 	}
 
-	if instructions := staticContextText(s.Context); instructions != "" {
+	if instructions := staticContext(s.Context); instructions != "" {
 		compiled.Options = append(compiled.Options, agent.WithInstructions(instructions))
 	}
 
@@ -42,7 +42,7 @@ func Compile(s AgentSpec) (Compiled, error) {
 	return compiled, nil
 }
 
-func staticContextText(pieces []ContextPiece) string {
+func staticContext(pieces []ContextPiece) string {
 	var out []string
 	for _, piece := range pieces {
 		if piece.Resolve != nil {

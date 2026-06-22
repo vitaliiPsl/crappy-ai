@@ -5,19 +5,17 @@ import (
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
 	"github.com/vitaliiPsl/crappy-adk/x/tool"
-
-	"github.com/vitaliiPsl/crappy-ai/internal/assistant/spec"
 )
 
-func toolSpec(name string) spec.ToolSpec {
+func toolSpec(name string) ToolSpec {
 	t := tool.MustNew(name, "test tool", func(_ *kit.RunContext, _ struct{}) (string, error) {
 		return "", nil
 	})
 
-	return spec.ToolSpec{Source: "test", Tool: t}
+	return ToolSpec{Source: "test", Tool: t}
 }
 
-func names(tools []spec.ToolSpec) []string {
+func names(tools []ToolSpec) []string {
 	out := make([]string, len(tools))
 	for i, t := range tools {
 		out[i] = t.Name()
@@ -27,7 +25,7 @@ func names(tools []spec.ToolSpec) []string {
 }
 
 func TestAllowedToolsEmptyAllowlistKeepsAll(t *testing.T) {
-	tools := []spec.ToolSpec{toolSpec("read_file"), toolSpec("bash")}
+	tools := []ToolSpec{toolSpec("read_file"), toolSpec("bash")}
 
 	got := allowedTools(tools, nil)
 	if len(got) != 2 {
@@ -36,7 +34,7 @@ func TestAllowedToolsEmptyAllowlistKeepsAll(t *testing.T) {
 }
 
 func TestAllowedToolsFiltersToAllowlist(t *testing.T) {
-	tools := []spec.ToolSpec{toolSpec("read_file"), toolSpec("bash"), toolSpec("list")}
+	tools := []ToolSpec{toolSpec("read_file"), toolSpec("bash"), toolSpec("list")}
 
 	got := allowedTools(tools, []string{"read_file", "list"})
 

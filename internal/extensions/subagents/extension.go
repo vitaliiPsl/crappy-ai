@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/factory"
-	"github.com/vitaliiPsl/crappy-ai/internal/assistant/spec"
 	"github.com/vitaliiPsl/crappy-ai/internal/background"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/models"
@@ -46,28 +45,28 @@ func (e *ext) Name() string {
 	return "subagents"
 }
 
-func (e *ext) Spec(ec factory.Context) (spec.AgentSpec, error) {
+func (e *ext) Spec(ec factory.Context) (factory.AgentSpec, error) {
 	if len(ec.Config.Agents) == 0 {
-		return spec.AgentSpec{}, nil
+		return factory.AgentSpec{}, nil
 	}
 
 	jobs := e.backgroundManager.ForSession(ec.SessionID)
 
 	tool, err := background.Wrap(newTool(e.factory, e.extensions, e.modelRegistry, ec), jobs)
 	if err != nil {
-		return spec.AgentSpec{}, err
+		return factory.AgentSpec{}, err
 	}
 
-	return spec.AgentSpec{
-		Context: []spec.ContextPiece{
+	return factory.AgentSpec{
+		Context: []factory.ContextPiece{
 			{
 				Name:    "Available subagents",
 				Source:  e.Name(),
-				Kind:    spec.ContextExtension,
+				Kind:    factory.ContextExtension,
 				Content: instructions + listing(ec.Config.Agents),
 			},
 		},
-		Tools: []spec.ToolSpec{
+		Tools: []factory.ToolSpec{
 			{
 				Source: e.Name(),
 				Tool:   tool,

@@ -5,7 +5,6 @@ import (
 	xsummarization "github.com/vitaliiPsl/crappy-adk/x/summarization"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/factory"
-	"github.com/vitaliiPsl/crappy-ai/internal/assistant/spec"
 )
 
 const thresholdRatio = 0.75
@@ -20,13 +19,13 @@ func (e *ext) Name() string {
 	return "summarization"
 }
 
-func (e *ext) Spec(ctx factory.Context) (spec.AgentSpec, error) {
-	return spec.AgentSpec{
-		Hooks: []spec.HookSpec{
+func (e *ext) Spec(ctx factory.Context) (factory.AgentSpec, error) {
+	return factory.AgentSpec{
+		Hooks: []factory.HookSpec{
 			{
 				Name:   "Summarize when context is large",
 				Source: e.Name(),
-				Kind:   spec.HookTurnStart,
+				Kind:   factory.HookTurnStart,
 				Option: xsummarization.WithSummarization(
 					whenLastInputExceeds(ctx.Model.Config(), thresholdRatio),
 					strategy(NewSummarizer(ctx.Model)),

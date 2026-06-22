@@ -6,7 +6,6 @@ import (
 	"github.com/vitaliiPsl/crappy-adk/x/guard"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/instructions"
-	"github.com/vitaliiPsl/crappy-ai/internal/assistant/spec"
 	"github.com/vitaliiPsl/crappy-ai/internal/background"
 	"github.com/vitaliiPsl/crappy-ai/internal/permission"
 	"github.com/vitaliiPsl/crappy-ai/internal/tools"
@@ -27,43 +26,43 @@ func (e coreContributor) Name() string {
 	return coreSource
 }
 
-func (e coreContributor) Spec(ctx Context) (spec.AgentSpec, error) {
-	return spec.AgentSpec{
+func (e coreContributor) Spec(ctx Context) (AgentSpec, error) {
+	return AgentSpec{
 		Context: e.context(ctx),
 		Tools:   e.tools(ctx),
 		Hooks:   e.hooks(ctx),
 	}, nil
 }
 
-func (e coreContributor) context(ctx Context) []spec.ContextPiece {
-	return []spec.ContextPiece{
+func (e coreContributor) context(ctx Context) []ContextPiece {
+	return []ContextPiece{
 		{
 			Name:    "System prompt",
 			Source:  coreSource,
-			Kind:    spec.ContextSystemPrompt,
+			Kind:    ContextSystemPrompt,
 			Content: ctx.Config.Prompt,
 		},
 		{
 			Name:    "Environment",
 			Source:  coreSource,
-			Kind:    spec.ContextEnvironment,
+			Kind:    ContextEnvironment,
 			Content: instructions.Env(ctx.Config.Cwd),
 		},
 		{
 			Name:    "Instruction files",
 			Source:  coreSource,
-			Kind:    spec.ContextInstructions,
+			Kind:    ContextInstructions,
 			Content: instructions.Files(ctx.Config.Cwd),
 		},
 	}
 }
 
-func (e coreContributor) tools(ctx Context) []spec.ToolSpec {
+func (e coreContributor) tools(ctx Context) []ToolSpec {
 	coreTools := tools.Core(e.background.ForSession(ctx.SessionID))
 
-	out := make([]spec.ToolSpec, 0, len(coreTools))
+	out := make([]ToolSpec, 0, len(coreTools))
 	for _, t := range coreTools {
-		out = append(out, spec.ToolSpec{
+		out = append(out, ToolSpec{
 			Source: coreSource,
 			Tool:   t,
 		})
@@ -72,18 +71,18 @@ func (e coreContributor) tools(ctx Context) []spec.ToolSpec {
 	return out
 }
 
-func (e coreContributor) hooks(ctx Context) []spec.HookSpec {
-	return []spec.HookSpec{
+func (e coreContributor) hooks(ctx Context) []HookSpec {
+	return []HookSpec{
 		e.permissionHook(ctx.SessionID),
 		e.repeatedToolCallHook(toolLoopMaxRepeats, toolLoopWindow),
 	}
 }
 
-func (e coreContributor) permissionHook(sessionID string) spec.HookSpec {
-	return spec.HookSpec{
+func (e coreContributor) permissionHook(sessionID string) HookSpec {
+	return HookSpec{
 		Name:   "Permission enforcement",
 		Source: coreSource,
-		Kind:   spec.HookToolCall,
+		Kind:   HookToolCall,
 		Option: agent.WithOnToolCall(func(rc *kit.RunContext, call kit.ToolCall) (kit.ToolCall, error) {
 			if err := e.permissions.Authorize(rc.Context, sessionID, call); err != nil {
 				return call, err
@@ -94,11 +93,11 @@ func (e coreContributor) permissionHook(sessionID string) spec.HookSpec {
 	}
 }
 
-func (e coreContributor) repeatedToolCallHook(maxRepeats, window int) spec.HookSpec {
-	return spec.HookSpec{
+func (e coreContributor) repeatedToolCallHook(maxRepeats, window int) HookSpec {
+	return HookSpec{
 		Name:   "Repeated tool call limit",
 		Source: coreSource,
-		Kind:   spec.HookModelResponse,
+		Kind:   HookModelResponse,
 		Option: guard.WithRepeatedToolCallLimit(maxRepeats, window),
 	}
 }

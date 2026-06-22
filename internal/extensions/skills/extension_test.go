@@ -13,7 +13,6 @@ import (
 	xmemory "github.com/vitaliiPsl/crappy-adk/x/memory"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/factory"
-	"github.com/vitaliiPsl/crappy-ai/internal/assistant/spec"
 	coreskills "github.com/vitaliiPsl/crappy-ai/internal/skills"
 	"github.com/vitaliiPsl/crappy-ai/internal/skills/skillstest"
 )
@@ -82,7 +81,7 @@ func TestExtensionAddsMetadataListingAndTool(t *testing.T) {
 		t.Fatalf("Spec: %v", err)
 	}
 
-	compiled, err := spec.Compile(extSpec)
+	compiled, err := factory.Compile(extSpec)
 	if err != nil {
 		t.Fatalf("Compile: %v", err)
 	}

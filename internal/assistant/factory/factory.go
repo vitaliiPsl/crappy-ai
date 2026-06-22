@@ -7,7 +7,6 @@ import (
 	"github.com/vitaliiPsl/crappy-adk/agent"
 	"github.com/vitaliiPsl/crappy-adk/kit"
 
-	"github.com/vitaliiPsl/crappy-ai/internal/assistant/spec"
 	"github.com/vitaliiPsl/crappy-ai/internal/background"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/permission"
@@ -29,7 +28,7 @@ type BuildRequest struct {
 
 type Extension interface {
 	Name() string
-	Spec(ctx Context) (spec.AgentSpec, error)
+	Spec(ctx Context) (AgentSpec, error)
 }
 
 type Factory struct {
@@ -45,12 +44,12 @@ func New(permissions *permission.Service, bg *background.Manager) *Factory {
 }
 
 func (f *Factory) Build(req BuildRequest) (*agent.Agent, error) {
-	runSpec, err := f.spec(req)
+	runSpec, err := f.buildSpec(req)
 	if err != nil {
 		return nil, fmt.Errorf("build agent spec: %w", err)
 	}
 
-	compiled, err := spec.Compile(runSpec)
+	compiled, err := Compile(runSpec)
 	if err != nil {
 		return nil, fmt.Errorf("compile agent spec: %w", err)
 	}
@@ -67,10 +66,10 @@ func (f *Factory) Build(req BuildRequest) (*agent.Agent, error) {
 	return ag, nil
 }
 
-func (f *Factory) spec(req BuildRequest) (spec.AgentSpec, error) {
+func (f *Factory) buildSpec(req BuildRequest) (AgentSpec, error) {
 	runSpec, err := collectSpecs(req.Context, f.contributors(req.Extensions))
 	if err != nil {
-		return spec.AgentSpec{}, err
+		return AgentSpec{}, err
 	}
 
 	runSpec.Tools = allowedTools(runSpec.Tools, req.Config.Tools)
@@ -89,12 +88,12 @@ func (f *Factory) contributors(extensions []Extension) []Extension {
 	return out
 }
 
-func collectSpecs(ctx Context, contributors []Extension) (spec.AgentSpec, error) {
-	var runSpec spec.AgentSpec
+func collectSpecs(ctx Context, contributors []Extension) (AgentSpec, error) {
+	var runSpec AgentSpec
 	for _, contributor := range contributors {
 		contributed, err := contributor.Spec(ctx)
 		if err != nil {
-			return spec.AgentSpec{}, fmt.Errorf("%s spec: %w", contributor.Name(), err)
+			return AgentSpec{}, fmt.Errorf("%s spec: %w", contributor.Name(), err)
 		}
 
 		runSpec.Merge(contributed)
@@ -103,7 +102,7 @@ func collectSpecs(ctx Context, contributors []Extension) (spec.AgentSpec, error)
 	return runSpec, nil
 }
 
-func allowedTools(tools []spec.ToolSpec, allow []string) []spec.ToolSpec {
+func allowedTools(tools []ToolSpec, allow []string) []ToolSpec {
 	if len(allow) == 0 {
 		return tools
 	}
@@ -113,7 +112,7 @@ func allowedTools(tools []spec.ToolSpec, allow []string) []spec.ToolSpec {
 		allowed[name] = struct{}{}
 	}
 
-	out := make([]spec.ToolSpec, 0, len(tools))
+	out := make([]ToolSpec, 0, len(tools))
 	for _, t := range tools {
 		if _, ok := allowed[t.Name()]; ok {
 			out = append(out, t)

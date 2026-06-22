@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/factory"
-	"github.com/vitaliiPsl/crappy-ai/internal/assistant/spec"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
 )
 
@@ -39,27 +38,27 @@ func (e *ext) Name() string {
 	return "planning"
 }
 
-func (e *ext) Spec(ctx factory.Context) (spec.AgentSpec, error) {
+func (e *ext) Spec(ctx factory.Context) (factory.AgentSpec, error) {
 	t := newTool(ctx.SessionID, e.store)
 
-	return spec.AgentSpec{
-		Context: []spec.ContextPiece{
+	return factory.AgentSpec{
+		Context: []factory.ContextPiece{
 			{
 				Name:    "Planning instructions",
 				Source:  e.Name(),
-				Kind:    spec.ContextExtension,
+				Kind:    factory.ContextExtension,
 				Content: Instructions,
 			},
 			{
 				Name:   "Current plan",
 				Source: e.Name(),
-				Kind:   spec.ContextArtifact,
+				Kind:   factory.ContextArtifact,
 				Resolve: func(runCtx context.Context) (string, error) {
 					return currentPlanText(runCtx, ctx.SessionID, e.store)
 				},
 			},
 		},
-		Tools: []spec.ToolSpec{
+		Tools: []factory.ToolSpec{
 			{
 				Source: e.Name(),
 				Tool:   t,

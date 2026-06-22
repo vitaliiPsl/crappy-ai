@@ -1,4 +1,4 @@
-package spec
+package factory
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 )
 
 func TestStaticContextText(t *testing.T) {
-	got := staticContextText([]ContextPiece{
+	got := staticContext([]ContextPiece{
 		{Content: " static one "},
 		{Content: ""},
 		{Content: "static two"},
@@ -20,7 +20,7 @@ func TestStaticContextText(t *testing.T) {
 
 	want := "static one\n\nstatic two"
 	if got != want {
-		t.Fatalf("staticContextText = %q, want %q", got, want)
+		t.Fatalf("staticContext = %q, want %q", got, want)
 	}
 }
 
