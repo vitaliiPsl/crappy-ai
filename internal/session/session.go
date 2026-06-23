@@ -7,9 +7,10 @@ import (
 )
 
 type Session struct {
-	ID    string `json:"id"`
-	Title string `json:"title"`
-	Cwd   string `json:"cwd,omitempty"`
+	ID       string `json:"id"`
+	ParentID string `json:"parent_id,omitempty"`
+	Title    string `json:"title"`
+	Cwd      string `json:"cwd,omitempty"`
 
 	Usage kit.Usage `json:"usage"`
 

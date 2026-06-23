@@ -7,6 +7,7 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/background"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/models"
+	"github.com/vitaliiPsl/crappy-ai/internal/session"
 )
 
 const instructions = `# Subagents
@@ -30,14 +31,16 @@ type ext struct {
 	extensions        []factory.Extension
 	modelRegistry     *models.Registry
 	backgroundManager *background.Manager
+	sessionStore      session.Store
 }
 
-func New(agentFactory *factory.Factory, extensions []factory.Extension, modelRegistry *models.Registry, backgroundManager *background.Manager) factory.Extension {
+func New(agentFactory *factory.Factory, extensions []factory.Extension, modelRegistry *models.Registry, backgroundManager *background.Manager, sessionStore session.Store) factory.Extension {
 	return &ext{
 		factory:           agentFactory,
 		extensions:        extensions,
 		modelRegistry:     modelRegistry,
 		backgroundManager: backgroundManager,
+		sessionStore:      sessionStore,
 	}
 }
 
@@ -52,7 +55,7 @@ func (e *ext) Spec(ec factory.Context) (factory.AgentSpec, error) {
 
 	jobs := e.backgroundManager.ForSession(ec.SessionID)
 
-	tool, err := background.Wrap(newTool(e.factory, e.extensions, e.modelRegistry, ec), jobs)
+	tool, err := background.Wrap(e.newTool(ec), jobs)
 	if err != nil {
 		return factory.AgentSpec{}, err
 	}

@@ -13,13 +13,15 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/factory"
 	"github.com/vitaliiPsl/crappy-ai/internal/background"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
+	"github.com/vitaliiPsl/crappy-ai/internal/session"
+	sessionstore "github.com/vitaliiPsl/crappy-ai/internal/session/store"
 )
 
 func TestExtensionNoAgentsAddsNothing(t *testing.T) {
 	bg := background.NewManager(context.Background())
 	defer bg.Close()
 
-	extSpec, err := New(nil, nil, nil, bg).Spec(factory.Context{})
+	extSpec, err := New(nil, nil, nil, bg, nil).Spec(factory.Context{})
 	if err != nil {
 		t.Fatalf("Spec: %v", err)
 	}
@@ -48,7 +50,7 @@ func TestExtensionAddsListingAndTaskTool(t *testing.T) {
 		},
 	}
 
-	extSpec, err := New(nil, nil, nil, bg).Spec(ec)
+	extSpec, err := New(nil, nil, nil, bg, nil).Spec(ec)
 	if err != nil {
 		t.Fatalf("Spec: %v", err)
 	}
@@ -90,9 +92,10 @@ func TestTaskToolUnknownSubagent(t *testing.T) {
 		},
 	}
 
-	_, err := newTool(nil, nil, nil, ec).Execute(kit.NewRunContext(context.Background()), map[string]any{
-		"agent": "missing",
-		"task":  "do something",
+	_, err := (&ext{}).newTool(ec).Execute(kit.NewRunContext(context.Background()), map[string]any{
+		"agent":       "missing",
+		"description": "find a thing",
+		"task":        "do something",
 	})
 	if err == nil {
 		t.Fatal("Execute error = nil, want unknown subagent")
@@ -100,6 +103,31 @@ func TestTaskToolUnknownSubagent(t *testing.T) {
 
 	if !strings.Contains(err.Error(), "unknown subagent") || !strings.Contains(err.Error(), "missing") {
 		t.Fatalf("error = %q, want unknown subagent %q", err, "missing")
+	}
+}
+
+func TestRecordUsageAttributesToChildAndParent(t *testing.T) {
+	store, err := sessionstore.NewFileStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewFileStore: %v", err)
+	}
+
+	ctx := context.Background()
+	parent, _ := store.Create(ctx, session.CreateParams{Title: "parent"})
+	child, _ := store.Create(ctx, session.CreateParams{Title: "child", ParentID: parent.ID})
+
+	e := &ext{sessionStore: store}
+	e.recordUsage(kit.NewRunContext(ctx), child.ID, parent.ID, kit.Usage{InputTokens: 100, OutputTokens: 20})
+
+	for _, id := range []string{child.ID, parent.ID} {
+		sess, err := store.Get(ctx, id)
+		if err != nil {
+			t.Fatalf("Get %s: %v", id, err)
+		}
+
+		if sess.Usage.InputTokens != 100 || sess.Usage.OutputTokens != 20 {
+			t.Fatalf("session %s usage = %+v, want input 100 output 20", id, sess.Usage)
+		}
 	}
 }
 

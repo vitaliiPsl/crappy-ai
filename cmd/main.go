@@ -116,7 +116,7 @@ func run() error {
 	rootExtensions := append(
 		append([]factory.Extension{}, baseExtensions...),
 		planning.New(sessStore),
-		subagents.New(agentFactory, baseExtensions, modelRegistry, backgroundManager),
+		subagents.New(agentFactory, baseExtensions, modelRegistry, backgroundManager, sessStore),
 	)
 
 	asst := assistant.New(

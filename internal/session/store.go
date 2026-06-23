@@ -2,8 +2,14 @@ package session
 
 import "context"
 
+type CreateParams struct {
+	Title    string
+	Cwd      string
+	ParentID string
+}
+
 type Store interface {
-	Create(ctx context.Context, title, cwd string) (*Session, error)
+	Create(ctx context.Context, params CreateParams) (*Session, error)
 	Save(ctx context.Context, session *Session) error
 	Get(ctx context.Context, id string) (*Session, error)
 	List(ctx context.Context) ([]*Session, error)

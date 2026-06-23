@@ -120,7 +120,7 @@ func newTestServer(t *testing.T, asst Assistant) (*Server, *session.Session) {
 		t.Fatalf("NewFileStore: %v", err)
 	}
 
-	sess, err := store.Create(context.Background(), "test", "")
+	sess, err := store.Create(context.Background(), session.CreateParams{Title: "test"})
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}

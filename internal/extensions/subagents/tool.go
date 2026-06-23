@@ -4,11 +4,11 @@ import (
 	"fmt"
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
-	"github.com/vitaliiPsl/crappy-adk/x/memory"
 	"github.com/vitaliiPsl/crappy-adk/x/tool"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/factory"
-	"github.com/vitaliiPsl/crappy-ai/internal/models"
+	"github.com/vitaliiPsl/crappy-ai/internal/assistant/memory"
+	"github.com/vitaliiPsl/crappy-ai/internal/session"
 )
 
 const (
@@ -17,52 +17,88 @@ const (
 )
 
 type taskInput struct {
-	Agent string `json:"agent" jsonschema:"Name of the subagent to run, from the available subagents list"`
-	Task  string `json:"task" jsonschema:"A self-contained description of the work, including all context the subagent needs"`
+	Agent       string `json:"agent" jsonschema:"Name of the subagent to run, from the available subagents list"`
+	Task        string `json:"task" jsonschema:"A self-contained description of the work, including all context the subagent needs"`
+	Description string `json:"description" jsonschema:"A short (3-5 word) description of the task, used to label the subagent's session"`
 }
 
-func newTool(f *factory.Factory, extensions []factory.Extension, registry *models.Registry, ec factory.Context) kit.Tool {
+func (e *ext) newTool(ec factory.Context) kit.Tool {
 	return tool.MustNew(
 		toolName,
 		toolDescription,
 		func(rc *kit.RunContext, input taskInput) (string, error) {
-			sub, ok := ec.Config.Subagent(input.Agent)
-			if !ok {
-				return "", fmt.Errorf("unknown subagent %q", input.Agent)
-			}
-
-			model, err := registry.Build(sub.Provider, sub.Model)
-			if err != nil {
-				return "", fmt.Errorf("build subagent %q model: %w", input.Agent, err)
-			}
-
-			childCfg := ec.Config
-			childCfg.Agent = sub
-
-			ag, err := f.Build(factory.BuildRequest{
-				Context: factory.Context{
-					Ctx:       rc.Context,
-					SessionID: ec.SessionID + "/sub:" + input.Agent,
-					Config:    childCfg,
-					Model:     model,
-				},
-				Memory:     memory.NewHistory(),
-				Extensions: extensions,
-			})
-			if err != nil {
-				return "", err
-			}
-
-			resp, err := ag.Run(rc.Context, kit.NewUserMessage(kit.NewTextContent(input.Task)))
-			if err != nil {
-				return "", err
-			}
-
-			if resp.Output == nil {
-				return "", nil
-			}
-
-			return resp.Output.Text, nil
+			return e.runSubagent(rc, ec, input)
 		},
 	)
+}
+
+func (e *ext) runSubagent(rc *kit.RunContext, ec factory.Context, input taskInput) (string, error) {
+	sub, ok := ec.Config.Subagent(input.Agent)
+	if !ok {
+		return "", fmt.Errorf("unknown subagent %q", input.Agent)
+	}
+
+	model, err := e.modelRegistry.Build(sub.Provider, sub.Model)
+	if err != nil {
+		return "", fmt.Errorf("build subagent %q model: %w", input.Agent, err)
+	}
+
+	child, err := e.sessionStore.Create(rc.Context, session.CreateParams{
+		Title:    subagentTitle(input),
+		Cwd:      ec.Config.Cwd,
+		ParentID: ec.SessionID,
+	})
+	if err != nil {
+		return "", fmt.Errorf("create subagent session: %w", err)
+	}
+
+	childCfg := ec.Config
+	childCfg.Agent = sub
+
+	ag, err := e.factory.Build(factory.BuildRequest{
+		Context: factory.Context{
+			Ctx:       rc.Context,
+			SessionID: child.ID,
+			Config:    childCfg,
+			Model:     model,
+		},
+		Memory:     memory.New(e.sessionStore, child.ID),
+		Extensions: e.extensions,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	resp, err := ag.Run(rc.Context, kit.NewUserMessage(kit.NewTextContent(input.Task)))
+	if err != nil {
+		return "", err
+	}
+
+	e.recordUsage(rc, child.ID, ec.SessionID, resp.Usage)
+
+	if resp.Output == nil {
+		return "", nil
+	}
+
+	return resp.Output.Text, nil
+}
+
+func (e *ext) recordUsage(rc *kit.RunContext, childID, parentID string, usage kit.Usage) {
+	for _, id := range []string{childID, parentID} {
+		sess, err := e.sessionStore.Get(rc.Context, id)
+		if err != nil {
+			continue
+		}
+
+		sess.Usage.Add(usage)
+		_ = e.sessionStore.Save(rc.Context, sess)
+	}
+}
+
+func subagentTitle(input taskInput) string {
+	if input.Description == "" {
+		return input.Agent
+	}
+
+	return input.Agent + ": " + input.Description
 }

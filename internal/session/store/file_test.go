@@ -54,7 +54,7 @@ func TestCreate_ReturnsAndPersistsFields(t *testing.T) {
 	st, _ := newTestStore(t)
 	before := time.Now()
 
-	sess, err := st.Create(context.Background(), "the title", "")
+	sess, err := st.Create(context.Background(), session.CreateParams{Title: "the title"})
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -84,7 +84,7 @@ func TestCreate_ReturnsAndPersistsFields(t *testing.T) {
 func TestCreate_PersistsCwd(t *testing.T) {
 	st, _ := newTestStore(t)
 
-	sess, err := st.Create(context.Background(), "t", "/some/project")
+	sess, err := st.Create(context.Background(), session.CreateParams{Title: "t", Cwd: "/some/project"})
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -113,7 +113,7 @@ func TestGet_Missing(t *testing.T) {
 
 func TestGet_ReturnsIndependentSnapshot(t *testing.T) {
 	st, _ := newTestStore(t)
-	sess, _ := st.Create(context.Background(), "original", "")
+	sess, _ := st.Create(context.Background(), session.CreateParams{Title: "original"})
 
 	first, err := st.Get(context.Background(), sess.ID)
 	if err != nil {
@@ -134,7 +134,7 @@ func TestGet_ReturnsIndependentSnapshot(t *testing.T) {
 
 func TestSave_PersistsAcrossStores(t *testing.T) {
 	st, dir := newTestStore(t)
-	sess, _ := st.Create(context.Background(), "t", "")
+	sess, _ := st.Create(context.Background(), session.CreateParams{Title: "t"})
 
 	sess.Title = "renamed"
 	sess.Usage.Add(kit.Usage{InputTokens: 5, OutputTokens: 7})
@@ -179,11 +179,11 @@ func TestList_SortsByUpdatedAtDesc(t *testing.T) {
 	st, _ := newTestStore(t)
 	ctx := context.Background()
 
-	a, _ := st.Create(ctx, "a", "")
+	a, _ := st.Create(ctx, session.CreateParams{Title: "a"})
 
 	time.Sleep(10 * time.Millisecond)
 
-	b, _ := st.Create(ctx, "b", "")
+	b, _ := st.Create(ctx, session.CreateParams{Title: "b"})
 
 	time.Sleep(10 * time.Millisecond)
 
@@ -207,6 +207,25 @@ func TestList_SortsByUpdatedAtDesc(t *testing.T) {
 	}
 }
 
+func TestList_ExcludesChildSessions(t *testing.T) {
+	st, _ := newTestStore(t)
+	ctx := context.Background()
+
+	root, _ := st.Create(ctx, session.CreateParams{Title: "root"})
+	if _, err := st.Create(ctx, session.CreateParams{Title: "child", ParentID: root.ID}); err != nil {
+		t.Fatalf("Create child: %v", err)
+	}
+
+	list, err := st.List(ctx)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+
+	if len(list) != 1 || list[0].ID != root.ID {
+		t.Fatalf("List = %d sessions, want only root %s", len(list), root.ID)
+	}
+}
+
 func TestList_IgnoresNonDirEntries(t *testing.T) {
 	st, dir := newTestStore(t)
 
@@ -215,7 +234,7 @@ func TestList_IgnoresNonDirEntries(t *testing.T) {
 		t.Fatalf("seed stray: %v", err)
 	}
 
-	sess, _ := st.Create(context.Background(), "real", "")
+	sess, _ := st.Create(context.Background(), session.CreateParams{Title: "real"})
 
 	list, err := st.List(context.Background())
 	if err != nil {
@@ -229,7 +248,7 @@ func TestList_IgnoresNonDirEntries(t *testing.T) {
 
 func TestDelete_RemovesDirAndCache(t *testing.T) {
 	st, dir := newTestStore(t)
-	sess, _ := st.Create(context.Background(), "t", "")
+	sess, _ := st.Create(context.Background(), session.CreateParams{Title: "t"})
 
 	if err := st.Delete(context.Background(), sess.ID); err != nil {
 		t.Fatalf("Delete: %v", err)
@@ -244,6 +263,24 @@ func TestDelete_RemovesDirAndCache(t *testing.T) {
 	}
 }
 
+func TestDelete_CascadesToChildSessions(t *testing.T) {
+	st, dir := newTestStore(t)
+	ctx := context.Background()
+
+	root, _ := st.Create(ctx, session.CreateParams{Title: "root"})
+	child, _ := st.Create(ctx, session.CreateParams{Title: "child", ParentID: root.ID})
+
+	if err := st.Delete(ctx, root.ID); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+
+	for _, id := range []string{root.ID, child.ID} {
+		if _, err := os.Stat(filepath.Join(dir, id)); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("session dir %s still exists; stat err = %v", id, err)
+		}
+	}
+}
+
 func TestDelete_Idempotent(t *testing.T) {
 	st, _ := newTestStore(t)
 
@@ -255,7 +292,7 @@ func TestDelete_Idempotent(t *testing.T) {
 func TestAppendEvents_StoresAppendedEvents(t *testing.T) {
 	st, _ := newTestStore(t)
 	ctx := context.Background()
-	sess, _ := st.Create(ctx, "t", "")
+	sess, _ := st.Create(ctx, session.CreateParams{Title: "t"})
 
 	delta := session.NewContentDeltaEvent(sess.ID, kit.NewTextContent("x"))
 	message := session.NewMessageEvent(sess.ID,
@@ -287,7 +324,7 @@ func TestAppendEvents_BumpsUpdatedAt(t *testing.T) {
 	st, _ := newTestStore(t)
 	ctx := context.Background()
 
-	sess, _ := st.Create(ctx, "t", "")
+	sess, _ := st.Create(ctx, session.CreateParams{Title: "t"})
 	before := sess.UpdatedAt
 
 	time.Sleep(5 * time.Millisecond)
@@ -311,7 +348,7 @@ func TestAppendEvents_BumpsUpdatedAt(t *testing.T) {
 func TestAppendEvents_PreservesOrderAcrossCalls(t *testing.T) {
 	st, _ := newTestStore(t)
 	ctx := context.Background()
-	sess, _ := st.Create(ctx, "t", "")
+	sess, _ := st.Create(ctx, session.CreateParams{Title: "t"})
 
 	first := session.NewMessageEvent(sess.ID,
 		kit.NewUserMessage(kit.NewTextContent("one")))
@@ -352,7 +389,7 @@ func TestLoadEvents_Missing(t *testing.T) {
 func TestLoadEvents_RoundTripsKitContent(t *testing.T) {
 	st, _ := newTestStore(t)
 	ctx := context.Background()
-	sess, _ := st.Create(ctx, "t", "")
+	sess, _ := st.Create(ctx, session.CreateParams{Title: "t"})
 
 	msg := kit.NewModelMessage(
 		kit.NewTextContent("hello"),
@@ -415,7 +452,7 @@ func loadTestArtifact(t *testing.T, st *FileStore, id, name string) (testArtifac
 
 func TestSaveArtifact_RoundTripsAcrossStores(t *testing.T) {
 	st, dir := newTestStore(t)
-	sess, _ := st.Create(context.Background(), "t", "")
+	sess, _ := st.Create(context.Background(), session.CreateParams{Title: "t"})
 
 	want := testArtifact{
 		Title: "current work",
@@ -445,7 +482,7 @@ func TestSaveArtifact_RoundTripsAcrossStores(t *testing.T) {
 
 func TestLoadArtifact_Missing(t *testing.T) {
 	st, _ := newTestStore(t)
-	sess, _ := st.Create(context.Background(), "t", "")
+	sess, _ := st.Create(context.Background(), session.CreateParams{Title: "t"})
 
 	got := testArtifact{Title: "unchanged"}
 
@@ -465,7 +502,7 @@ func TestLoadArtifact_Missing(t *testing.T) {
 
 func TestListArtifacts_ReturnsSortedNames(t *testing.T) {
 	st, dir := newTestStore(t)
-	sess, _ := st.Create(context.Background(), "t", "")
+	sess, _ := st.Create(context.Background(), session.CreateParams{Title: "t"})
 
 	saveTestArtifact(t, st, sess.ID, "zeta", testArtifact{})
 	saveTestArtifact(t, st, sess.ID, "alpha", testArtifact{})
@@ -495,7 +532,7 @@ func TestListArtifacts_ReturnsSortedNames(t *testing.T) {
 
 func TestListArtifacts_MissingDir(t *testing.T) {
 	st, _ := newTestStore(t)
-	sess, _ := st.Create(context.Background(), "t", "")
+	sess, _ := st.Create(context.Background(), session.CreateParams{Title: "t"})
 
 	got, err := st.ListArtifacts(context.Background(), sess.ID)
 	if err != nil {
@@ -509,7 +546,7 @@ func TestListArtifacts_MissingDir(t *testing.T) {
 
 func TestDeleteArtifact_RemovesArtifact(t *testing.T) {
 	st, _ := newTestStore(t)
-	sess, _ := st.Create(context.Background(), "t", "")
+	sess, _ := st.Create(context.Background(), session.CreateParams{Title: "t"})
 
 	saveTestArtifact(t, st, sess.ID, "plan", testArtifact{Title: "x"})
 
@@ -525,7 +562,7 @@ func TestDeleteArtifact_RemovesArtifact(t *testing.T) {
 
 func TestDeleteArtifact_MissingIsNoop(t *testing.T) {
 	st, _ := newTestStore(t)
-	sess, _ := st.Create(context.Background(), "t", "")
+	sess, _ := st.Create(context.Background(), session.CreateParams{Title: "t"})
 
 	if err := st.DeleteArtifact(context.Background(), sess.ID, "missing"); err != nil {
 		t.Fatalf("DeleteArtifact: %v", err)
@@ -535,7 +572,7 @@ func TestDeleteArtifact_MissingIsNoop(t *testing.T) {
 func TestSaveArtifact_BumpsUpdatedAt(t *testing.T) {
 	st, _ := newTestStore(t)
 	ctx := context.Background()
-	sess, _ := st.Create(ctx, "t", "")
+	sess, _ := st.Create(ctx, session.CreateParams{Title: "t"})
 	before := sess.UpdatedAt
 
 	time.Sleep(5 * time.Millisecond)
@@ -554,7 +591,7 @@ func TestSaveArtifact_BumpsUpdatedAt(t *testing.T) {
 
 func TestArtifactMethods_RejectInvalidNames(t *testing.T) {
 	st, _ := newTestStore(t)
-	sess, _ := st.Create(context.Background(), "t", "")
+	sess, _ := st.Create(context.Background(), session.CreateParams{Title: "t"})
 
 	names := []string{"", "../plan", "plan.json", "nested/plan", "white space"}
 	for _, name := range names {

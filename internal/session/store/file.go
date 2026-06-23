@@ -52,13 +52,14 @@ func NewFileStore(dir string) (*FileStore, error) {
 	}, nil
 }
 
-func (st *FileStore) Create(_ context.Context, title, cwd string) (*session.Session, error) {
+func (st *FileStore) Create(_ context.Context, params session.CreateParams) (*session.Session, error) {
 	now := time.Now()
 
 	s := &session.Session{
 		ID:        uuid.NewString(),
-		Title:     title,
-		Cwd:       cwd,
+		ParentID:  params.ParentID,
+		Title:     params.Title,
+		Cwd:       params.Cwd,
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
@@ -119,23 +120,24 @@ func (st *FileStore) List(_ context.Context) ([]*session.Session, error) {
 		s, cached := st.cache[id]
 		st.mu.RUnlock()
 
-		if cached {
-			snapshot := *s
-			sessions = append(sessions, &snapshot)
+		if !cached {
+			var err error
 
-			continue
+			s, err = st.readSessionFile(id)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "warning: skipping unreadable session %s: %v\n", id, err)
+
+				continue
+			}
+
+			st.mu.Lock()
+			st.cache[id] = s
+			st.mu.Unlock()
 		}
 
-		s, err := st.readSessionFile(id)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "warning: skipping unreadable session %s: %v\n", id, err)
-
+		if s.ParentID != "" {
 			continue
 		}
-
-		st.mu.Lock()
-		st.cache[id] = s
-		st.mu.Unlock()
 
 		snapshot := *s
 		sessions = append(sessions, &snapshot)
@@ -148,7 +150,18 @@ func (st *FileStore) List(_ context.Context) ([]*session.Session, error) {
 	return sessions, nil
 }
 
-func (st *FileStore) Delete(_ context.Context, id string) error {
+func (st *FileStore) Delete(ctx context.Context, id string) error {
+	children, err := st.childIDs(id)
+	if err != nil {
+		return err
+	}
+
+	for _, child := range children {
+		if err := st.Delete(ctx, child); err != nil {
+			return err
+		}
+	}
+
 	st.mu.Lock()
 	delete(st.cache, id)
 	st.mu.Unlock()
@@ -383,6 +396,35 @@ func (st *FileStore) touch(sess *session.Session) error {
 	sess.UpdatedAt = time.Now()
 
 	return st.writeSessionFile(sess)
+}
+
+func (st *FileStore) childIDs(parentID string) ([]string, error) {
+	entries, err := os.ReadDir(st.dir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+
+		return nil, fmt.Errorf("read sessions dir: %w", err)
+	}
+
+	var ids []string
+	for _, e := range entries {
+		if !e.IsDir() || e.Name() == parentID {
+			continue
+		}
+
+		s, err := st.ensureSession(e.Name())
+		if err != nil {
+			continue
+		}
+
+		if s.ParentID == parentID {
+			ids = append(ids, s.ID)
+		}
+	}
+
+	return ids, nil
 }
 
 func (st *FileStore) ensureSession(id string) (*session.Session, error) {
