@@ -48,13 +48,30 @@ func testConfigStoreWithConfig(t *testing.T, cfg config.Config) *config.Store {
 	return config.NewStore(cfg, filepath.Join(t.TempDir(), "config.yaml"))
 }
 
+func testConfig(store *config.Store) config.Config {
+	cfg := store.Get()
+
+	return cfg
+}
+
+func testContext(store *config.Store, h Handler) Context {
+	cfg := testConfig(store)
+
+	return Context{
+		SessionID:   "session-1",
+		Mode:        cfg.Mode,
+		Permissions: cfg.Permissions,
+		Handler:     h,
+	}
+}
+
 func TestService_AllowsConfiguredRule(t *testing.T) {
 	configStore := testConfigStore(t, model.Permissions{
 		Allow: []model.Rule{{Tool: strategy.ToolReadFile, Pattern: "//tmp/project/**"}},
 	})
 	h := &handler{err: errors.New("should not ask")}
 
-	err := NewService(configStore).Authorize(context.Background(), "session-1", readCall("/tmp/project/main.go"), h)
+	err := NewService(configStore).Authorize(context.Background(), testContext(configStore, h), readCall("/tmp/project/main.go"))
 	if err != nil {
 		t.Fatalf("Authorize: %v", err)
 	}
@@ -70,7 +87,7 @@ func TestService_DeniesConfiguredRule(t *testing.T) {
 	})
 	h := &handler{resp: model.AskResponse{OptionID: model.OptionAllowOnce}}
 
-	err := NewService(configStore).Authorize(context.Background(), "session-1", readCall("/etc/passwd"), h)
+	err := NewService(configStore).Authorize(context.Background(), testContext(configStore, h), readCall("/etc/passwd"))
 	if !errors.Is(err, ErrDenied) {
 		t.Fatalf("Authorize error = %v, want ErrDenied", err)
 	}
@@ -91,7 +108,7 @@ func TestService_YoloModeAllowsDeniedRuleWithoutPrompt(t *testing.T) {
 	})
 	h := &handler{err: errors.New("should not ask")}
 
-	err := NewService(configStore).Authorize(context.Background(), "session-1", readCall("/etc/passwd"), h)
+	err := NewService(configStore).Authorize(context.Background(), testContext(configStore, h), readCall("/etc/passwd"))
 	if err != nil {
 		t.Fatalf("Authorize: %v", err)
 	}
@@ -107,7 +124,7 @@ func TestService_InvalidModeReturnsError(t *testing.T) {
 	})
 	h := &handler{resp: model.AskResponse{OptionID: model.OptionAllowOnce}}
 
-	err := NewService(configStore).Authorize(context.Background(), "session-1", readCall("/tmp/project/main.go"), h)
+	err := NewService(configStore).Authorize(context.Background(), testContext(configStore, h), readCall("/tmp/project/main.go"))
 	if err == nil {
 		t.Fatal("Authorize error = nil, want invalid mode error")
 	}
@@ -124,11 +141,11 @@ func TestService_AsksAndSavesSelectedGlobalRule(t *testing.T) {
 	}
 	service := NewService(configStore)
 
-	if err := service.Authorize(context.Background(), "session-1", readCall("/tmp/project/main.go"), h); err != nil {
+	if err := service.Authorize(context.Background(), testContext(configStore, h), readCall("/tmp/project/main.go")); err != nil {
 		t.Fatalf("first Authorize: %v", err)
 	}
 
-	if err := service.Authorize(context.Background(), "session-1", readCall("/tmp/project/main.go"), h); err != nil {
+	if err := service.Authorize(context.Background(), testContext(configStore, h), readCall("/tmp/project/main.go")); err != nil {
 		t.Fatalf("second Authorize: %v", err)
 	}
 
@@ -150,7 +167,7 @@ func TestService_OnceIsNotSaved(t *testing.T) {
 	configStore := testConfigStore(t, model.Permissions{})
 	h := &handler{resp: model.AskResponse{OptionID: model.OptionAllowOnce}}
 
-	if err := NewService(configStore).Authorize(context.Background(), "session-1", readCall("/tmp/project/main.go"), h); err != nil {
+	if err := NewService(configStore).Authorize(context.Background(), testContext(configStore, h), readCall("/tmp/project/main.go")); err != nil {
 		t.Fatalf("Authorize: %v", err)
 	}
 
@@ -165,7 +182,16 @@ func TestService_AskDenyReturnsDenied(t *testing.T) {
 		resp: model.AskResponse{OptionID: model.OptionDenyOnce},
 	}
 
-	err := NewService(configStore).Authorize(context.Background(), "session-1", readCall("/tmp/project/main.go"), h)
+	err := NewService(configStore).Authorize(context.Background(), testContext(configStore, h), readCall("/tmp/project/main.go"))
+	if !errors.Is(err, ErrDenied) {
+		t.Fatalf("Authorize error = %v, want ErrDenied", err)
+	}
+}
+
+func TestService_AskWithoutHandlerReturnsDenied(t *testing.T) {
+	configStore := testConfigStore(t, model.Permissions{})
+
+	err := NewService(configStore).Authorize(context.Background(), testContext(configStore, nil), readCall("/tmp/project/main.go"))
 	if !errors.Is(err, ErrDenied) {
 		t.Fatalf("Authorize error = %v, want ErrDenied", err)
 	}

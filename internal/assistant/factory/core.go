@@ -74,18 +74,25 @@ func (e coreContributor) tools(ctx Context) []ToolSpec {
 
 func (e coreContributor) hooks(ctx Context) []HookSpec {
 	return []HookSpec{
-		e.permissionHook(ctx.SessionID),
+		e.permissionHook(ctx),
 		e.repeatedToolCallHook(toolLoopMaxRepeats, toolLoopWindow),
 	}
 }
 
-func (e coreContributor) permissionHook(sessionID string) HookSpec {
+func (e coreContributor) permissionHook(ctx Context) HookSpec {
+	auth := permission.Context{
+		SessionID:   ctx.SessionID,
+		Mode:        ctx.Config.Mode,
+		Permissions: ctx.Config.Permissions,
+		Handler:     e.handler,
+	}
+
 	return HookSpec{
 		Name:   "Permission enforcement",
 		Source: coreSource,
 		Kind:   HookToolCall,
 		Option: agent.WithOnToolCall(func(rc *kit.RunContext, call kit.ToolCall) (kit.ToolCall, error) {
-			if err := e.permissions.Authorize(rc.Context, sessionID, call, e.handler); err != nil {
+			if err := e.permissions.Authorize(rc.Context, auth, call); err != nil {
 				return call, err
 			}
 
