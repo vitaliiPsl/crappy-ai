@@ -79,13 +79,34 @@ agents:
     prompt: |
       You are a read-only exploration agent. Search and summarize; do not edit.
     tools: [read_file, list, bash]
+    permissions:
+      default: deny
+      allow:
+        - tool: read_file
+          pattern: ./...
+        - tool: list
+          pattern: ./...
 ```
 
 - `name` and `description` identify the subagent in the available-subagents list.
 - `provider`, `model`, and `thinking` inherit from the root agent when omitted; everything else (`prompt`, `permissions`, `tools`) is the subagent's own.
-- `tools` is an allowlist — the subagent only sees those tools. Omitting the `task` tool prevents the subagent from spawning further subagents.
+- `tools` is an allowlist: the subagent only sees those tools.
+- `permissions` are evaluated for the subagent's own tool calls. Subagents cannot prompt the user, so an `ask` decision is treated as denied.
 
-A subagent runs in the background with isolated (throwaway) memory (for now); the `task` tool returns a `job_id`, and `job_result` collects the subagent's final output.
+By default, `task` runs the subagent to completion and returns its final output. The subagent gets a persistent child session with isolated session memory and `parent_id` set to the calling session.
+
+For longer work, `task` also supports background execution:
+
+```json
+{
+  "agent": "explorer",
+  "description": "trace auth flow",
+  "task": "Find where authentication is implemented and summarize the flow.",
+  "background": true
+}
+```
+
+With `background: true`, `task` returns a `job_id`; use `job_status`, `job_result`, `job_list`, and `job_cancel` to inspect or stop the job.
 
 `permissions` control which tools can run automatically, which ones ask first, and which ones are blocked.
 

@@ -125,5 +125,3 @@ When Crappy shuts down, running jobs are canceled.
 ## Notes
 
 Background execution is an execution mode for tools, not a separate shell tool. `bash` is still the tool that runs commands; `background: true` changes how that tool call is scheduled.
-
-Future long-running tools, such as subagents, can use the same job-control tools.
