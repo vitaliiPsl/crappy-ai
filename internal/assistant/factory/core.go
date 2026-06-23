@@ -20,6 +20,7 @@ const (
 type coreContributor struct {
 	permissions *permission.Service
 	background  *background.Manager
+	handler     permission.Handler
 }
 
 func (e coreContributor) Name() string {
@@ -84,7 +85,7 @@ func (e coreContributor) permissionHook(sessionID string) HookSpec {
 		Source: coreSource,
 		Kind:   HookToolCall,
 		Option: agent.WithOnToolCall(func(rc *kit.RunContext, call kit.ToolCall) (kit.ToolCall, error) {
-			if err := e.permissions.Authorize(rc.Context, sessionID, call); err != nil {
+			if err := e.permissions.Authorize(rc.Context, sessionID, call, e.handler); err != nil {
 				return call, err
 			}
 

@@ -83,26 +83,26 @@ func run() error {
 		return fmt.Errorf("init session store: %w", err)
 	}
 
-	oauthStore, err := oauthstore.NewFileStore(settingsStore.Get().OAuthPath)
-	if err != nil {
-		return fmt.Errorf("init oauth store: %w", err)
-	}
-
 	modelRegistry := models.NewRegistry(settingsStore)
 	skillRegistry := skills.NewRegistry(settingsStore)
 
 	backgroundManager := background.NewManager(ctx)
 	defer backgroundManager.Close()
 
-	permissionService := permission.NewService(configStore, nil)
+	mcpOauthStore, err := oauthstore.NewFileStore(settingsStore.Get().OAuthPath)
+	if err != nil {
+		return fmt.Errorf("init oauth store: %w", err)
+	}
 
 	mcpManager := mcp.NewManager(
 		ctx,
 		settingsStore.Get().MCPClients,
-		oauthStore,
+		mcpOauthStore,
 		mcp.NewBrowserCallback(),
 	)
 	defer mcpManager.Close()
+
+	permissionService := permission.NewService(configStore)
 
 	agentFactory := factory.New(permissionService, backgroundManager)
 
@@ -138,8 +138,6 @@ func run() error {
 		backgroundManager,
 		mcpManager,
 	)
-
-	permissionService.SetHandler(srv)
 
 	if *prompt != "" {
 		srv.AddTransport(cli.NewTransport(srv, *prompt))

@@ -12,6 +12,7 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/memory"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/models"
+	"github.com/vitaliiPsl/crappy-ai/internal/permission"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
 	"github.com/vitaliiPsl/crappy-ai/internal/skills"
 )
@@ -43,7 +44,7 @@ func New(
 	}
 }
 
-func (a *Assistant) Run(ctx context.Context, sessionID string, req RunRequest) (*kit.Stream[session.Event, struct{}], error) {
+func (a *Assistant) Run(ctx context.Context, sessionID string, req RunRequest, handler permission.Handler) (*kit.Stream[session.Event, struct{}], error) {
 	cfg := a.configStore.Get()
 
 	mem := memory.New(a.sessionStore, sessionID)
@@ -60,8 +61,9 @@ func (a *Assistant) Run(ctx context.Context, sessionID string, req RunRequest) (
 			Config:    cfg,
 			Model:     model,
 		},
-		Memory:     mem,
-		Extensions: a.extensions,
+		Memory:            mem,
+		Extensions:        a.extensions,
+		PermissionHandler: handler,
 	})
 	if err != nil {
 		return nil, err

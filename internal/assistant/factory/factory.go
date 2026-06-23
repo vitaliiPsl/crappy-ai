@@ -22,8 +22,9 @@ type Context struct {
 type BuildRequest struct {
 	Context
 
-	Memory     kit.Memory
-	Extensions []Extension
+	Memory            kit.Memory
+	Extensions        []Extension
+	PermissionHandler permission.Handler
 }
 
 type Extension interface {
@@ -67,7 +68,7 @@ func (f *Factory) Build(req BuildRequest) (*agent.Agent, error) {
 }
 
 func (f *Factory) buildSpec(req BuildRequest) (AgentSpec, error) {
-	runSpec, err := collectSpecs(req.Context, f.contributors(req.Extensions))
+	runSpec, err := collectSpecs(req.Context, f.contributors(req))
 	if err != nil {
 		return AgentSpec{}, err
 	}
@@ -77,13 +78,14 @@ func (f *Factory) buildSpec(req BuildRequest) (AgentSpec, error) {
 	return runSpec, nil
 }
 
-func (f *Factory) contributors(extensions []Extension) []Extension {
-	out := make([]Extension, 0, len(extensions)+1)
+func (f *Factory) contributors(req BuildRequest) []Extension {
+	out := make([]Extension, 0, len(req.Extensions)+1)
 	out = append(out, coreContributor{
 		permissions: f.permissions,
 		background:  f.background,
+		handler:     req.PermissionHandler,
 	})
-	out = append(out, extensions...)
+	out = append(out, req.Extensions...)
 
 	return out
 }

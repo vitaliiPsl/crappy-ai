@@ -19,28 +19,19 @@ type Handler interface {
 }
 
 type Service struct {
-	config  *config.Store
-	handler Handler
+	config *config.Store
 }
 
-func NewService(configStore *config.Store, handler Handler) *Service {
-	return &Service{
-		config:  configStore,
-		handler: handler,
-	}
+func NewService(configStore *config.Store) *Service {
+	return &Service{config: configStore}
 }
 
-func (s *Service) SetHandler(h Handler) {
-	s.handler = h
-}
-
-func (s *Service) Authorize(ctx context.Context, sessionID string, call kit.ToolCall) error {
+func (s *Service) Authorize(ctx context.Context, sessionID string, call kit.ToolCall, handler Handler) error {
 	cfg := s.config.Get()
-	permissions := model.Merge(model.Permissions{Default: model.Ask}, cfg.Permissions)
 
 	switch cfg.Mode {
 	case config.ModeDefault:
-		return s.authorizeDefault(ctx, sessionID, permissions, call)
+		return s.authorizeDefault(ctx, sessionID, cfg.Permissions, call, handler)
 	case config.ModeYolo:
 		return nil
 	default:
@@ -48,7 +39,7 @@ func (s *Service) Authorize(ctx context.Context, sessionID string, call kit.Tool
 	}
 }
 
-func (s *Service) authorizeDefault(ctx context.Context, sessionID string, permissions model.Permissions, call kit.ToolCall) error {
+func (s *Service) authorizeDefault(ctx context.Context, sessionID string, permissions model.Permissions, call kit.ToolCall, handler Handler) error {
 	result := strategy.Resolve(permissions, call)
 	switch result.Decision {
 	case model.Allow:
@@ -60,18 +51,18 @@ func (s *Service) authorizeDefault(ctx context.Context, sessionID string, permis
 			return fmt.Errorf("permission ask decision missing ask request")
 		}
 
-		return s.ask(ctx, sessionID, *result.AskRequest)
+		return s.ask(ctx, sessionID, *result.AskRequest, handler)
 	default:
 		return fmt.Errorf("invalid permission decision %q", result.Decision)
 	}
 }
 
-func (s *Service) ask(ctx context.Context, sessionID string, request model.AskRequest) error {
-	if s.handler == nil {
-		return fmt.Errorf("tool %q requires permission but no handler is configured", request.Call.Name)
+func (s *Service) ask(ctx context.Context, sessionID string, request model.AskRequest, handler Handler) error {
+	if handler == nil {
+		return fmt.Errorf("tool %q requires permission but the run cannot prompt", request.Call.Name)
 	}
 
-	resp, err := s.handler.Ask(ctx, sessionID, request)
+	resp, err := handler.Ask(ctx, sessionID, request)
 	if err != nil {
 		return err
 	}

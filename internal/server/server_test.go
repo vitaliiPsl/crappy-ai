@@ -8,6 +8,7 @@ import (
 	"github.com/vitaliiPsl/crappy-adk/kit"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant"
+	"github.com/vitaliiPsl/crappy-ai/internal/permission"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
 	sessionstore "github.com/vitaliiPsl/crappy-ai/internal/session/store"
 )
@@ -18,7 +19,7 @@ type fakeAssistant struct {
 	err      error
 }
 
-func (a *fakeAssistant) Run(ctx context.Context, _ string, _ assistant.RunRequest) (*kit.Stream[session.Event, struct{}], error) {
+func (a *fakeAssistant) Run(ctx context.Context, _ string, _ assistant.RunRequest, _ permission.Handler) (*kit.Stream[session.Event, struct{}], error) {
 	return a.openStream(ctx)
 }
 

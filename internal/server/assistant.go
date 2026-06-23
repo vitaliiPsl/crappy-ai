@@ -13,7 +13,7 @@ import (
 
 func (s *Server) Send(ctx context.Context, sessionID string, req assistant.RunRequest) error {
 	return s.callAssistant(ctx, sessionID, func(turnCtx context.Context) (*kit.Stream[session.Event, struct{}], error) {
-		return s.assistant.Run(turnCtx, sessionID, req)
+		return s.assistant.Run(turnCtx, sessionID, req, s)
 	})
 }
 

@@ -11,6 +11,7 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/mcp"
 	"github.com/vitaliiPsl/crappy-ai/internal/models"
+	"github.com/vitaliiPsl/crappy-ai/internal/permission"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
 	"github.com/vitaliiPsl/crappy-ai/internal/settings"
 	"github.com/vitaliiPsl/crappy-ai/internal/skills"
@@ -21,7 +22,7 @@ type Transport interface {
 }
 
 type Assistant interface {
-	Run(ctx context.Context, sessionID string, req assistant.RunRequest) (*kit.Stream[session.Event, struct{}], error)
+	Run(ctx context.Context, sessionID string, req assistant.RunRequest, handler permission.Handler) (*kit.Stream[session.Event, struct{}], error)
 	Compact(ctx context.Context, sessionID string) (*kit.Stream[session.Event, struct{}], error)
 }
 
