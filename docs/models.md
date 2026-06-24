@@ -134,7 +134,9 @@ Crappy will still try to call the selected provider with that model ID. When a m
 
 In the settings screen, type the model ID into the model picker. If there is no matching model, press Enter to use the typed ID.
 
-## Thinking
+## Generation Settings
+
+Generation settings control how the selected model produces each response.
 
 Use `thinking` to choose the reasoning level passed to the model.
 
@@ -150,6 +152,20 @@ Supported values are:
 - `high`
 
 Not every model treats thinking levels the same way. If a provider or model does not support a level, behavior depends on that provider.
+
+Use `temperature` to control sampling randomness.
+
+```yaml
+temperature: 0.2
+```
+
+Use `max_output_tokens` to limit generated output per model call.
+
+```yaml
+max_output_tokens: 4096
+```
+
+`temperature` and `max_output_tokens` are optional. When omitted, Crappy leaves the value unset and the provider/model default applies.
 
 ## Model Metadata
 

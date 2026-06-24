@@ -12,6 +12,7 @@ Use config for things you may change often while working:
 - active provider
 - active model
 - thinking level
+- temperature and output limit
 - mode
 - permissions
 
@@ -44,6 +45,8 @@ prompt: |
 provider: anthropic
 model: claude-sonnet-4-6
 thinking: medium
+temperature: 0.2
+max_output_tokens: 4096
 mode: default
 
 permissions:
@@ -63,6 +66,10 @@ permissions:
 - `low`
 - `medium`
 - `high`
+
+`temperature` controls sampling randomness. Lower values are more deterministic; higher values are more varied.
+
+`max_output_tokens` limits the number of tokens the model can generate in one model call.
 
 `prompt` changes the assistant's behavior.
 
@@ -89,7 +96,7 @@ agents:
 ```
 
 - `name` and `description` identify the subagent in the available-subagents list.
-- `provider`, `model`, and `thinking` inherit from the root agent when omitted; everything else (`prompt`, `permissions`, `tools`) is the subagent's own.
+- `provider`, `model`, `thinking`, `temperature`, and `max_output_tokens` inherit from the root agent when omitted; everything else (`prompt`, `permissions`, `tools`) is the subagent's own.
 - `tools` is an allowlist: the subagent only sees those tools.
 - `permissions` are evaluated for the subagent's own tool calls. Subagents cannot prompt the user, so an `ask` decision is treated as denied.
 

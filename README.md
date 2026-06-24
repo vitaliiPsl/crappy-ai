@@ -55,6 +55,8 @@ crappy -provider openai -model gpt-5.5 -thinking high
 provider: anthropic
 model: claude-sonnet-4-6
 thinking: medium
+temperature: 0.2
+max_output_tokens: 4096
 
 permissions:
   default: ask

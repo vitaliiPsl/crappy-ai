@@ -3,10 +3,12 @@ package config
 import "github.com/vitaliiPsl/crappy-ai/internal/permission/model"
 
 const (
-	EnvProvider = "CRAPPY_PROVIDER"
-	EnvModel    = "CRAPPY_MODEL"
-	EnvThinking = "CRAPPY_THINKING"
-	EnvMode     = "CRAPPY_MODE"
+	EnvProvider        = "CRAPPY_PROVIDER"
+	EnvModel           = "CRAPPY_MODEL"
+	EnvThinking        = "CRAPPY_THINKING"
+	EnvTemperature     = "CRAPPY_TEMPERATURE"
+	EnvMaxOutputTokens = "CRAPPY_MAX_OUTPUT_TOKENS"
+	EnvMode            = "CRAPPY_MODE"
 )
 
 const RootAgentName = "root"
@@ -24,9 +26,11 @@ type Agent struct {
 
 	Prompt string `yaml:"prompt,omitempty"`
 
-	Model    string `yaml:"model,omitempty"`
-	Provider string `yaml:"provider,omitempty"`
-	Thinking string `yaml:"thinking,omitempty"`
+	Model           string   `yaml:"model,omitempty"`
+	Provider        string   `yaml:"provider,omitempty"`
+	Thinking        string   `yaml:"thinking,omitempty"`
+	Temperature     *float32 `yaml:"temperature,omitempty"`
+	MaxOutputTokens *int32   `yaml:"max_output_tokens,omitempty"`
 
 	Tools       []string          `yaml:"tools,omitempty"`
 	Permissions model.Permissions `yaml:"permissions,omitempty"`
@@ -73,6 +77,14 @@ func (c Config) resolveSubagent(sub Agent) Agent {
 		sub.Thinking = c.Thinking
 	}
 
+	if sub.Temperature == nil {
+		sub.Temperature = c.Temperature
+	}
+
+	if sub.MaxOutputTokens == nil {
+		sub.MaxOutputTokens = c.MaxOutputTokens
+	}
+
 	return sub
 }
 
@@ -117,6 +129,14 @@ func mergeAgent(base, overlay Agent) Agent {
 
 	if overlay.Thinking != "" {
 		base.Thinking = overlay.Thinking
+	}
+
+	if overlay.Temperature != nil {
+		base.Temperature = overlay.Temperature
+	}
+
+	if overlay.MaxOutputTokens != nil {
+		base.MaxOutputTokens = overlay.MaxOutputTokens
 	}
 
 	if len(overlay.Tools) > 0 {

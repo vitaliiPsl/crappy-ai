@@ -3,11 +3,16 @@ package config
 import "testing"
 
 func TestSubagentInheritsModelButNotPermissionsOrTools(t *testing.T) {
+	temperature := float32(0.2)
+	maxOutputTokens := int32(4096)
+
 	cfg := Config{
 		Agent: Agent{
-			Provider: "google",
-			Model:    "gemini-3.1-flash",
-			Thinking: "medium",
+			Provider:        "google",
+			Model:           "gemini-3.1-flash",
+			Thinking:        "medium",
+			Temperature:     &temperature,
+			MaxOutputTokens: &maxOutputTokens,
 		},
 		Agents: []Agent{
 			{Name: "explorer", Prompt: "Explore the codebase.", Tools: []string{"read_file"}},
@@ -23,6 +28,14 @@ func TestSubagentInheritsModelButNotPermissionsOrTools(t *testing.T) {
 		t.Fatalf("model/thinking not inherited: %+v", got)
 	}
 
+	if got.Temperature == nil || *got.Temperature != temperature {
+		t.Fatalf("temperature = %v, want inherited %v", got.Temperature, temperature)
+	}
+
+	if got.MaxOutputTokens == nil || *got.MaxOutputTokens != maxOutputTokens {
+		t.Fatalf("max output tokens = %v, want inherited %v", got.MaxOutputTokens, maxOutputTokens)
+	}
+
 	if got.Prompt != "Explore the codebase." {
 		t.Fatalf("prompt = %q, want subagent's own", got.Prompt)
 	}
@@ -33,14 +46,31 @@ func TestSubagentInheritsModelButNotPermissionsOrTools(t *testing.T) {
 }
 
 func TestSubagentOverridesInheritedModel(t *testing.T) {
+	temperature := float32(0.8)
+	maxOutputTokens := int32(1024)
+
 	cfg := Config{
-		Agent:  Agent{Provider: "google", Model: "gemini-3.1-flash"},
-		Agents: []Agent{{Name: "heavy", Provider: "anthropic", Model: "claude-opus-4-8"}},
+		Agent: Agent{Provider: "google", Model: "gemini-3.1-flash"},
+		Agents: []Agent{{
+			Name:            "heavy",
+			Provider:        "anthropic",
+			Model:           "claude-opus-4-8",
+			Temperature:     &temperature,
+			MaxOutputTokens: &maxOutputTokens,
+		}},
 	}
 
 	got, _ := cfg.Subagent("heavy")
 	if got.Provider != "anthropic" || got.Model != "claude-opus-4-8" {
 		t.Fatalf("override not applied: %+v", got)
+	}
+
+	if got.Temperature == nil || *got.Temperature != temperature {
+		t.Fatalf("temperature override not applied: %+v", got)
+	}
+
+	if got.MaxOutputTokens == nil || *got.MaxOutputTokens != maxOutputTokens {
+		t.Fatalf("max output override not applied: %+v", got)
 	}
 }
 
