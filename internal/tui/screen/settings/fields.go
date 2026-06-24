@@ -1,9 +1,12 @@
 package settings
 
 import (
+	"strconv"
+
 	"github.com/vitaliiPsl/crappy-adk/kit"
 
 	coresettings "github.com/vitaliiPsl/crappy-ai/internal/settings"
+	"github.com/vitaliiPsl/crappy-ai/internal/utils"
 )
 
 const (
@@ -11,13 +14,15 @@ const (
 	modelSection        = "Model"
 	providerSection     = "Provider Credentials"
 
-	promptLabel    = "Prompt"
-	providerLabel  = "Provider"
-	modelLabel     = "Model"
-	thinkingLabel  = "Thinking"
-	apiKeyLabel    = "API Key"
-	apiKeyEnvLabel = "API Key Env"
-	baseURLLabel   = "Base URL"
+	promptLabel          = "Prompt"
+	providerLabel        = "Provider"
+	modelLabel           = "Model"
+	thinkingLabel        = "Thinking"
+	temperatureLabel     = "Temperature"
+	maxOutputTokensLabel = "Max Output Tokens"
+	apiKeyLabel          = "API Key"
+	apiKeyEnvLabel       = "API Key Env"
+	baseURLLabel         = "Base URL"
 )
 
 type fieldKind int
@@ -70,6 +75,20 @@ func buildFields() []fieldDef {
 			options: func(Model) []string { return []string{"disabled", "low", "medium", "high"} },
 			get:     func(m Model) string { return m.cfg.Thinking },
 			set:     func(m *Model, value string) { m.cfg.Thinking = value },
+		},
+		{
+			section: modelSection,
+			label:   temperatureLabel,
+			kind:    fieldText,
+			get:     func(m Model) string { return formatFloat32Ptr(m.cfg.Temperature) },
+			set:     func(m *Model, value string) { m.cfg.Temperature = parseFloat32Ptr(value) },
+		},
+		{
+			section: modelSection,
+			label:   maxOutputTokensLabel,
+			kind:    fieldText,
+			get:     func(m Model) string { return formatInt32Ptr(m.cfg.MaxOutputTokens) },
+			set:     func(m *Model, value string) { m.cfg.MaxOutputTokens = parseInt32Ptr(value) },
 		},
 		{
 			section: providerSection,
@@ -135,6 +154,40 @@ func (m Model) provider() coresettings.ProviderSettings {
 	}
 
 	return coresettings.ProviderSettings{ID: m.cfg.Provider, API: m.cfg.Provider}
+}
+
+func formatFloat32Ptr(v *float32) string {
+	if v == nil {
+		return ""
+	}
+
+	return strconv.FormatFloat(float64(*v), 'f', -1, 32)
+}
+
+func parseFloat32Ptr(raw string) *float32 {
+	v, err := utils.ParseFloat32Ptr(raw)
+	if err != nil {
+		return nil
+	}
+
+	return v
+}
+
+func formatInt32Ptr(v *int32) string {
+	if v == nil {
+		return ""
+	}
+
+	return strconv.FormatInt(int64(*v), 10)
+}
+
+func parseInt32Ptr(raw string) *int32 {
+	v, err := utils.ParseNonnegativeInt32Ptr(raw)
+	if err != nil {
+		return nil
+	}
+
+	return v
 }
 
 func (m *Model) setProvider(provider coresettings.ProviderSettings) {

@@ -54,13 +54,10 @@ func (a *Assistant) Run(ctx context.Context, sessionID string, req RunRequest, h
 		return nil, fmt.Errorf("build model: %w", err)
 	}
 
-	ag, err := a.factory.Build(factory.BuildRequest{
-		Context: factory.Context{
-			Ctx:       ctx,
-			SessionID: sessionID,
-			Config:    cfg,
-			Model:     model,
-		},
+	ag, err := a.factory.Build(ctx, factory.BuildRequest{
+		SessionID:         sessionID,
+		Config:            cfg,
+		Model:             model,
 		Memory:            mem,
 		Extensions:        a.extensions,
 		PermissionHandler: handler,

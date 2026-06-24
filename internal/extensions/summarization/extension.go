@@ -1,6 +1,9 @@
 package summarization
 
 import (
+	"context"
+
+	"github.com/vitaliiPsl/crappy-adk/agent"
 	"github.com/vitaliiPsl/crappy-adk/kit"
 	xsummarization "github.com/vitaliiPsl/crappy-adk/x/summarization"
 
@@ -19,19 +22,12 @@ func (e *ext) Name() string {
 	return "summarization"
 }
 
-func (e *ext) Spec(ctx factory.Context) (factory.AgentSpec, error) {
-	return factory.AgentSpec{
-		Hooks: []factory.HookSpec{
-			{
-				Name:   "Summarize when context is large",
-				Source: e.Name(),
-				Kind:   factory.HookTurnStart,
-				Option: xsummarization.WithSummarization(
-					whenLastInputExceeds(ctx.Model.Config(), thresholdRatio),
-					strategy(NewSummarizer(ctx.Model)),
-				),
-			},
-		},
+func (e *ext) Options(_ context.Context, req factory.BuildRequest) ([]kit.Tool, []agent.Option, error) {
+	return nil, []agent.Option{
+		xsummarization.WithSummarization(
+			whenLastInputExceeds(req.Model.Config(), thresholdRatio),
+			strategy(NewSummarizer(req.Model)),
+		),
 	}, nil
 }
 

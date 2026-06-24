@@ -6,30 +6,27 @@ import (
 
 	"github.com/vitaliiPsl/crappy-adk/agent"
 	"github.com/vitaliiPsl/crappy-adk/kit"
+	xtool "github.com/vitaliiPsl/crappy-adk/x/tool"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/background"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/permission"
 )
 
-type Context struct {
-	Ctx       context.Context
-	SessionID string
-	Config    config.Config
-	Model     kit.Model
+type Extension interface {
+	Name() string
+	Options(ctx context.Context, req BuildRequest) ([]kit.Tool, []agent.Option, error)
 }
 
 type BuildRequest struct {
-	Context
+	SessionID string
+	Config    config.Config
 
-	Memory            kit.Memory
+	Model  kit.Model
+	Memory kit.Memory
+
 	Extensions        []Extension
 	PermissionHandler permission.Handler
-}
-
-type Extension interface {
-	Name() string
-	Spec(ctx Context) (AgentSpec, error)
 }
 
 type Factory struct {
@@ -44,22 +41,13 @@ func New(permissions *permission.Service, bg *background.Manager) *Factory {
 	}
 }
 
-func (f *Factory) Build(req BuildRequest) (*agent.Agent, error) {
-	runSpec, err := f.buildSpec(req)
+func (f *Factory) Build(ctx context.Context, req BuildRequest) (*agent.Agent, error) {
+	tools, options, err := f.configure(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf("build agent spec: %w", err)
+		return nil, fmt.Errorf("collect agent options: %w", err)
 	}
 
-	compiled, err := Compile(runSpec)
-	if err != nil {
-		return nil, fmt.Errorf("compile agent spec: %w", err)
-	}
-
-	if req.Config.Thinking != "" {
-		compiled.Options = append(compiled.Options, agent.WithThinking(kit.ThinkingLevel(req.Config.Thinking)))
-	}
-
-	ag, err := agent.New(req.Model, req.Memory, compiled.Tools, compiled.Options...)
+	ag, err := agent.New(req.Model, req.Memory, xtool.NewSet(tools...), options...)
 	if err != nil {
 		return nil, fmt.Errorf("build agent: %w", err)
 	}
@@ -67,15 +55,15 @@ func (f *Factory) Build(req BuildRequest) (*agent.Agent, error) {
 	return ag, nil
 }
 
-func (f *Factory) buildSpec(req BuildRequest) (AgentSpec, error) {
-	runSpec, err := collectSpecs(req.Context, f.contributors(req))
+func (f *Factory) configure(ctx context.Context, req BuildRequest) ([]kit.Tool, []agent.Option, error) {
+	tools, options, err := collect(ctx, req, f.contributors(req))
 	if err != nil {
-		return AgentSpec{}, err
+		return nil, nil, err
 	}
 
-	runSpec.Tools = allowedTools(runSpec.Tools, req.Config.Tools)
+	tools = allowedTools(tools, req.Config.Tools)
 
-	return runSpec, nil
+	return tools, options, nil
 }
 
 func (f *Factory) contributors(req BuildRequest) []Extension {
@@ -90,21 +78,26 @@ func (f *Factory) contributors(req BuildRequest) []Extension {
 	return out
 }
 
-func collectSpecs(ctx Context, contributors []Extension) (AgentSpec, error) {
-	var runSpec AgentSpec
+func collect(ctx context.Context, req BuildRequest, contributors []Extension) ([]kit.Tool, []agent.Option, error) {
+	var (
+		tools   []kit.Tool
+		options []agent.Option
+	)
+
 	for _, contributor := range contributors {
-		contributed, err := contributor.Spec(ctx)
+		contributedTools, contributedOptions, err := contributor.Options(ctx, req)
 		if err != nil {
-			return AgentSpec{}, fmt.Errorf("%s spec: %w", contributor.Name(), err)
+			return nil, nil, fmt.Errorf("%s options: %w", contributor.Name(), err)
 		}
 
-		runSpec.Merge(contributed)
+		tools = append(tools, contributedTools...)
+		options = append(options, contributedOptions...)
 	}
 
-	return runSpec, nil
+	return tools, options, nil
 }
 
-func allowedTools(tools []ToolSpec, allow []string) []ToolSpec {
+func allowedTools(tools []kit.Tool, allow []string) []kit.Tool {
 	if len(allow) == 0 {
 		return tools
 	}
@@ -114,9 +107,9 @@ func allowedTools(tools []ToolSpec, allow []string) []ToolSpec {
 		allowed[name] = struct{}{}
 	}
 
-	out := make([]ToolSpec, 0, len(tools))
+	out := make([]kit.Tool, 0, len(tools))
 	for _, t := range tools {
-		if _, ok := allowed[t.Name()]; ok {
+		if _, ok := allowed[t.Definition().Name]; ok {
 			out = append(out, t)
 		}
 	}

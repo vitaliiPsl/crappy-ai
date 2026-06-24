@@ -3,6 +3,9 @@ package planning
 import (
 	"context"
 
+	"github.com/vitaliiPsl/crappy-adk/agent"
+	"github.com/vitaliiPsl/crappy-adk/kit"
+
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/factory"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
 )
@@ -38,31 +41,15 @@ func (e *ext) Name() string {
 	return "planning"
 }
 
-func (e *ext) Spec(ctx factory.Context) (factory.AgentSpec, error) {
-	t := newTool(ctx.SessionID, e.store)
+func (e *ext) Options(_ context.Context, req factory.BuildRequest) ([]kit.Tool, []agent.Option, error) {
+	t := newTool(req.SessionID, e.store)
 
-	return factory.AgentSpec{
-		Context: []factory.ContextPiece{
-			{
-				Name:    "Planning instructions",
-				Source:  e.Name(),
-				Kind:    factory.ContextExtension,
-				Content: Instructions,
-			},
-			{
-				Name:   "Current plan",
-				Source: e.Name(),
-				Kind:   factory.ContextArtifact,
-				Resolve: func(runCtx context.Context) (string, error) {
-					return currentPlanText(runCtx, ctx.SessionID, e.store)
-				},
-			},
-		},
-		Tools: []factory.ToolSpec{
-			{
-				Source: e.Name(),
-				Tool:   t,
-			},
-		},
-	}, nil
+	options := []agent.Option{
+		agent.WithInstructions(Instructions),
+		agent.WithDynamicInstructions(func(rc *kit.RunContext) (string, error) {
+			return currentPlanText(rc.Context, req.SessionID, e.store)
+		}),
+	}
+
+	return []kit.Tool{t}, options, nil
 }

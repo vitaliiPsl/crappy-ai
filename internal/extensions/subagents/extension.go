@@ -1,7 +1,11 @@
 package subagents
 
 import (
+	"context"
 	"strings"
+
+	"github.com/vitaliiPsl/crappy-adk/agent"
+	"github.com/vitaliiPsl/crappy-adk/kit"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/factory"
 	"github.com/vitaliiPsl/crappy-ai/internal/background"
@@ -48,33 +52,20 @@ func (e *ext) Name() string {
 	return "subagents"
 }
 
-func (e *ext) Spec(ec factory.Context) (factory.AgentSpec, error) {
-	if len(ec.Config.Agents) == 0 {
-		return factory.AgentSpec{}, nil
+func (e *ext) Options(_ context.Context, req factory.BuildRequest) ([]kit.Tool, []agent.Option, error) {
+	if len(req.Config.Agents) == 0 {
+		return nil, nil, nil
 	}
 
-	jobs := e.backgroundManager.ForSession(ec.SessionID)
+	jobs := e.backgroundManager.ForSession(req.SessionID)
 
-	tool, err := background.Wrap(e.newTool(ec), jobs)
+	tool, err := background.Wrap(e.newTool(req), jobs)
 	if err != nil {
-		return factory.AgentSpec{}, err
+		return nil, nil, err
 	}
 
-	return factory.AgentSpec{
-		Context: []factory.ContextPiece{
-			{
-				Name:    "Available subagents",
-				Source:  e.Name(),
-				Kind:    factory.ContextExtension,
-				Content: instructions + listing(ec.Config.Agents),
-			},
-		},
-		Tools: []factory.ToolSpec{
-			{
-				Source: e.Name(),
-				Tool:   tool,
-			},
-		},
+	return []kit.Tool{tool}, []agent.Option{
+		agent.WithInstructions(instructions + listing(req.Config.Agents)),
 	}, nil
 }
 

@@ -1,6 +1,8 @@
 package factory
 
 import (
+	"context"
+
 	"github.com/vitaliiPsl/crappy-adk/agent"
 	"github.com/vitaliiPsl/crappy-adk/kit"
 	"github.com/vitaliiPsl/crappy-adk/x/guard"
@@ -27,85 +29,66 @@ func (e coreContributor) Name() string {
 	return coreSource
 }
 
-func (e coreContributor) Spec(ctx Context) (AgentSpec, error) {
-	return AgentSpec{
-		Context: e.context(ctx),
-		Tools:   e.tools(ctx),
-		Hooks:   e.hooks(ctx),
-	}, nil
+func (e coreContributor) Options(_ context.Context, req BuildRequest) ([]kit.Tool, []agent.Option, error) {
+	options := e.options(req)
+
+	return e.tools(req), options, nil
 }
 
-func (e coreContributor) context(ctx Context) []ContextPiece {
-	return []ContextPiece{
-		{
-			Name:    "System prompt",
-			Source:  coreSource,
-			Kind:    ContextSystemPrompt,
-			Content: ctx.Config.Prompt,
-		},
-		{
-			Name:    "Environment",
-			Source:  coreSource,
-			Kind:    ContextEnvironment,
-			Content: instructions.Env(ctx.Config.Cwd),
-		},
-		{
-			Name:    "Instruction files",
-			Source:  coreSource,
-			Kind:    ContextInstructions,
-			Content: instructions.Files(ctx.Config.Cwd),
-		},
-	}
+func (e coreContributor) tools(req BuildRequest) []kit.Tool {
+	return tools.Core(e.background.ForSession(req.SessionID))
 }
 
-func (e coreContributor) tools(ctx Context) []ToolSpec {
-	coreTools := tools.Core(e.background.ForSession(ctx.SessionID))
+func (e coreContributor) options(req BuildRequest) []agent.Option {
+	instructions := agent.WithInstructions(
+		req.Config.Prompt,
+		instructions.Env(req.Config.Cwd),
+		instructions.Files(req.Config.Cwd),
+	)
 
-	out := make([]ToolSpec, 0, len(coreTools))
-	for _, t := range coreTools {
-		out = append(out, ToolSpec{
-			Source: coreSource,
-			Tool:   t,
-		})
+	options := []agent.Option{instructions}
+
+	options = append(options, e.generationOptions(req)...)
+
+	options = append(options,
+		e.permissionHook(req),
+		guard.WithRepeatedToolCallLimit(toolLoopMaxRepeats, toolLoopWindow),
+	)
+
+	return options
+}
+
+func (e coreContributor) generationOptions(req BuildRequest) []agent.Option {
+	var options []agent.Option
+
+	if req.Config.Thinking != "" {
+		options = append(options, agent.WithThinking(kit.ThinkingLevel(req.Config.Thinking)))
 	}
 
-	return out
-}
-
-func (e coreContributor) hooks(ctx Context) []HookSpec {
-	return []HookSpec{
-		e.permissionHook(ctx),
-		e.repeatedToolCallHook(toolLoopMaxRepeats, toolLoopWindow),
+	if req.Config.Temperature != nil {
+		options = append(options, agent.WithTemperature(*req.Config.Temperature))
 	}
+
+	if req.Config.MaxOutputTokens != nil {
+		options = append(options, agent.WithMaxOutputTokens(*req.Config.MaxOutputTokens))
+	}
+
+	return options
 }
 
-func (e coreContributor) permissionHook(ctx Context) HookSpec {
+func (e coreContributor) permissionHook(req BuildRequest) agent.Option {
 	auth := permission.Context{
-		SessionID:   ctx.SessionID,
-		Mode:        ctx.Config.Mode,
-		Permissions: ctx.Config.Permissions,
+		SessionID:   req.SessionID,
+		Mode:        req.Config.Mode,
+		Permissions: req.Config.Permissions,
 		Handler:     e.handler,
 	}
 
-	return HookSpec{
-		Name:   "Permission enforcement",
-		Source: coreSource,
-		Kind:   HookToolCall,
-		Option: agent.WithOnToolCall(func(rc *kit.RunContext, call kit.ToolCall) (kit.ToolCall, error) {
-			if err := e.permissions.Authorize(rc.Context, auth, call); err != nil {
-				return call, err
-			}
+	return agent.WithOnToolCall(func(rc *kit.RunContext, call kit.ToolCall) (kit.ToolCall, error) {
+		if err := e.permissions.Authorize(rc.Context, auth, call); err != nil {
+			return call, err
+		}
 
-			return call, nil
-		}),
-	}
-}
-
-func (e coreContributor) repeatedToolCallHook(maxRepeats, window int) HookSpec {
-	return HookSpec{
-		Name:   "Repeated tool call limit",
-		Source: coreSource,
-		Kind:   HookModelResponse,
-		Option: guard.WithRepeatedToolCallLimit(maxRepeats, window),
-	}
+		return call, nil
+	})
 }

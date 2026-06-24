@@ -22,18 +22,18 @@ type taskInput struct {
 	Description string `json:"description" jsonschema:"A short (3-5 word) description of the task, used to label the subagent's session"`
 }
 
-func (e *ext) newTool(ec factory.Context) kit.Tool {
+func (e *ext) newTool(req factory.BuildRequest) kit.Tool {
 	return tool.MustNew(
 		toolName,
 		toolDescription,
 		func(rc *kit.RunContext, input taskInput) (string, error) {
-			return e.runSubagent(rc, ec, input)
+			return e.runSubagent(rc, req, input)
 		},
 	)
 }
 
-func (e *ext) runSubagent(rc *kit.RunContext, ec factory.Context, input taskInput) (string, error) {
-	sub, ok := ec.Config.Subagent(input.Agent)
+func (e *ext) runSubagent(rc *kit.RunContext, req factory.BuildRequest, input taskInput) (string, error) {
+	sub, ok := req.Config.Subagent(input.Agent)
 	if !ok {
 		return "", fmt.Errorf("unknown subagent %q", input.Agent)
 	}
@@ -45,23 +45,20 @@ func (e *ext) runSubagent(rc *kit.RunContext, ec factory.Context, input taskInpu
 
 	child, err := e.sessionStore.Create(rc.Context, session.CreateParams{
 		Title:    subagentTitle(input),
-		Cwd:      ec.Config.Cwd,
-		ParentID: ec.SessionID,
+		Cwd:      req.Config.Cwd,
+		ParentID: req.SessionID,
 	})
 	if err != nil {
 		return "", fmt.Errorf("create subagent session: %w", err)
 	}
 
-	childCfg := ec.Config
+	childCfg := req.Config
 	childCfg.Agent = sub
 
-	ag, err := e.factory.Build(factory.BuildRequest{
-		Context: factory.Context{
-			Ctx:       rc.Context,
-			SessionID: child.ID,
-			Config:    childCfg,
-			Model:     model,
-		},
+	ag, err := e.factory.Build(rc.Context, factory.BuildRequest{
+		SessionID:  child.ID,
+		Config:     childCfg,
+		Model:      model,
 		Memory:     memory.New(e.sessionStore, child.ID),
 		Extensions: e.extensions,
 	})
@@ -74,7 +71,7 @@ func (e *ext) runSubagent(rc *kit.RunContext, ec factory.Context, input taskInpu
 		return "", err
 	}
 
-	e.recordUsage(rc, child.ID, ec.SessionID, resp.Usage)
+	e.recordUsage(rc, child.ID, req.SessionID, resp.Usage)
 
 	if resp.Output == nil {
 		return "", nil

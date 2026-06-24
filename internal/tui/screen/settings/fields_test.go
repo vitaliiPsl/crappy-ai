@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
@@ -26,6 +27,13 @@ func TestModelOptionsUsesProviderName(t *testing.T) {
 	got := m.modelOptions()
 	if len(got) != 1 || got[0].ID != "gpt-local" {
 		t.Fatalf("modelOptions = %+v, want local provider catalog", got)
+	}
+}
+
+func TestLabelCellDoesNotWrapLongestFieldLabel(t *testing.T) {
+	cell := labelCell(maxOutputTokensLabel)
+	if strings.Contains(cell, "\n") {
+		t.Fatalf("labelCell(%q) wrapped:\n%s", maxOutputTokensLabel, cell)
 	}
 }
 

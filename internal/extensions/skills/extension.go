@@ -1,6 +1,11 @@
 package skills
 
 import (
+	"context"
+
+	"github.com/vitaliiPsl/crappy-adk/agent"
+	"github.com/vitaliiPsl/crappy-adk/kit"
+
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/factory"
 	coreskills "github.com/vitaliiPsl/crappy-ai/internal/skills"
 )
@@ -34,28 +39,15 @@ func (e *ext) Name() string {
 	return "skills"
 }
 
-func (e *ext) Spec(factory.Context) (factory.AgentSpec, error) {
+func (e *ext) Options(context.Context, factory.BuildRequest) ([]kit.Tool, []agent.Option, error) {
 	listing := coreskills.FormatListing(e.registry.GetSkills())
 	if listing == "" {
-		return factory.AgentSpec{}, nil
+		return nil, nil, nil
 	}
 
 	t := newTool(e.registry)
 
-	return factory.AgentSpec{
-		Context: []factory.ContextPiece{
-			{
-				Name:    "Available skills",
-				Source:  e.Name(),
-				Kind:    factory.ContextExtension,
-				Content: instructions + "\n" + listing,
-			},
-		},
-		Tools: []factory.ToolSpec{
-			{
-				Source: e.Name(),
-				Tool:   t,
-			},
-		},
+	return []kit.Tool{t}, []agent.Option{
+		agent.WithInstructions(instructions + "\n" + listing),
 	}, nil
 }

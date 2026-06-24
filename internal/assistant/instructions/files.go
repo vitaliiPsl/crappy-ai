@@ -13,6 +13,9 @@ const (
 	maxInstructionTotalBytes = 256 * 1024
 )
 
+const fileInstructionsHeader = `# File Instructions
+The following instruction files were found by walking upward from the session working directory. Treat them as context, not enforced configuration. Follow them unless they conflict with higher-priority instructions, user requests, or permission policy.`
+
 var instructionFileNames = []string{
 	"AGENTS.md",
 	"CLAUDE.md",
@@ -105,9 +108,7 @@ func ancestorDirs(cwd string) []string {
 func formatInstructions(files []instructionFile) string {
 	var b strings.Builder
 
-	b.WriteString("# File Instructions\n\n")
-	b.WriteString("The following instruction files were found by walking upward from the session working directory. ")
-	b.WriteString("Treat them as context, not enforced configuration. Follow them unless they conflict with higher-priority instructions, user requests, or permission policy.")
+	b.WriteString(fileInstructionsHeader)
 
 	for _, file := range files {
 		fmt.Fprintf(&b, "\n\n## %s\n\n%s", file.path, file.content)

@@ -11,6 +11,7 @@ import (
 	"github.com/vitaliiPsl/crappy-adk/kit"
 	"github.com/vitaliiPsl/crappy-adk/kittest"
 	xmemory "github.com/vitaliiPsl/crappy-adk/x/memory"
+	xtool "github.com/vitaliiPsl/crappy-adk/x/tool"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/factory"
 	coreskills "github.com/vitaliiPsl/crappy-ai/internal/skills"
@@ -76,17 +77,12 @@ func TestExtensionAddsMetadataListingAndTool(t *testing.T) {
 
 	ext := New(registry)
 
-	extSpec, err := ext.Spec(factory.Context{})
+	tools, options, err := ext.Options(context.Background(), factory.BuildRequest{})
 	if err != nil {
-		t.Fatalf("Spec: %v", err)
+		t.Fatalf("Options: %v", err)
 	}
 
-	compiled, err := factory.Compile(extSpec)
-	if err != nil {
-		t.Fatalf("Compile: %v", err)
-	}
-
-	ag, err := agent.New(model, xmemory.NewHistory(), compiled.Tools, compiled.Options...)
+	ag, err := agent.New(model, xmemory.NewHistory(), xtool.NewSet(tools...), options...)
 	if err != nil {
 		t.Fatalf("New agent: %v", err)
 	}

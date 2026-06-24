@@ -9,6 +9,7 @@ import (
 	"github.com/vitaliiPsl/crappy-adk/kit"
 	"github.com/vitaliiPsl/crappy-adk/kittest"
 	xmemory "github.com/vitaliiPsl/crappy-adk/x/memory"
+	xtool "github.com/vitaliiPsl/crappy-adk/x/tool"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/factory"
 	"github.com/vitaliiPsl/crappy-ai/internal/background"
@@ -21,13 +22,13 @@ func TestExtensionNoAgentsAddsNothing(t *testing.T) {
 	bg := background.NewManager(context.Background())
 	defer bg.Close()
 
-	extSpec, err := New(nil, nil, nil, bg, nil).Spec(factory.Context{})
+	tools, options, err := New(nil, nil, nil, bg, nil).Options(context.Background(), factory.BuildRequest{})
 	if err != nil {
-		t.Fatalf("Spec: %v", err)
+		t.Fatalf("Options: %v", err)
 	}
 
-	if len(extSpec.Tools) != 0 || len(extSpec.Context) != 0 {
-		t.Fatalf("empty catalog produced spec = %+v, want nothing", extSpec)
+	if len(tools) != 0 || len(options) != 0 {
+		t.Fatalf("empty catalog produced tools/options = %d/%d, want nothing", len(tools), len(options))
 	}
 }
 
@@ -42,7 +43,7 @@ func TestExtensionAddsListingAndTaskTool(t *testing.T) {
 		},
 	})
 
-	ec := factory.Context{
+	buildReq := factory.BuildRequest{
 		Config: config.Config{
 			Agents: []config.Agent{
 				{Name: "explorer", Description: "Read-only explorer."},
@@ -50,17 +51,12 @@ func TestExtensionAddsListingAndTaskTool(t *testing.T) {
 		},
 	}
 
-	extSpec, err := New(nil, nil, nil, bg, nil).Spec(ec)
+	tools, options, err := New(nil, nil, nil, bg, nil).Options(context.Background(), buildReq)
 	if err != nil {
-		t.Fatalf("Spec: %v", err)
+		t.Fatalf("Options: %v", err)
 	}
 
-	compiled, err := factory.Compile(extSpec)
-	if err != nil {
-		t.Fatalf("Compile: %v", err)
-	}
-
-	ag, err := agent.New(model, xmemory.NewHistory(), compiled.Tools, compiled.Options...)
+	ag, err := agent.New(model, xmemory.NewHistory(), xtool.NewSet(tools...), options...)
 	if err != nil {
 		t.Fatalf("New agent: %v", err)
 	}
@@ -86,13 +82,13 @@ func TestExtensionAddsListingAndTaskTool(t *testing.T) {
 }
 
 func TestTaskToolUnknownSubagent(t *testing.T) {
-	ec := factory.Context{
+	req := factory.BuildRequest{
 		Config: config.Config{
 			Agents: []config.Agent{{Name: "explorer"}},
 		},
 	}
 
-	_, err := (&ext{}).newTool(ec).Execute(kit.NewRunContext(context.Background()), map[string]any{
+	_, err := (&ext{}).newTool(req).Execute(kit.NewRunContext(context.Background()), map[string]any{
 		"agent":       "missing",
 		"description": "find a thing",
 		"task":        "do something",

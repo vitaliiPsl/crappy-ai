@@ -27,7 +27,7 @@ const (
 	truncatedMark  = "..."
 	defaultOption  = "default"
 	optionSep      = " / "
-	tabWidth       = 16
+	labelWidth     = 20
 
 	headerLines  = 2
 	hintsHeight  = 1
@@ -186,7 +186,7 @@ func (m Model) statusView() string {
 }
 
 func labelCell(label string) string {
-	return lipgloss.NewStyle().Width(tabWidth).Render(label)
+	return lipgloss.NewStyle().Width(labelWidth).Render(label)
 }
 
 func preview(value string, lines int) string {
