@@ -43,6 +43,8 @@ type Config struct {
 
 	Agents []Agent `yaml:"agents,omitempty"`
 
+	CompactThreshold int `yaml:"compact_threshold,omitempty"`
+
 	Cwd string `yaml:"-"`
 }
 

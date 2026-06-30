@@ -27,6 +27,7 @@ func defaults() Config {
 				},
 			},
 		},
-		Mode: ModeDefault,
+		Mode:             ModeDefault,
+		CompactThreshold: 80,
 	}
 }

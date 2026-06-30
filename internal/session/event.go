@@ -8,6 +8,7 @@ import (
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
 
+	"github.com/vitaliiPsl/crappy-ai/internal/ask"
 	"github.com/vitaliiPsl/crappy-ai/internal/permission/model"
 )
 
@@ -22,6 +23,7 @@ const (
 	EventTurnComplete     EventType = "turn_complete"
 	EventTurnCancelled    EventType = "turn_cancelled"
 	EventPermissionPrompt EventType = "permission_prompt"
+	EventAsk              EventType = "ask"
 )
 
 type PermissionPrompt struct {
@@ -62,6 +64,7 @@ type Event struct {
 	Stats  *TurnStats        `json:"stats,omitempty"`
 	Prompt *PermissionPrompt `json:"prompt,omitempty"`
 	Skill  *SkillInvocation  `json:"skill,omitempty"`
+	Ask    *ask.Request      `json:"ask,omitempty"`
 }
 
 func newEvent(sessionID string, t EventType) Event {
@@ -129,6 +132,13 @@ func NewTurnCancelledEvent(sessionID string) Event {
 func NewPermissionPromptEvent(sessionID string, request model.AskRequest) Event {
 	e := newEvent(sessionID, EventPermissionPrompt)
 	e.Prompt = &PermissionPrompt{ToolCall: request.Call, Request: request}
+
+	return e
+}
+
+func NewAskEvent(sessionID string, request ask.Request) Event {
+	e := newEvent(sessionID, EventAsk)
+	e.Ask = &request
 
 	return e
 }

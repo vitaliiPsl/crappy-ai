@@ -7,6 +7,7 @@ import (
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
 
+	"github.com/vitaliiPsl/crappy-ai/internal/ask"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/permission/model"
 	"github.com/vitaliiPsl/crappy-ai/internal/permission/strategy"
@@ -22,7 +23,9 @@ type Context struct {
 	SessionID   string
 	Mode        config.Mode
 	Permissions model.Permissions
-	Handler     Handler
+
+	Asker   ask.Asker
+	Handler Handler
 }
 
 type Service struct {
@@ -63,18 +66,14 @@ func (s *Service) authorizeDefault(ctx context.Context, auth Context, call kit.T
 }
 
 func (s *Service) ask(ctx context.Context, auth Context, request model.AskRequest) error {
-	if auth.Handler == nil {
-		return fmt.Errorf("tool %q requires permission but the run cannot prompt: %w", request.Call.Name, ErrDenied)
-	}
-
-	resp, err := auth.Handler.Ask(ctx, auth.SessionID, request)
+	optionID, err := s.prompt(ctx, auth, request)
 	if err != nil {
 		return err
 	}
 
-	option, ok := request.Option(resp.OptionID)
+	option, ok := request.Option(optionID)
 	if !ok {
-		return fmt.Errorf("invalid permission response option %q", resp.OptionID)
+		return fmt.Errorf("invalid permission response option %q", optionID)
 	}
 
 	if option.Scope == model.ScopeGlobal && option.Rule != nil {
@@ -90,6 +89,27 @@ func (s *Service) ask(ctx context.Context, auth Context, request model.AskReques
 	return nil
 }
 
+func (s *Service) prompt(ctx context.Context, auth Context, request model.AskRequest) (string, error) {
+	switch {
+	case auth.Asker != nil:
+		resp, err := auth.Asker.Ask(ctx, toAskRequest(request))
+		if err != nil {
+			return "", err
+		}
+
+		return resp.OptionID, nil
+	case auth.Handler != nil:
+		resp, err := auth.Handler.Ask(ctx, auth.SessionID, request)
+		if err != nil {
+			return "", err
+		}
+
+		return resp.OptionID, nil
+	default:
+		return "", fmt.Errorf("tool %q requires permission but the run cannot prompt: %w", request.Call.Name, ErrDenied)
+	}
+}
+
 func (s *Service) save(decision model.Decision, rule model.Rule) error {
 	cfg := s.config.Get()
 	cfg.Permissions.Add(decision, rule)
@@ -99,4 +119,18 @@ func (s *Service) save(decision model.Decision, rule model.Rule) error {
 	}
 
 	return nil
+}
+
+func toAskRequest(request model.AskRequest) ask.Request {
+	options := make([]ask.Option, len(request.Options))
+	for i, o := range request.Options {
+		options[i] = ask.Option{ID: o.ID, Label: o.Label}
+	}
+
+	return ask.Request{
+		ID:      request.Call.ID,
+		Title:   fmt.Sprintf("Allow %s?", request.Call.Name),
+		Detail:  request.Input,
+		Options: options,
+	}
 }
