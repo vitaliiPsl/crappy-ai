@@ -6,30 +6,51 @@ import (
 	"sync"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/ask"
+	"github.com/vitaliiPsl/crappy-ai/internal/background"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/eventbus"
+	"github.com/vitaliiPsl/crappy-ai/internal/mcp"
 	"github.com/vitaliiPsl/crappy-ai/internal/models"
 	"github.com/vitaliiPsl/crappy-ai/internal/permission"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
+	"github.com/vitaliiPsl/crappy-ai/internal/skills"
 )
 
 type Manager struct {
-	configStore   *config.Store
-	sessionStore  session.Store
-	modelRegistry *models.Registry
-	permissions   *permission.Service
-
 	mu   sync.Mutex
 	live map[string]*Session
+
+	configStore       *config.Store
+	sessionStore      session.Store
+	permissions       *permission.Service
+	modelRegistry     *models.Registry
+	skillRegistry     *skills.Registry
+	mcpManager        *mcp.Manager
+	backgroundManager *background.Manager
 }
 
-func NewManager(configStore *config.Store, sessionStore session.Store, modelRegistry *models.Registry) *Manager {
+func NewManager(
+	configStore *config.Store,
+	sessionStore session.Store,
+	modelRegistry *models.Registry,
+	skillRegistry *skills.Registry,
+	mcpManager *mcp.Manager,
+) *Manager {
 	return &Manager{
-		configStore:   configStore,
-		sessionStore:  sessionStore,
-		modelRegistry: modelRegistry,
-		permissions:   permission.NewService(configStore),
-		live:          make(map[string]*Session),
+		live:              make(map[string]*Session),
+		configStore:       configStore,
+		sessionStore:      sessionStore,
+		permissions:       permission.NewService(configStore),
+		modelRegistry:     modelRegistry,
+		skillRegistry:     skillRegistry,
+		mcpManager:        mcpManager,
+		backgroundManager: background.NewManager(context.Background()),
+	}
+}
+
+func (m *Manager) Close() {
+	if m.backgroundManager != nil {
+		m.backgroundManager.Close()
 	}
 }
 
@@ -73,39 +94,49 @@ func (m *Manager) Compact(ctx context.Context, sessionID string) error {
 }
 
 func (m *Manager) CancelRun(sessionID string) {
-	if s, ok := m.get(sessionID); ok {
-		s.Cancel()
+	if session, ok := m.get(sessionID); ok {
+		session.Cancel()
 	}
 }
 
 func (m *Manager) Respond(sessionID string, resp ask.Response) error {
-	s, ok := m.get(sessionID)
+	session, ok := m.get(sessionID)
 	if !ok {
 		return fmt.Errorf("no live session %q", sessionID)
 	}
 
-	return s.Respond(resp)
+	return session.Respond(resp)
 }
 
 func (m *Manager) getOrCreate(sessionID string) *Session {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if s, ok := m.live[sessionID]; ok {
-		return s
+	if session, ok := m.live[sessionID]; ok {
+		return session
 	}
 
-	s := newSession(sessionID, m.configStore, m.sessionStore, m.modelRegistry, m.permissions)
-	m.live[sessionID] = s
+	session := newSession(
+		sessionID,
+		m.configStore,
+		m.sessionStore,
+		m.permissions,
+		m.modelRegistry,
+		m.skillRegistry,
+		m.mcpManager,
+		m.backgroundManager,
+	)
 
-	return s
+	m.live[sessionID] = session
+
+	return session
 }
 
 func (m *Manager) get(sessionID string) (*Session, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	s, ok := m.live[sessionID]
+	session, ok := m.live[sessionID]
 
-	return s, ok
+	return session, ok
 }

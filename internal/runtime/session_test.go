@@ -12,7 +12,7 @@ import (
 )
 
 func bareSession() *Session {
-	return newSession("s1", nil, nil, nil, nil)
+	return newSession("s1", nil, nil, nil, nil, nil, nil, nil)
 }
 
 func recv(t *testing.T, ch <-chan session.Event) session.Event {

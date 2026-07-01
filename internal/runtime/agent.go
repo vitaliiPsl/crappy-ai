@@ -1,57 +1,100 @@
 package runtime
 
 import (
-	"fmt"
-	goruntime "runtime"
+	"context"
 
-	"github.com/vitaliiPsl/crappy-adk/agent"
+	adk "github.com/vitaliiPsl/crappy-adk/agent"
 	"github.com/vitaliiPsl/crappy-adk/kit"
-	xtool "github.com/vitaliiPsl/crappy-adk/x/tool"
+	"github.com/vitaliiPsl/crappy-adk/x/guard"
 
-	"github.com/vitaliiPsl/crappy-ai/internal/config"
+	appagent "github.com/vitaliiPsl/crappy-ai/internal/agent"
+	"github.com/vitaliiPsl/crappy-ai/internal/assistant/instructions"
+	"github.com/vitaliiPsl/crappy-ai/internal/background"
 	"github.com/vitaliiPsl/crappy-ai/internal/tools/bash"
 	filesystem "github.com/vitaliiPsl/crappy-ai/internal/tools/fs"
+	"github.com/vitaliiPsl/crappy-ai/internal/tools/web"
 )
 
-func buildAgent(cfg config.Config, model kit.Model, mem kit.Memory, extra ...agent.Option) (*agent.Agent, error) {
-	opts := []agent.Option{
-		agent.WithInstructions(cfg.Prompt, envInstructions(cfg.Cwd)),
+const (
+	toolLoopMaxRepeats = 3
+	toolLoopWindow     = 5
+)
+
+type coreContributor struct{}
+
+func (coreContributor) Contribute(_ context.Context, req appagent.Request) (appagent.Contribution, error) {
+	tools, err := coreTools(req)
+	if err != nil {
+		return appagent.Contribution{}, err
 	}
 
-	if cfg.Thinking != "" {
-		opts = append(opts, agent.WithThinking(kit.ThinkingLevel(cfg.Thinking)))
-	}
-
-	if cfg.Temperature != nil {
-		opts = append(opts, agent.WithTemperature(*cfg.Temperature))
-	}
-
-	if cfg.MaxOutputTokens != nil {
-		opts = append(opts, agent.WithMaxOutputTokens(*cfg.MaxOutputTokens))
-	}
-
-	if cfg.CompactThreshold > 0 {
-		opts = append(opts, agent.WithOnTurnStart(compactionHook(model, cfg.CompactThreshold)))
-	}
-
-	opts = append(opts, extra...)
-
-	return agent.New(model, mem, coreTools(), opts...)
+	return appagent.Contribution{
+		Tools:   tools,
+		Options: coreOptions(req),
+	}, nil
 }
 
-func coreTools() *xtool.Set {
-	return xtool.NewSet(
-		bash.NewBash(),
+func coreOptions(req appagent.Request) []adk.Option {
+	var opts []adk.Option
+
+	opts = append(opts, instructionOptions(req)...)
+	opts = append(opts, generationOptions(req)...)
+	opts = append(opts, guardOptions()...)
+
+	return opts
+}
+
+func instructionOptions(req appagent.Request) []adk.Option {
+	return []adk.Option{
+		adk.WithInstructions(
+			req.Config.Prompt,
+			instructions.Env(req.Config.Cwd),
+			instructions.Files(req.Config.Cwd),
+		),
+	}
+}
+
+func generationOptions(req appagent.Request) []adk.Option {
+	var opts []adk.Option
+
+	if req.Config.Thinking != "" {
+		opts = append(opts, adk.WithThinking(kit.ThinkingLevel(req.Config.Thinking)))
+	}
+
+	if req.Config.Temperature != nil {
+		opts = append(opts, adk.WithTemperature(*req.Config.Temperature))
+	}
+
+	if req.Config.MaxOutputTokens != nil {
+		opts = append(opts, adk.WithMaxOutputTokens(*req.Config.MaxOutputTokens))
+	}
+
+	return opts
+}
+
+func guardOptions() []adk.Option {
+	return []adk.Option{
+		guard.WithRepeatedToolCallLimit(toolLoopMaxRepeats, toolLoopWindow),
+	}
+}
+
+func coreTools(req appagent.Request) ([]kit.Tool, error) {
+	bashTool := bash.NewBash()
+	if req.Background != nil {
+		wrapped, err := background.Wrap(bashTool, req.Background.ForSession(req.SessionID))
+		if err != nil {
+			return nil, err
+		}
+
+		bashTool = wrapped
+	}
+
+	return []kit.Tool{
+		bashTool,
+		web.NewFetch(),
 		filesystem.NewReadFile(),
 		filesystem.NewWriteFile(),
 		filesystem.NewEditFile(),
 		filesystem.NewListDirectory(),
-	)
-}
-
-func envInstructions(cwd string) string {
-	return fmt.Sprintf(
-		"# Environment\n- Working directory: %s\n- OS: %s/%s",
-		cwd, goruntime.GOOS, goruntime.GOARCH,
-	)
+	}, nil
 }

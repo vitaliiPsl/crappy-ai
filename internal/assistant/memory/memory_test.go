@@ -59,6 +59,22 @@ func (s *fakeStore) Save(context.Context, *session.Session) error {
 	panic("fakeStore.Save not implemented")
 }
 
+func (s *fakeStore) SaveArtifact(context.Context, string, string, any) error {
+	panic("fakeStore.SaveArtifact not implemented")
+}
+
+func (s *fakeStore) LoadArtifact(context.Context, string, string, any) (bool, error) {
+	panic("fakeStore.LoadArtifact not implemented")
+}
+
+func (s *fakeStore) ListArtifacts(context.Context, string) ([]string, error) {
+	panic("fakeStore.ListArtifacts not implemented")
+}
+
+func (s *fakeStore) DeleteArtifact(context.Context, string, string) error {
+	panic("fakeStore.DeleteArtifact not implemented")
+}
+
 func newStoreWithMessages(messages ...kit.Message) *fakeStore {
 	store := &fakeStore{}
 	for _, msg := range messages {

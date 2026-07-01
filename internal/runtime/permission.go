@@ -4,30 +4,40 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/vitaliiPsl/crappy-adk/agent"
+	adk "github.com/vitaliiPsl/crappy-adk/agent"
 	"github.com/vitaliiPsl/crappy-adk/kit"
 
+	appagent "github.com/vitaliiPsl/crappy-ai/internal/agent"
 	"github.com/vitaliiPsl/crappy-ai/internal/ask"
-	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/permission"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
 )
 
-func (s *Session) permissionOption(cfg config.Config) agent.Option {
-	auth := permission.Context{
-		SessionID:   s.id,
-		Mode:        cfg.Mode,
-		Permissions: cfg.Permissions,
-		Asker:       s,
+type permissionsContributor struct {
+	service *permission.Service
+}
+
+func (c permissionsContributor) Contribute(_ context.Context, req appagent.Request) (appagent.Contribution, error) {
+	if c.service == nil {
+		return appagent.Contribution{}, nil
 	}
 
-	return agent.WithOnToolCall(func(rc *kit.RunContext, call kit.ToolCall) (kit.ToolCall, error) {
-		if err := s.permissions.Authorize(rc.Context, auth, call); err != nil {
+	auth := permission.Context{
+		SessionID:   req.SessionID,
+		Mode:        req.Config.Mode,
+		Permissions: req.Config.Permissions,
+		Asker:       req.Asker,
+	}
+
+	option := adk.WithOnToolCall(func(rc *kit.RunContext, call kit.ToolCall) (kit.ToolCall, error) {
+		if err := c.service.Authorize(rc.Context, auth, call); err != nil {
 			return call, err
 		}
 
 		return call, nil
 	})
+
+	return appagent.Contribution{Options: []adk.Option{option}}, nil
 }
 
 func (s *Session) Ask(ctx context.Context, req ask.Request) (ask.Response, error) {

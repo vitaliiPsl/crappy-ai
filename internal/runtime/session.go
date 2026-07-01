@@ -8,21 +8,36 @@ import (
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
 
+	appagent "github.com/vitaliiPsl/crappy-ai/internal/agent"
 	"github.com/vitaliiPsl/crappy-ai/internal/ask"
+	"github.com/vitaliiPsl/crappy-ai/internal/background"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/eventbus"
+	"github.com/vitaliiPsl/crappy-ai/internal/mcp"
 	"github.com/vitaliiPsl/crappy-ai/internal/models"
 	"github.com/vitaliiPsl/crappy-ai/internal/permission"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
+	"github.com/vitaliiPsl/crappy-ai/internal/skills"
+
+	bgext "github.com/vitaliiPsl/crappy-ai/internal/extensions/background"
+	mcpext "github.com/vitaliiPsl/crappy-ai/internal/extensions/mcp"
+	planningext "github.com/vitaliiPsl/crappy-ai/internal/extensions/planning"
+	skillsext "github.com/vitaliiPsl/crappy-ai/internal/extensions/skills"
 )
 
 type Session struct {
 	id string
 
-	configStore   *config.Store
-	sessionStore  session.Store
+	configStore  *config.Store
+	sessionStore session.Store
+
+	permissions *permission.Service
+
 	modelRegistry *models.Registry
-	permissions   *permission.Service
+	skillRegistry *skills.Registry
+
+	mcpManager        *mcp.Manager
+	backgroundManager *background.Manager
 
 	events  *eventbus.Bus[session.Event]
 	prompts *ask.Broker
@@ -31,15 +46,27 @@ type Session struct {
 	cancel context.CancelFunc
 }
 
-func newSession(id string, configStore *config.Store, sessionStore session.Store, modelRegistry *models.Registry, permissions *permission.Service) *Session {
+func newSession(
+	id string,
+	configStore *config.Store,
+	sessionStore session.Store,
+	permissions *permission.Service,
+	modelRegistry *models.Registry,
+	skillRegistry *skills.Registry,
+	mcpManager *mcp.Manager,
+	backgroundManager *background.Manager,
+) *Session {
 	return &Session{
-		id:            id,
-		configStore:   configStore,
-		sessionStore:  sessionStore,
-		modelRegistry: modelRegistry,
-		permissions:   permissions,
-		events:        eventbus.New[session.Event](),
-		prompts:       ask.NewBroker(),
+		id:                id,
+		configStore:       configStore,
+		sessionStore:      sessionStore,
+		permissions:       permissions,
+		modelRegistry:     modelRegistry,
+		skillRegistry:     skillRegistry,
+		mcpManager:        mcpManager,
+		backgroundManager: backgroundManager,
+		events:            eventbus.New[session.Event](),
+		prompts:           ask.NewBroker(),
 	}
 }
 
@@ -105,7 +132,22 @@ func (s *Session) run(ctx context.Context, req Request) error {
 		return s.fail(fmt.Errorf("build model: %w", err))
 	}
 
-	ag, err := buildAgent(cfg, model, mem, s.permissionOption(cfg))
+	ag, err := appagent.Build(ctx, appagent.Request{
+		SessionID:  s.id,
+		Config:     cfg,
+		Model:      model,
+		Memory:     mem,
+		Asker:      s,
+		Background: s.backgroundManager,
+	},
+		coreContributor{},
+		permissionsContributor{s.permissions},
+		compactionContributor{},
+		bgext.New(s.backgroundManager),
+		skillsext.New(s.skillRegistry),
+		planningext.New(s.sessionStore),
+		mcpext.New(s.mcpManager),
+	)
 	if err != nil {
 		return s.fail(err)
 	}

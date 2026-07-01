@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	adk "github.com/vitaliiPsl/crappy-adk/agent"
 	"github.com/vitaliiPsl/crappy-adk/kit"
 	"github.com/vitaliiPsl/crappy-adk/x/summarization"
+
+	appagent "github.com/vitaliiPsl/crappy-ai/internal/agent"
 )
 
 const compactInstructions = `You are compacting a conversation between a user and an AI coding assistant so it can continue with less context.
@@ -17,6 +20,20 @@ Write a summary that preserves everything needed to keep working:
 - open questions and the next steps
 
 Be factual and concise. Do not address the user or add commentary; write the summary as notes for your future self.`
+
+type compactionContributor struct{}
+
+func (compactionContributor) Contribute(_ context.Context, req appagent.Request) (appagent.Contribution, error) {
+	if req.Config.CompactThreshold <= 0 {
+		return appagent.Contribution{}, nil
+	}
+
+	return appagent.Contribution{
+		Options: []adk.Option{
+			adk.WithOnTurnStart(compactionHook(req.Model, req.Config.CompactThreshold)),
+		},
+	}, nil
+}
 
 func compactionHook(model kit.Model, percent int) kit.OnTurnStart {
 	threshold := int64(model.Config().InputLimit) * int64(percent) / 100

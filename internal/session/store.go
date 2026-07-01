@@ -17,6 +17,8 @@ type Store interface {
 
 	AppendEvents(ctx context.Context, id string, events ...Event) error
 	LoadEvents(ctx context.Context, id string) ([]Event, error)
+
+	ArtifactStore
 }
 
 type ArtifactStore interface {

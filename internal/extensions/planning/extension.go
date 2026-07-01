@@ -3,9 +3,10 @@ package planning
 import (
 	"context"
 
-	"github.com/vitaliiPsl/crappy-adk/agent"
+	adk "github.com/vitaliiPsl/crappy-adk/agent"
 	"github.com/vitaliiPsl/crappy-adk/kit"
 
+	appagent "github.com/vitaliiPsl/crappy-ai/internal/agent"
 	"github.com/vitaliiPsl/crappy-ai/internal/assistant/factory"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
 )
@@ -33,7 +34,15 @@ type ext struct {
 	store session.ArtifactStore
 }
 
-func New(store session.ArtifactStore) factory.Extension {
+type Extension interface {
+	factory.Extension
+	appagent.Contributor
+}
+
+var _ factory.Extension = (*ext)(nil)
+var _ appagent.Contributor = (*ext)(nil)
+
+func New(store session.ArtifactStore) Extension {
 	return &ext{store: store}
 }
 
@@ -41,15 +50,29 @@ func (e *ext) Name() string {
 	return "planning"
 }
 
-func (e *ext) Options(_ context.Context, req factory.BuildRequest) ([]kit.Tool, []agent.Option, error) {
-	t := newTool(req.SessionID, e.store)
+func (e *ext) Options(_ context.Context, req factory.BuildRequest) ([]kit.Tool, []adk.Option, error) {
+	c := e.contribution(req.SessionID)
 
-	options := []agent.Option{
-		agent.WithInstructions(Instructions),
-		agent.WithDynamicInstructions(func(rc *kit.RunContext) (string, error) {
-			return currentPlanText(rc.Context, req.SessionID, e.store)
+	return c.Tools, c.Options, nil
+}
+
+func (e *ext) Contribute(_ context.Context, req appagent.Request) (appagent.Contribution, error) {
+	return e.contribution(req.SessionID), nil
+}
+
+func (e *ext) contribution(sessionID string) appagent.Contribution {
+	if e.store == nil {
+		return appagent.Contribution{}
+	}
+
+	t := newTool(sessionID, e.store)
+
+	options := []adk.Option{
+		adk.WithInstructions(Instructions),
+		adk.WithDynamicInstructions(func(rc *kit.RunContext) (string, error) {
+			return currentPlanText(rc.Context, sessionID, e.store)
 		}),
 	}
 
-	return []kit.Tool{t}, options, nil
+	return appagent.Contribution{Tools: []kit.Tool{t}, Options: options}
 }
