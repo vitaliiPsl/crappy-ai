@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	adk "github.com/vitaliiPsl/crappy-adk/agent"
@@ -137,15 +138,19 @@ func (s *Session) run(ctx context.Context, req Request) error {
 		return s.fail(fmt.Errorf("build model: %w", err))
 	}
 
-	ag, err := s.buildAgent(ctx, s.id, cfg, model, mem)
+	agent, err := s.buildAgent(ctx, s.id, cfg, model, mem)
 	if err != nil {
 		return s.fail(err)
 	}
 
-	input := kit.NewUserMessage(kit.NewTextContent(req.Text))
-	s.events.Publish(session.NewMessageEvent(s.id, input))
+	input, event, err := s.buildAgentInput(req)
+	if err != nil {
+		return s.fail(err)
+	}
 
-	stream := ag.Stream(ctx, input)
+	s.events.Publish(event)
+
+	stream := agent.Stream(ctx, input)
 	for ev := range stream.Iter() {
 		if sev, ok := session.FromKitEvent(s.id, ev); ok {
 			s.events.Publish(sev)
@@ -215,6 +220,29 @@ func (s *Session) recordUsage(ctx context.Context, id string, usage kit.Usage) (
 	_ = s.sessionStore.Save(ctx, sess)
 
 	return sess.Usage, true
+}
+
+func (s *Session) buildAgentInput(req Request) (kit.Message, session.Event, error) {
+	text := req.Text
+	if req.Skill != nil {
+		skill, err := s.skillRegistry.GetSkill(req.Skill.Name)
+		if err != nil {
+			return kit.Message{}, session.Event{}, fmt.Errorf("load skill %q: %w", req.Skill.Name, err)
+		}
+
+		text = skills.FormatLoaded(skill, strings.Join(req.Skill.Args, " "))
+	}
+
+	msg := kit.NewUserMessage(kit.NewTextContent(text))
+	event := session.NewMessageEvent(s.id, msg)
+	if req.Skill != nil {
+		event = session.NewSkillMessageEvent(s.id, msg, session.SkillInvocation{
+			Name: req.Skill.Name,
+			Args: req.Skill.Args,
+		})
+	}
+
+	return msg, event, nil
 }
 
 func (s *Session) buildAgent(ctx context.Context, sessionID string, cfg config.Config, model kit.Model, mem kit.Memory) (*adk.Agent, error) {

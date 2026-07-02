@@ -2,6 +2,8 @@ package runtime
 
 import (
 	"context"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -9,6 +11,7 @@ import (
 
 	"github.com/vitaliiPsl/crappy-ai/internal/ask"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
+	"github.com/vitaliiPsl/crappy-ai/internal/skills/skillstest"
 )
 
 func bareSession() *Session {
@@ -69,6 +72,46 @@ func TestAskRoundTrip(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("Ask did not return after Respond")
+	}
+}
+
+func TestBuildAgentInputWithSkill(t *testing.T) {
+	root := t.TempDir()
+	skillstest.WriteSkill(t, filepath.Join(root, "review", "SKILL.md"), "review", "Review code", "Read the diff carefully.")
+
+	s := bareSession()
+	s.skillRegistry = skillstest.NewRegistry(root)
+
+	req := Request{
+		Text: "ignored",
+		Skill: &SkillInvocation{
+			Name: "review",
+			Args: []string{"file.go"},
+		},
+	}
+
+	msg, ev, err := s.buildAgentInput(req)
+	if err != nil {
+		t.Fatalf("buildAgentInput: %v", err)
+	}
+
+	content := msg.TextContent()
+	if content == nil {
+		t.Fatal("message has no text content")
+	}
+
+	for _, want := range []string{
+		"Loaded skill: review",
+		"Arguments:\nfile.go",
+		"Read the diff carefully.",
+	} {
+		if !strings.Contains(content.Text, want) {
+			t.Fatalf("message text missing %q:\n%s", want, content.Text)
+		}
+	}
+
+	if ev.Skill == nil || ev.Skill.Name != "review" || strings.Join(ev.Skill.Args, " ") != "file.go" {
+		t.Fatalf("skill event = %+v, want review invocation", ev.Skill)
 	}
 }
 
