@@ -19,7 +19,7 @@ type Focus int
 
 const (
 	FocusInput Focus = iota
-	FocusPermissionPrompt
+	FocusPrompt
 )
 
 type inputBar struct {
@@ -140,7 +140,7 @@ func (b inputBar) handlePickerKey(key tea.KeyMsg) (inputBar, bool) {
 
 func focusForState(s State) Focus {
 	if s.Prompt != nil {
-		return FocusPermissionPrompt
+		return FocusPrompt
 	}
 
 	return FocusInput

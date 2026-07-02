@@ -3,8 +3,8 @@ package session
 import (
 	"time"
 
+	"github.com/vitaliiPsl/crappy-ai/internal/ask"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
-	"github.com/vitaliiPsl/crappy-ai/internal/permission/model"
 	sessiondata "github.com/vitaliiPsl/crappy-ai/internal/session"
 )
 
@@ -67,7 +67,7 @@ type State struct {
 	Phase    Phase
 	Activity Activity
 	Stats    *sessiondata.TurnStats
-	Prompt   *model.AskRequest
+	Prompt   *ask.Request
 
 	LastError   string
 	LastEventAt time.Time

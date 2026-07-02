@@ -5,9 +5,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/vitaliiPsl/crappy-ai/internal/assistant"
+	"github.com/vitaliiPsl/crappy-ai/internal/ask"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
-	"github.com/vitaliiPsl/crappy-ai/internal/permission/model"
+	"github.com/vitaliiPsl/crappy-ai/internal/runtime"
 	"github.com/vitaliiPsl/crappy-ai/internal/server"
 	sessiondata "github.com/vitaliiPsl/crappy-ai/internal/session"
 )
@@ -35,9 +35,9 @@ func waitForEventCmd(ch <-chan sessiondata.Event) tea.Cmd {
 	}
 }
 
-func sendCmd(ctx context.Context, srv *server.Server, sessionID string, req assistant.RunRequest) tea.Cmd {
+func sendCmd(ctx context.Context, srv *server.Server, sessionID string, req runtime.Request) tea.Cmd {
 	return func() tea.Msg {
-		if err := srv.Send(ctx, sessionID, req); err != nil {
+		if err := srv.Run(ctx, sessionID, req); err != nil {
 			return effectErrorMsg{err: err}
 		}
 
@@ -55,9 +55,9 @@ func compactCmd(ctx context.Context, srv *server.Server, sessionID string) tea.C
 	}
 }
 
-func respondPromptCmd(srv *server.Server, sessionID, toolCallID string, resp model.AskResponse) tea.Cmd {
+func respondPromptCmd(srv *server.Server, sessionID string, resp ask.Response) tea.Cmd {
 	return func() tea.Msg {
-		if err := srv.RespondPrompt(sessionID, toolCallID, resp); err != nil {
+		if err := srv.Respond(sessionID, resp); err != nil {
 			return effectErrorMsg{err: err}
 		}
 

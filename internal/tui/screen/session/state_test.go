@@ -7,8 +7,8 @@ import (
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
 
+	"github.com/vitaliiPsl/crappy-ai/internal/ask"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
-	"github.com/vitaliiPsl/crappy-ai/internal/permission/model"
 	sessiondata "github.com/vitaliiPsl/crappy-ai/internal/session"
 )
 
@@ -165,28 +165,26 @@ func TestReduce_ErrorEvent_RecordsErrorAndIdles(t *testing.T) {
 	}
 }
 
-func TestReduce_PermissionPrompt_SetsAwaiting(t *testing.T) {
-	call := kit.NewToolCall("call-1", "bash", map[string]any{"command": "rm -rf"})
-	req := model.AskRequest{Call: call, Options: []model.AskOption{{ID: model.OptionAllowOnce}}}
+func TestReduce_Ask_SetsAwaiting(t *testing.T) {
+	req := ask.Request{ID: "call-1", Title: "Allow bash?", Options: []ask.Option{{ID: "allow_once", Label: "Allow once"}}}
 
-	s := Reduce(State{Phase: PhaseRunning}, sessiondata.NewPermissionPromptEvent("sess", req))
+	s := Reduce(State{Phase: PhaseRunning}, sessiondata.NewAskEvent("sess", req))
 
 	if s.Phase != PhaseAwaitingPermission {
 		t.Fatalf("Phase = %v, want PhaseAwaitingPermission", s.Phase)
 	}
 
-	if s.Prompt == nil || s.Prompt.Call.ID != "call-1" {
+	if s.Prompt == nil || s.Prompt.ID != "call-1" {
 		t.Fatalf("Prompt = %+v, want one for call-1", s.Prompt)
 	}
 }
 
 func TestReduce_ContentDeltaAfterPrompt_ResumesRunning(t *testing.T) {
-	call := kit.NewToolCall("call-1", "bash", map[string]any{"command": "ls"})
-	req := model.AskRequest{Call: call}
+	req := ask.Request{ID: "call-1", Title: "Allow bash?"}
 
 	var s State
 
-	s = Reduce(s, sessiondata.NewPermissionPromptEvent("sess", req))
+	s = Reduce(s, sessiondata.NewAskEvent("sess", req))
 	s = Reduce(s, sessiondata.NewContentDeltaEvent("sess", kit.NewTextContent("ok")))
 
 	if s.Phase != PhaseRunning {

@@ -7,28 +7,21 @@ import (
 )
 
 func (s *Server) CreateSession(ctx context.Context, title string) (*session.Session, error) {
-	config := s.configStore.Get()
-
-	params := session.CreateParams{
-		Title: title,
-		Cwd:   config.Cwd,
-	}
-
-	return s.sessionStore.Create(ctx, params)
+	return s.runtime.CreateSession(ctx, title)
 }
 
 func (s *Server) GetSession(ctx context.Context, sessionID string) (*session.Session, error) {
-	return s.sessionStore.Get(ctx, sessionID)
+	return s.runtime.GetSession(ctx, sessionID)
 }
 
 func (s *Server) ListSessions(ctx context.Context) ([]*session.Session, error) {
-	return s.sessionStore.List(ctx)
+	return s.runtime.ListSessions(ctx)
 }
 
 func (s *Server) DeleteSession(ctx context.Context, id string) error {
-	return s.sessionStore.Delete(ctx, id)
+	return s.runtime.DeleteSession(ctx, id)
 }
 
 func (s *Server) LoadEvents(ctx context.Context, sessionID string) ([]session.Event, error) {
-	return s.sessionStore.LoadEvents(ctx, sessionID)
+	return s.runtime.LoadEvents(ctx, sessionID)
 }

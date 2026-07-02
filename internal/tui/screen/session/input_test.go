@@ -5,7 +5,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	permissionmodel "github.com/vitaliiPsl/crappy-ai/internal/permission/model"
+	"github.com/vitaliiPsl/crappy-ai/internal/ask"
 	"github.com/vitaliiPsl/crappy-ai/internal/tui/command"
 )
 
@@ -22,11 +22,11 @@ func TestUpdateRoutesPasteToInput(t *testing.T) {
 	}
 }
 
-func TestUpdateDoesNotPasteIntoInputDuringPermissionPrompt(t *testing.T) {
+func TestUpdateDoesNotPasteIntoInputDuringPrompt(t *testing.T) {
 	m := Model{
 		state: State{
 			Phase:  PhaseAwaitingPermission,
-			Prompt: &permissionmodel.AskRequest{},
+			Prompt: &ask.Request{},
 		},
 		input: newInputBar(command.NewRegistry(nil)),
 	}
@@ -34,6 +34,6 @@ func TestUpdateDoesNotPasteIntoInputDuringPermissionPrompt(t *testing.T) {
 	got, _ := m.Update(tea.PasteMsg{Content: "ignored"})
 
 	if value := got.input.input.Value(); value != "" {
-		t.Fatalf("input value = %q, want empty while permission prompt has focus", value)
+		t.Fatalf("input value = %q, want empty while prompt has focus", value)
 	}
 }

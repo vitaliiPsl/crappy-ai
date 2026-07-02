@@ -7,9 +7,9 @@ import (
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/vitaliiPsl/crappy-ai/internal/assistant"
+	"github.com/vitaliiPsl/crappy-ai/internal/ask"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
-	"github.com/vitaliiPsl/crappy-ai/internal/permission/model"
+	"github.com/vitaliiPsl/crappy-ai/internal/runtime"
 	sessiondata "github.com/vitaliiPsl/crappy-ai/internal/session"
 	"github.com/vitaliiPsl/crappy-ai/internal/tui/command"
 )
@@ -27,7 +27,7 @@ func (m Model) handleKey(key tea.KeyMsg) (Model, tea.Cmd) {
 		}
 
 		if m.state.Phase == PhaseRunning {
-			m.server.CancelRun(m.state.ID)
+			m.server.Cancel(m.state.ID)
 
 			return m, nil
 		}
@@ -79,7 +79,7 @@ func (m Model) handleKey(key tea.KeyMsg) (Model, tea.Cmd) {
 	}
 
 	switch focusForState(m.state) {
-	case FocusPermissionPrompt:
+	case FocusPrompt:
 		return m.handlePromptKey(key)
 
 	case FocusInput:
@@ -154,17 +154,16 @@ func (m Model) handlePromptKey(key tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	toolCallID := req.Call.ID
 	m.state = m.state.AnswerPrompt()
 
-	return m, respondPromptCmd(m.server, m.state.ID, toolCallID, model.AskResponse{OptionID: optionID})
+	return m, respondPromptCmd(m.server, m.state.ID, ask.Response{RequestID: req.ID, OptionID: optionID})
 }
 
 func (m Model) handleSubmit(text string) (Model, tea.Cmd) {
-	return m.handleRunRequest(assistant.RunRequest{Text: text})
+	return m.handleRunRequest(runtime.Request{Text: text})
 }
 
-func (m Model) handleRunRequest(req assistant.RunRequest) (Model, tea.Cmd) {
+func (m Model) handleRunRequest(req runtime.Request) (Model, tea.Cmd) {
 	if m.state.Phase != PhaseIdle {
 		return m, nil
 	}
@@ -197,9 +196,9 @@ func (m Model) handleRunRequest(req assistant.RunRequest) (Model, tea.Cmd) {
 }
 
 func (m Model) handleSkillSubmit(msg command.SubmitSkillMsg) (Model, tea.Cmd) {
-	return m.handleRunRequest(assistant.RunRequest{
+	return m.handleRunRequest(runtime.Request{
 		Text: msg.Text,
-		Skill: &assistant.SkillInvocation{
+		Skill: &runtime.SkillInvocation{
 			Name: msg.Name,
 			Args: msg.Args,
 		},

@@ -8,7 +8,7 @@ import (
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
 
-	"github.com/vitaliiPsl/crappy-ai/internal/assistant"
+	"github.com/vitaliiPsl/crappy-ai/internal/runtime"
 	"github.com/vitaliiPsl/crappy-ai/internal/server"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
 )
@@ -24,7 +24,7 @@ func NewTransport(srv *server.Server, prompt string) *Transport {
 	return &Transport{srv: srv, prompt: prompt}
 }
 
-func (t *Transport) Run(ctx context.Context) error {
+func (t *Transport) Start(ctx context.Context) error {
 	sess, err := t.srv.CreateSession(ctx, "cli")
 	if err != nil {
 		return fmt.Errorf("create session: %w", err)
@@ -37,7 +37,7 @@ func (t *Transport) Run(ctx context.Context) error {
 
 	defer t.srv.Unsubscribe(sess.ID, ch)
 
-	if err := t.srv.Send(ctx, sess.ID, assistant.RunRequest{Text: t.prompt}); err != nil {
+	if err := t.srv.Run(ctx, sess.ID, runtime.Request{Text: t.prompt}); err != nil {
 		return fmt.Errorf("send: %w", err)
 	}
 
@@ -59,10 +59,10 @@ func (t *Transport) Run(ctx context.Context) error {
 			fmt.Fprintf(os.Stderr, "\n[error] %s\n", ev.Error)
 
 			return nil
-		case session.EventPermissionPrompt:
-			t.srv.CancelRun(sess.ID)
+		case session.EventAsk:
+			t.srv.Cancel(sess.ID)
 
-			return permissionPromptError(ev)
+			return askPromptError(ev)
 		}
 	}
 
@@ -145,13 +145,13 @@ func truncateInline(value string) string {
 	return value[:maxToolArgLen-3] + "..."
 }
 
-func permissionPromptError(ev session.Event) error {
-	if ev.Prompt == nil {
-		return fmt.Errorf("permission required in non-interactive CLI mode; use the TUI or rerun with -mode yolo")
+func askPromptError(ev session.Event) error {
+	if ev.Ask != nil {
+		return fmt.Errorf(
+			"permission required: %s in non-interactive CLI mode; use the TUI or rerun with -mode yolo",
+			ev.Ask.Title,
+		)
 	}
 
-	return fmt.Errorf(
-		"permission required for tool %q in non-interactive CLI mode; use the TUI or rerun with -mode yolo",
-		ev.Prompt.ToolCall.Name,
-	)
+	return fmt.Errorf("permission required in non-interactive CLI mode; use the TUI or rerun with -mode yolo")
 }

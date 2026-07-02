@@ -5,6 +5,7 @@ import (
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
 
+	"github.com/vitaliiPsl/crappy-ai/internal/ask"
 	sessiondata "github.com/vitaliiPsl/crappy-ai/internal/session"
 )
 
@@ -22,8 +23,8 @@ func Reduce(s State, ev sessiondata.Event) State {
 		return reduceContentDone(s, ev.Content)
 	case sessiondata.EventMessage:
 		return reduceMessage(s, ev.Message, ev.Skill)
-	case sessiondata.EventPermissionPrompt:
-		return reducePermissionPrompt(s, ev.Prompt)
+	case sessiondata.EventAsk:
+		return reduceAsk(s, ev.Ask)
 	case sessiondata.EventTurnComplete:
 		return reduceTurnComplete(s, ev.Stats)
 	case sessiondata.EventTurnCancelled:
@@ -171,13 +172,13 @@ func reduceMessage(s State, msg *kit.Message, skill *sessiondata.SkillInvocation
 	return s
 }
 
-func reducePermissionPrompt(s State, prompt *sessiondata.PermissionPrompt) State {
-	if prompt == nil {
+func reduceAsk(s State, req *ask.Request) State {
+	if req == nil {
 		return s
 	}
 
-	req := prompt.Request
-	s.Prompt = &req
+	snapshot := *req
+	s.Prompt = &snapshot
 	s.Phase = PhaseAwaitingPermission
 
 	return s

@@ -17,7 +17,7 @@ func NewTransport(ctx context.Context, srv *server.Server) *Transport {
 	return &Transport{ctx: ctx, srv: srv}
 }
 
-func (t *Transport) Run(_ context.Context) error {
+func (t *Transport) Start(_ context.Context) error {
 	_, err := tea.NewProgram(New(t.ctx, t.srv)).Run()
 
 	return err
