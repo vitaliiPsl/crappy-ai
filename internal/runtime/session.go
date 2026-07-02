@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sync"
 
+	adk "github.com/vitaliiPsl/crappy-adk/agent"
 	"github.com/vitaliiPsl/crappy-adk/kit"
 
 	appagent "github.com/vitaliiPsl/crappy-ai/internal/agent"
@@ -78,10 +79,14 @@ func (s *Session) Subscribe() *eventbus.Subscription[session.Event] {
 	return s.events.Subscribe()
 }
 
-func (s *Session) Send(ctx context.Context, req Request) error {
+func (s *Session) Run(ctx context.Context, req Request) error {
 	return s.start(ctx, func(turnCtx context.Context) error {
 		return s.run(turnCtx, req)
 	})
+}
+
+func (s *Session) RunSubagent(ctx context.Context, req SubagentRequest) (SubagentResult, error) {
+	return s.runSubagent(ctx, req)
 }
 
 func (s *Session) Compact(ctx context.Context) error {
@@ -132,22 +137,7 @@ func (s *Session) run(ctx context.Context, req Request) error {
 		return s.fail(fmt.Errorf("build model: %w", err))
 	}
 
-	ag, err := appagent.Build(ctx, appagent.Request{
-		SessionID:  s.id,
-		Config:     cfg,
-		Model:      model,
-		Memory:     mem,
-		Asker:      s,
-		Background: s.backgroundManager,
-	},
-		coreContributor{},
-		permissionsContributor{s.permissions},
-		compactionContributor{},
-		bgext.New(s.backgroundManager),
-		skillsext.New(s.skillRegistry),
-		planningext.New(s.sessionStore),
-		mcpext.New(s.mcpManager),
-	)
+	ag, err := s.buildAgent(ctx, s.id, cfg, model, mem)
 	if err != nil {
 		return s.fail(err)
 	}
@@ -204,10 +194,8 @@ func (s *Session) fail(err error) error {
 
 func (s *Session) finish(ctx context.Context, modelConfig kit.ModelConfig, usage, lastUsage kit.Usage) {
 	total := usage
-	if sess, err := s.sessionStore.Get(ctx, s.id); err == nil {
-		sess.Usage.Add(usage)
-		_ = s.sessionStore.Save(ctx, sess)
-		total = sess.Usage
+	if updated, ok := s.recordUsage(ctx, s.id, usage); ok {
+		total = updated
 	}
 
 	s.events.Publish(session.NewTurnCompleteEvent(s.id, session.TurnStats{
@@ -215,6 +203,44 @@ func (s *Session) finish(ctx context.Context, modelConfig kit.ModelConfig, usage
 		ContextUsed:   lastUsage.InputTokens,
 		ContextWindow: int64(modelConfig.InputLimit),
 	}))
+}
+
+func (s *Session) recordUsage(ctx context.Context, id string, usage kit.Usage) (kit.Usage, bool) {
+	sess, err := s.sessionStore.Get(ctx, id)
+	if err != nil {
+		return kit.Usage{}, false
+	}
+
+	sess.Usage.Add(usage)
+	_ = s.sessionStore.Save(ctx, sess)
+
+	return sess.Usage, true
+}
+
+func (s *Session) buildAgent(ctx context.Context, sessionID string, cfg config.Config, model kit.Model, mem kit.Memory) (*adk.Agent, error) {
+	return appagent.Build(ctx, appagent.Request{
+		SessionID: sessionID,
+		Config:    cfg,
+		Model:     model,
+		Memory:    mem,
+		Asker:     s,
+	},
+		coreContributor{
+			background: s.backgroundManager,
+		},
+		permissionsContributor{
+			s.permissions,
+		},
+		compactionContributor{},
+		subagentsContributor{
+			session:    s,
+			background: s.backgroundManager,
+		},
+		bgext.New(s.backgroundManager),
+		skillsext.New(s.skillRegistry),
+		planningext.New(s.sessionStore),
+		mcpext.New(s.mcpManager),
+	)
 }
 
 func (s *Session) clearCancel() {

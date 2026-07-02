@@ -20,10 +20,12 @@ const (
 	toolLoopWindow     = 5
 )
 
-type coreContributor struct{}
+type coreContributor struct {
+	background *background.Manager
+}
 
-func (coreContributor) Contribute(_ context.Context, req appagent.Request) (appagent.Contribution, error) {
-	tools, err := coreTools(req)
+func (c coreContributor) Contribute(_ context.Context, req appagent.Request) (appagent.Contribution, error) {
+	tools, err := c.tools(req)
 	if err != nil {
 		return appagent.Contribution{}, err
 	}
@@ -78,10 +80,10 @@ func guardOptions() []adk.Option {
 	}
 }
 
-func coreTools(req appagent.Request) ([]kit.Tool, error) {
+func (c coreContributor) tools(req appagent.Request) ([]kit.Tool, error) {
 	bashTool := bash.NewBash()
-	if req.Background != nil {
-		wrapped, err := background.Wrap(bashTool, req.Background.ForSession(req.SessionID))
+	if c.background != nil {
+		wrapped, err := background.Wrap(bashTool, c.background.ForSession(req.SessionID))
 		if err != nil {
 			return nil, err
 		}

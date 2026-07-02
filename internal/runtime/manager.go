@@ -85,15 +85,19 @@ func (m *Manager) Subscribe(ctx context.Context, sessionID string) (*eventbus.Su
 	return m.getOrCreate(sessionID).Subscribe(), nil
 }
 
-func (m *Manager) Send(ctx context.Context, sessionID string, req Request) error {
-	return m.getOrCreate(sessionID).Send(ctx, req)
+func (m *Manager) Run(ctx context.Context, sessionID string, req Request) error {
+	return m.getOrCreate(sessionID).Run(ctx, req)
+}
+
+func (m *Manager) RunSubagent(ctx context.Context, sessionID string, req SubagentRequest) (SubagentResult, error) {
+	return m.getOrCreate(sessionID).RunSubagent(ctx, req)
 }
 
 func (m *Manager) Compact(ctx context.Context, sessionID string) error {
 	return m.getOrCreate(sessionID).Compact(ctx)
 }
 
-func (m *Manager) CancelRun(sessionID string) {
+func (m *Manager) Cancel(sessionID string) {
 	if session, ok := m.get(sessionID); ok {
 		session.Cancel()
 	}

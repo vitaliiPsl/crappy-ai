@@ -1,5 +1,11 @@
 package runtime
 
 type Request struct {
-	Text string
+	Text  string
+	Skill *SkillInvocation
+}
+
+type SkillInvocation struct {
+	Name string
+	Args []string
 }

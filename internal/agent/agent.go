@@ -8,7 +8,6 @@ import (
 	xtool "github.com/vitaliiPsl/crappy-adk/x/tool"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/ask"
-	"github.com/vitaliiPsl/crappy-ai/internal/background"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 )
 
@@ -19,8 +18,6 @@ type Request struct {
 	Model  kit.Model
 	Memory kit.Memory
 	Asker  ask.Asker
-
-	Background *background.Manager
 }
 
 type Contribution struct {
