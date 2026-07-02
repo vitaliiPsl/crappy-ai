@@ -9,27 +9,20 @@ import (
 	"github.com/vitaliiPsl/crappy-adk/kit"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/ask"
-	"github.com/vitaliiPsl/crappy-ai/internal/permission/model"
 )
 
 type EventType string
 
 const (
-	EventContentStarted   EventType = "content_started"
-	EventContentDelta     EventType = "content_delta"
-	EventContentDone      EventType = "content_done"
-	EventMessage          EventType = "message"
-	EventError            EventType = "error"
-	EventTurnComplete     EventType = "turn_complete"
-	EventTurnCancelled    EventType = "turn_cancelled"
-	EventPermissionPrompt EventType = "permission_prompt"
-	EventAsk              EventType = "ask"
+	EventContentStarted EventType = "content_started"
+	EventContentDelta   EventType = "content_delta"
+	EventContentDone    EventType = "content_done"
+	EventMessage        EventType = "message"
+	EventError          EventType = "error"
+	EventTurnComplete   EventType = "turn_complete"
+	EventTurnCancelled  EventType = "turn_cancelled"
+	EventAsk            EventType = "ask"
 )
-
-type PermissionPrompt struct {
-	ToolCall kit.ToolCall     `json:"tool_call"`
-	Request  model.AskRequest `json:"request"`
-}
 
 type SkillInvocation struct {
 	Name string   `json:"name"`
@@ -61,10 +54,9 @@ type Event struct {
 
 	Error string `json:"error,omitempty"`
 
-	Stats  *TurnStats        `json:"stats,omitempty"`
-	Prompt *PermissionPrompt `json:"prompt,omitempty"`
-	Skill  *SkillInvocation  `json:"skill,omitempty"`
-	Ask    *ask.Request      `json:"ask,omitempty"`
+	Stats *TurnStats       `json:"stats,omitempty"`
+	Skill *SkillInvocation `json:"skill,omitempty"`
+	Ask   *ask.Request     `json:"ask,omitempty"`
 }
 
 func newEvent(sessionID string, t EventType) Event {
@@ -127,13 +119,6 @@ func NewTurnCompleteEvent(sessionID string, stats TurnStats) Event {
 
 func NewTurnCancelledEvent(sessionID string) Event {
 	return newEvent(sessionID, EventTurnCancelled)
-}
-
-func NewPermissionPromptEvent(sessionID string, request model.AskRequest) Event {
-	e := newEvent(sessionID, EventPermissionPrompt)
-	e.Prompt = &PermissionPrompt{ToolCall: request.Call, Request: request}
-
-	return e
 }
 
 func NewAskEvent(sessionID string, request ask.Request) Event {

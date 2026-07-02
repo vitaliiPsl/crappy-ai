@@ -8,7 +8,7 @@ import (
 	"github.com/vitaliiPsl/crappy-adk/x/guard"
 
 	appagent "github.com/vitaliiPsl/crappy-ai/internal/agent"
-	"github.com/vitaliiPsl/crappy-ai/internal/assistant/instructions"
+	"github.com/vitaliiPsl/crappy-ai/internal/agent/instructions"
 	"github.com/vitaliiPsl/crappy-ai/internal/background"
 	"github.com/vitaliiPsl/crappy-ai/internal/tools/bash"
 	filesystem "github.com/vitaliiPsl/crappy-ai/internal/tools/fs"

@@ -39,8 +39,8 @@ func TestResolveURLAllowsMatchingRule(t *testing.T) {
 		t.Fatalf("Resolve decision = %q, want %q", got.Decision, model.Allow)
 	}
 
-	if got.AskRequest != nil {
-		t.Fatalf("AskRequest = %+v, want nil", got.AskRequest)
+	if got.Prompt != nil {
+		t.Fatalf("Prompt = %+v, want nil", got.Prompt)
 	}
 }
 
@@ -58,23 +58,23 @@ func TestResolveURLAskRuleIncludesOptions(t *testing.T) {
 		t.Fatalf("Resolve decision = %q, want %q", got.Decision, model.Ask)
 	}
 
-	if got.AskRequest == nil {
-		t.Fatal("AskRequest = nil, want ask request")
+	if got.Prompt == nil {
+		t.Fatal("Prompt = nil, want prompt")
 	}
 
-	if got.AskRequest.Input != rawURL {
-		t.Fatalf("AskRequest input = %q, want %q", got.AskRequest.Input, rawURL)
+	if got.Prompt.Input != rawURL {
+		t.Fatalf("Prompt input = %q, want %q", got.Prompt.Input, rawURL)
 	}
 
-	exact := optionRule(t, *got.AskRequest, model.OptionAllowExact)
+	exact := optionRule(t, *got.Prompt, model.OptionAllowExact)
 	if exact != (model.Rule{Tool: ToolWebFetch, Pattern: "url:" + rawURL}) {
 		t.Fatalf("exact rule = %+v, want exact web_fetch URL", exact)
 	}
 }
 
-func TestURLAskRequestOptions(t *testing.T) {
+func TestURLPromptOptions(t *testing.T) {
 	rawURL := "https://docs.example.com/guide?x=1"
-	request := askRequest(t, webFetchCall(rawURL))
+	request := prompt(t, webFetchCall(rawURL))
 
 	exact := optionRule(t, request, model.OptionAllowExact)
 	if exact != (model.Rule{Tool: ToolWebFetch, Pattern: "url:" + rawURL}) {
@@ -87,8 +87,8 @@ func TestURLAskRequestOptions(t *testing.T) {
 	}
 }
 
-func TestURLAskRequestOptionsNormalizeDomain(t *testing.T) {
-	request := askRequest(t, webFetchCall("https://DOCS.Example.COM:443/guide"))
+func TestURLPromptOptionsNormalizeDomain(t *testing.T) {
+	request := prompt(t, webFetchCall("https://DOCS.Example.COM:443/guide"))
 
 	pattern := optionRule(t, request, model.OptionAllowPattern)
 	if pattern != (model.Rule{Tool: ToolWebFetch, Pattern: "domain:docs.example.com"}) {
@@ -96,8 +96,8 @@ func TestURLAskRequestOptionsNormalizeDomain(t *testing.T) {
 	}
 }
 
-func TestURLAskRequestInvalidURLHasOnlyOnceOptions(t *testing.T) {
-	request := askRequest(t, webFetchCall("not a url"))
+func TestURLPromptInvalidURLHasOnlyOnceOptions(t *testing.T) {
+	request := prompt(t, webFetchCall("not a url"))
 
 	if len(request.Options) != 2 {
 		t.Fatalf("options = %#v, want allow once and deny only", request.Options)

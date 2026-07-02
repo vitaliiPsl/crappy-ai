@@ -67,12 +67,12 @@ func (bashStrategy) Resolve(permissions model.Permissions, call kit.ToolCall) mo
 	return resolveResult(permissions.Default, call, input, options)
 }
 
-func bashOptions(tool, command string, parts []string, hasSubstitution bool) []model.AskOption {
+func bashOptions(tool, command string, parts []string, hasSubstitution bool) []model.Option {
 	if command == "" {
 		return nil
 	}
 
-	options := []model.AskOption{
+	options := []model.Option{
 		{
 			ID:       model.OptionAllowExact,
 			Label:    "Allow exact command",
@@ -84,7 +84,7 @@ func bashOptions(tool, command string, parts []string, hasSubstitution bool) []m
 
 	if !hasSubstitution {
 		if pattern, ok := bashCommandPattern(command, parts); ok {
-			options = append(options, model.AskOption{
+			options = append(options, model.Option{
 				ID:       model.OptionAllowPattern,
 				Label:    "Allow command pattern",
 				Decision: model.Allow,

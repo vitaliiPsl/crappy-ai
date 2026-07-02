@@ -35,6 +35,7 @@ func NewManager(
 	modelRegistry *models.Registry,
 	skillRegistry *skills.Registry,
 	mcpManager *mcp.Manager,
+	backgroundManager *background.Manager,
 ) *Manager {
 	return &Manager{
 		live:              make(map[string]*Session),
@@ -44,13 +45,21 @@ func NewManager(
 		modelRegistry:     modelRegistry,
 		skillRegistry:     skillRegistry,
 		mcpManager:        mcpManager,
-		backgroundManager: background.NewManager(context.Background()),
+		backgroundManager: backgroundManager,
 	}
 }
 
 func (m *Manager) Close() {
-	if m.backgroundManager != nil {
-		m.backgroundManager.Close()
+	m.mu.Lock()
+
+	sessions := make([]*Session, 0, len(m.live))
+	for _, session := range m.live {
+		sessions = append(sessions, session)
+	}
+	m.mu.Unlock()
+
+	for _, session := range sessions {
+		session.Cancel()
 	}
 }
 

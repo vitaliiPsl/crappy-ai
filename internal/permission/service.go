@@ -15,17 +15,11 @@ import (
 
 var ErrDenied = errors.New("permission denied")
 
-type Handler interface {
-	Ask(ctx context.Context, sessionID string, request model.AskRequest) (model.AskResponse, error)
-}
-
 type Context struct {
-	SessionID   string
 	Mode        config.Mode
 	Permissions model.Permissions
 
-	Asker   ask.Asker
-	Handler Handler
+	Asker ask.Asker
 }
 
 type Service struct {
@@ -55,17 +49,17 @@ func (s *Service) authorizeDefault(ctx context.Context, auth Context, call kit.T
 	case model.Deny:
 		return fmt.Errorf("denied by permission rules: %w", ErrDenied)
 	case model.Ask:
-		if result.AskRequest == nil {
-			return fmt.Errorf("permission ask decision missing ask request")
+		if result.Prompt == nil {
+			return fmt.Errorf("permission ask decision missing prompt")
 		}
 
-		return s.ask(ctx, auth, *result.AskRequest)
+		return s.ask(ctx, auth, *result.Prompt)
 	default:
 		return fmt.Errorf("invalid permission decision %q", result.Decision)
 	}
 }
 
-func (s *Service) ask(ctx context.Context, auth Context, request model.AskRequest) error {
+func (s *Service) ask(ctx context.Context, auth Context, request model.Prompt) error {
 	optionID, err := s.prompt(ctx, auth, request)
 	if err != nil {
 		return err
@@ -89,25 +83,17 @@ func (s *Service) ask(ctx context.Context, auth Context, request model.AskReques
 	return nil
 }
 
-func (s *Service) prompt(ctx context.Context, auth Context, request model.AskRequest) (string, error) {
-	switch {
-	case auth.Asker != nil:
-		resp, err := auth.Asker.Ask(ctx, toAskRequest(request))
-		if err != nil {
-			return "", err
-		}
-
-		return resp.OptionID, nil
-	case auth.Handler != nil:
-		resp, err := auth.Handler.Ask(ctx, auth.SessionID, request)
-		if err != nil {
-			return "", err
-		}
-
-		return resp.OptionID, nil
-	default:
+func (s *Service) prompt(ctx context.Context, auth Context, request model.Prompt) (string, error) {
+	if auth.Asker == nil {
 		return "", fmt.Errorf("tool %q requires permission but the run cannot prompt: %w", request.Call.Name, ErrDenied)
 	}
+
+	resp, err := auth.Asker.Ask(ctx, request.Request)
+	if err != nil {
+		return "", err
+	}
+
+	return resp.OptionID, nil
 }
 
 func (s *Service) save(decision model.Decision, rule model.Rule) error {
@@ -119,18 +105,4 @@ func (s *Service) save(decision model.Decision, rule model.Rule) error {
 	}
 
 	return nil
-}
-
-func toAskRequest(request model.AskRequest) ask.Request {
-	options := make([]ask.Option, len(request.Options))
-	for i, o := range request.Options {
-		options[i] = ask.Option{ID: o.ID, Label: o.Label}
-	}
-
-	return ask.Request{
-		ID:      request.Call.ID,
-		Title:   fmt.Sprintf("Allow %s?", request.Call.Name),
-		Detail:  request.Input,
-		Options: options,
-	}
 }

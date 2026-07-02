@@ -31,7 +31,7 @@ func (urlStrategy) Resolve(permissions model.Permissions, call kit.ToolCall) mod
 	return resolveResult(permissions.Default, call, input, options)
 }
 
-func urlOptions(tool, input string) []model.AskOption {
+func urlOptions(tool, input string) []model.Option {
 	u, err := url.Parse(input)
 	if err != nil || u.Host == "" {
 		return nil
@@ -44,7 +44,7 @@ func urlOptions(tool, input string) []model.AskOption {
 
 	input = strings.TrimSpace(input)
 
-	return []model.AskOption{
+	return []model.Option{
 		{
 			ID:       model.OptionAllowExact,
 			Label:    "Allow exact URL",

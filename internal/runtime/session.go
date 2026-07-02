@@ -234,6 +234,7 @@ func (s *Session) buildAgentInput(req Request) (kit.Message, session.Event, erro
 	}
 
 	msg := kit.NewUserMessage(kit.NewTextContent(text))
+
 	event := session.NewMessageEvent(s.id, msg)
 	if req.Skill != nil {
 		event = session.NewSkillMessageEvent(s.id, msg, session.SkillInvocation{

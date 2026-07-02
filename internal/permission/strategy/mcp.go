@@ -53,8 +53,8 @@ func matchToolName(pattern, tool string) bool {
 	return glob.Match(pattern, tool)
 }
 
-func mcpOptions(tool string) []model.AskOption {
-	options := []model.AskOption{
+func mcpOptions(tool string) []model.Option {
+	options := []model.Option{
 		{
 			ID:       model.OptionAllowExact,
 			Label:    "Allow this tool",
@@ -65,7 +65,7 @@ func mcpOptions(tool string) []model.AskOption {
 	}
 
 	if server, ok := mcpServer(tool); ok {
-		options = append(options, model.AskOption{
+		options = append(options, model.Option{
 			ID:       model.OptionAllowPattern,
 			Label:    fmt.Sprintf("Allow all tools from %s", server),
 			Decision: model.Allow,

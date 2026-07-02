@@ -7,7 +7,6 @@ import (
 	"github.com/vitaliiPsl/crappy-adk/kit"
 
 	appagent "github.com/vitaliiPsl/crappy-ai/internal/agent"
-	"github.com/vitaliiPsl/crappy-ai/internal/assistant/factory"
 	coreskills "github.com/vitaliiPsl/crappy-ai/internal/skills"
 )
 
@@ -33,25 +32,19 @@ type ext struct {
 }
 
 type Extension interface {
-	factory.Extension
 	appagent.Contributor
 }
 
-var _ factory.Extension = (*ext)(nil)
 var _ appagent.Contributor = (*ext)(nil)
 
 func New(registry *coreskills.Registry) Extension {
-	return &ext{registry: registry}
+	return &ext{
+		registry: registry,
+	}
 }
 
 func (e *ext) Name() string {
 	return "skills"
-}
-
-func (e *ext) Options(context.Context, factory.BuildRequest) ([]kit.Tool, []adk.Option, error) {
-	c := e.contribution()
-
-	return c.Tools, c.Options, nil
 }
 
 func (e *ext) Contribute(context.Context, appagent.Request) (appagent.Contribution, error) {
@@ -59,10 +52,6 @@ func (e *ext) Contribute(context.Context, appagent.Request) (appagent.Contributi
 }
 
 func (e *ext) contribution() appagent.Contribution {
-	if e.registry == nil {
-		return appagent.Contribution{}
-	}
-
 	listing := coreskills.FormatListing(e.registry.GetSkills())
 	if listing == "" {
 		return appagent.Contribution{}

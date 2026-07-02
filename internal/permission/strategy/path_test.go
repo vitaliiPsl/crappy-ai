@@ -43,8 +43,8 @@ func TestResolvePathAllowsMatchingRule(t *testing.T) {
 		t.Fatalf("Resolve decision = %q, want %q", got.Decision, model.Allow)
 	}
 
-	if got.AskRequest != nil {
-		t.Fatalf("AskRequest = %+v, want nil", got.AskRequest)
+	if got.Prompt != nil {
+		t.Fatalf("Prompt = %+v, want nil", got.Prompt)
 	}
 }
 
@@ -64,23 +64,23 @@ func TestResolvePathAskRuleIncludesOptions(t *testing.T) {
 		t.Fatalf("Resolve decision = %q, want %q", got.Decision, model.Ask)
 	}
 
-	if got.AskRequest == nil {
-		t.Fatal("AskRequest = nil, want ask request")
+	if got.Prompt == nil {
+		t.Fatal("Prompt = nil, want prompt")
 	}
 
-	if got.AskRequest.Input != path {
-		t.Fatalf("AskRequest input = %q, want %q", got.AskRequest.Input, path)
+	if got.Prompt.Input != path {
+		t.Fatalf("Prompt input = %q, want %q", got.Prompt.Input, path)
 	}
 
-	exact := optionRule(t, *got.AskRequest, model.OptionAllowExact)
+	exact := optionRule(t, *got.Prompt, model.OptionAllowExact)
 	if exact != (model.Rule{Tool: ToolReadFile, Pattern: permissionPath(path)}) {
 		t.Fatalf("exact rule = %+v, want exact read_file path", exact)
 	}
 }
 
-func TestPathAskRequestFileOptions(t *testing.T) {
+func TestPathPromptFileOptions(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "docs", "guide.md")
-	request := askRequest(t, kit.NewToolCall("call_1", ToolReadFile, map[string]any{inputPath: path}))
+	request := prompt(t, kit.NewToolCall("call_1", ToolReadFile, map[string]any{inputPath: path}))
 
 	exact := optionRule(t, request, model.OptionAllowExact)
 	if exact != (model.Rule{Tool: ToolReadFile, Pattern: permissionPath(path)}) {
@@ -95,9 +95,9 @@ func TestPathAskRequestFileOptions(t *testing.T) {
 	}
 }
 
-func TestPathAskRequestListPatternUsesListedDirectory(t *testing.T) {
+func TestPathPromptListPatternUsesListedDirectory(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "docs")
-	request := askRequest(t, kit.NewToolCall("call_1", ToolList, map[string]any{inputPath: path}))
+	request := prompt(t, kit.NewToolCall("call_1", ToolList, map[string]any{inputPath: path}))
 
 	exact := optionRule(t, request, model.OptionAllowExact)
 	if exact != (model.Rule{Tool: ToolList, Pattern: permissionPath(path)}) {

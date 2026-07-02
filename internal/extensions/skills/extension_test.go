@@ -13,7 +13,7 @@ import (
 	xmemory "github.com/vitaliiPsl/crappy-adk/x/memory"
 	xtool "github.com/vitaliiPsl/crappy-adk/x/tool"
 
-	"github.com/vitaliiPsl/crappy-ai/internal/assistant/factory"
+	appagent "github.com/vitaliiPsl/crappy-ai/internal/agent"
 	coreskills "github.com/vitaliiPsl/crappy-ai/internal/skills"
 	"github.com/vitaliiPsl/crappy-ai/internal/skills/skillstest"
 )
@@ -77,12 +77,12 @@ func TestExtensionAddsMetadataListingAndTool(t *testing.T) {
 
 	ext := New(registry)
 
-	tools, options, err := ext.Options(context.Background(), factory.BuildRequest{})
+	contribution, err := ext.Contribute(context.Background(), appagent.Request{})
 	if err != nil {
-		t.Fatalf("Options: %v", err)
+		t.Fatalf("Contribute: %v", err)
 	}
 
-	ag, err := agent.New(model, xmemory.NewHistory(), xtool.NewSet(tools...), options...)
+	ag, err := agent.New(model, xmemory.NewHistory(), xtool.NewSet(contribution.Tools...), contribution.Options...)
 	if err != nil {
 		t.Fatalf("New agent: %v", err)
 	}

@@ -7,7 +7,6 @@ import (
 	"github.com/vitaliiPsl/crappy-adk/kit"
 
 	appagent "github.com/vitaliiPsl/crappy-ai/internal/agent"
-	"github.com/vitaliiPsl/crappy-ai/internal/assistant/factory"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
 )
 
@@ -35,25 +34,19 @@ type ext struct {
 }
 
 type Extension interface {
-	factory.Extension
 	appagent.Contributor
 }
 
-var _ factory.Extension = (*ext)(nil)
 var _ appagent.Contributor = (*ext)(nil)
 
 func New(store session.ArtifactStore) Extension {
-	return &ext{store: store}
+	return &ext{
+		store: store,
+	}
 }
 
 func (e *ext) Name() string {
 	return "planning"
-}
-
-func (e *ext) Options(_ context.Context, req factory.BuildRequest) ([]kit.Tool, []adk.Option, error) {
-	c := e.contribution(req.SessionID)
-
-	return c.Tools, c.Options, nil
 }
 
 func (e *ext) Contribute(_ context.Context, req appagent.Request) (appagent.Contribution, error) {
@@ -61,10 +54,6 @@ func (e *ext) Contribute(_ context.Context, req appagent.Request) (appagent.Cont
 }
 
 func (e *ext) contribution(sessionID string) appagent.Contribution {
-	if e.store == nil {
-		return appagent.Contribution{}
-	}
-
 	t := newTool(sessionID, e.store)
 
 	options := []adk.Option{

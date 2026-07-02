@@ -1,6 +1,12 @@
 package model
 
-import "github.com/vitaliiPsl/crappy-adk/kit"
+import (
+	"fmt"
+
+	"github.com/vitaliiPsl/crappy-adk/kit"
+
+	"github.com/vitaliiPsl/crappy-ai/internal/ask"
+)
 
 const (
 	OptionAllowOnce    = "allow_once"
@@ -9,13 +15,14 @@ const (
 	OptionDenyOnce     = "deny_once"
 )
 
-type AskRequest struct {
-	Call    kit.ToolCall `json:"call"`
-	Input   string       `json:"input,omitempty"`
-	Options []AskOption  `json:"options"`
+type Prompt struct {
+	Call    kit.ToolCall
+	Input   string
+	Request ask.Request
+	Options []Option
 }
 
-type AskOption struct {
+type Option struct {
 	ID       string   `json:"id"`
 	Label    string   `json:"label"`
 	Decision Decision `json:"decision"`
@@ -23,34 +30,31 @@ type AskOption struct {
 	Rule     *Rule    `json:"rule,omitempty"`
 }
 
-type AskResponse struct {
-	OptionID string `json:"option_id"`
-}
-
-func NewAskRequest(call kit.ToolCall, input string, suggested []AskOption) AskRequest {
-	options := []AskOption{allowOnceOption()}
+func NewPrompt(call kit.ToolCall, input string, suggested []Option) Prompt {
+	options := []Option{allowOnceOption()}
 	options = append(options, suggested...)
 	options = append(options, denyOnceOption())
 
-	return AskRequest{
+	return Prompt{
 		Call:    call,
 		Input:   input,
+		Request: ask.Request{ID: call.ID, Title: fmt.Sprintf("Allow %s?", call.Name), Detail: input, Options: askOptions(options)},
 		Options: options,
 	}
 }
 
-func (r AskRequest) Option(id string) (AskOption, bool) {
+func (r Prompt) Option(id string) (Option, bool) {
 	for _, option := range r.Options {
 		if option.ID == id {
 			return option, true
 		}
 	}
 
-	return AskOption{}, false
+	return Option{}, false
 }
 
-func allowOnceOption() AskOption {
-	return AskOption{
+func allowOnceOption() Option {
+	return Option{
 		ID:       OptionAllowOnce,
 		Label:    "Allow once",
 		Decision: Allow,
@@ -58,11 +62,20 @@ func allowOnceOption() AskOption {
 	}
 }
 
-func denyOnceOption() AskOption {
-	return AskOption{
+func denyOnceOption() Option {
+	return Option{
 		ID:       OptionDenyOnce,
 		Label:    "Deny",
 		Decision: Deny,
 		Scope:    ScopeOnce,
 	}
+}
+
+func askOptions(options []Option) []ask.Option {
+	out := make([]ask.Option, len(options))
+	for i, option := range options {
+		out[i] = ask.Option{ID: option.ID, Label: option.Label}
+	}
+
+	return out
 }

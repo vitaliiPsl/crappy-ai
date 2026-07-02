@@ -93,15 +93,15 @@ func ruleMatches(rule model.Rule, tool, input string, match func(pattern, input 
 	return match(rule.Pattern, input)
 }
 
-func resolveResult(decision model.Decision, call kit.ToolCall, input string, options []model.AskOption) model.ResolveResult {
+func resolveResult(decision model.Decision, call kit.ToolCall, input string, options []model.Option) model.ResolveResult {
 	if decision != model.Ask {
 		return model.ResolveResult{Decision: decision}
 	}
 
-	request := model.NewAskRequest(call, input, options)
+	request := model.NewPrompt(call, input, options)
 
 	return model.ResolveResult{
-		Decision:   decision,
-		AskRequest: &request,
+		Decision: decision,
+		Prompt:   &request,
 	}
 }

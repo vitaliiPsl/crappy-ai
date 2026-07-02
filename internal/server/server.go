@@ -26,8 +26,8 @@ type Server struct {
 	configStore    *config.Store
 	modelsRegistry *models.Registry
 	skillRegistry  *skills.Registry
-	background     *background.Manager
 	mcpManager     *mcp.Manager
+	background     *background.Manager
 
 	mu            sync.Mutex
 	subscriptions map[<-chan session.Event]func()
@@ -40,20 +40,16 @@ func New(
 	modelsRegistry *models.Registry,
 	skillRegistry *skills.Registry,
 	mcpManager *mcp.Manager,
+	backgroundManager *background.Manager,
 ) *Server {
-	var bg *background.Manager
-	if runtimeManager != nil {
-		bg = runtimeManager.Background()
-	}
-
 	return &Server{
 		runtime:        runtimeManager,
 		settingsStore:  settingsStore,
 		configStore:    configStore,
 		modelsRegistry: modelsRegistry,
 		skillRegistry:  skillRegistry,
-		background:     bg,
 		mcpManager:     mcpManager,
+		background:     backgroundManager,
 		subscriptions:  make(map[<-chan session.Event]func()),
 	}
 }

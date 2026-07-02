@@ -69,7 +69,7 @@ func TestResolveMCPMatchesAllMCPTools(t *testing.T) {
 }
 
 func TestResolveMCPAskOffersToolAndServerOptions(t *testing.T) {
-	request := askRequest(t, mcpCall("mcp__github__search"))
+	request := prompt(t, mcpCall("mcp__github__search"))
 
 	if rule := optionRule(t, request, model.OptionAllowExact); rule.Tool != "mcp__github__search" {
 		t.Fatalf("allow-exact rule tool = %q, want mcp__github__search", rule.Tool)

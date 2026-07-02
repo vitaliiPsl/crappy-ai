@@ -1,6 +1,6 @@
 package model
 
 type ResolveResult struct {
-	Decision   Decision
-	AskRequest *AskRequest
+	Decision Decision
+	Prompt   *Prompt
 }

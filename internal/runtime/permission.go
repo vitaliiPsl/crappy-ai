@@ -23,7 +23,6 @@ func (c permissionsContributor) Contribute(_ context.Context, req appagent.Reque
 	}
 
 	auth := permission.Context{
-		SessionID:   req.SessionID,
 		Mode:        req.Config.Mode,
 		Permissions: req.Config.Permissions,
 		Asker:       req.Asker,

@@ -202,8 +202,8 @@ func TestBashCommandPattern(t *testing.T) {
 	}
 }
 
-func TestAskRequestBashRules(t *testing.T) {
-	request := askRequest(t, bashCall("go test ./..."))
+func TestPromptBashRules(t *testing.T) {
+	request := prompt(t, bashCall("go test ./..."))
 
 	exact := optionRule(t, request, model.OptionAllowExact)
 	if exact != (model.Rule{Tool: ToolBash, Pattern: "go test ./..."}) {
@@ -216,16 +216,16 @@ func TestAskRequestBashRules(t *testing.T) {
 	}
 }
 
-func TestAskRequestBashCompoundDoesNotSuggestPattern(t *testing.T) {
-	request := askRequest(t, bashCall("go test ./... && go vet ./..."))
+func TestPromptBashCompoundDoesNotSuggestPattern(t *testing.T) {
+	request := prompt(t, bashCall("go test ./... && go vet ./..."))
 
 	if _, ok := request.Option(model.OptionAllowPattern); ok {
 		t.Fatalf("compound bash request unexpectedly has pattern option: %#v", request.Options)
 	}
 }
 
-func TestAskRequestBashSubstitutionDoesNotSuggestPattern(t *testing.T) {
-	request := askRequest(t, bashCall("go test $(pwd)"))
+func TestPromptBashSubstitutionDoesNotSuggestPattern(t *testing.T) {
+	request := prompt(t, bashCall("go test $(pwd)"))
 
 	if _, ok := request.Option(model.OptionAllowPattern); ok {
 		t.Fatalf("bash request with substitution unexpectedly has pattern option: %#v", request.Options)

@@ -8,18 +8,18 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/permission/model"
 )
 
-func askRequest(t *testing.T, call kit.ToolCall) model.AskRequest {
+func prompt(t *testing.T, call kit.ToolCall) model.Prompt {
 	t.Helper()
 
 	result := Resolve(model.Permissions{Default: model.Ask}, call)
-	if result.AskRequest == nil {
-		t.Fatalf("AskRequest = nil, want permission ask request")
+	if result.Prompt == nil {
+		t.Fatalf("Prompt = nil, want permission prompt")
 	}
 
-	return *result.AskRequest
+	return *result.Prompt
 }
 
-func optionRule(t *testing.T, request model.AskRequest, id string) model.Rule {
+func optionRule(t *testing.T, request model.Prompt, id string) model.Rule {
 	t.Helper()
 
 	option, ok := request.Option(id)

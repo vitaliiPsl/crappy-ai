@@ -7,27 +7,18 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/vitaliiPsl/crappy-ai/internal/assistant"
-	"github.com/vitaliiPsl/crappy-ai/internal/assistant/factory"
 	"github.com/vitaliiPsl/crappy-ai/internal/background"
 	"github.com/vitaliiPsl/crappy-ai/internal/cli"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/mcp"
 	oauthstore "github.com/vitaliiPsl/crappy-ai/internal/mcp/oauth/store"
 	"github.com/vitaliiPsl/crappy-ai/internal/models"
-	"github.com/vitaliiPsl/crappy-ai/internal/permission"
+	"github.com/vitaliiPsl/crappy-ai/internal/runtime"
 	"github.com/vitaliiPsl/crappy-ai/internal/server"
 	sessionstore "github.com/vitaliiPsl/crappy-ai/internal/session/store"
 	"github.com/vitaliiPsl/crappy-ai/internal/settings"
 	"github.com/vitaliiPsl/crappy-ai/internal/skills"
 	"github.com/vitaliiPsl/crappy-ai/internal/tui"
-
-	bgext "github.com/vitaliiPsl/crappy-ai/internal/extensions/background"
-	mcpext "github.com/vitaliiPsl/crappy-ai/internal/extensions/mcp"
-	"github.com/vitaliiPsl/crappy-ai/internal/extensions/planning"
-	skillsext "github.com/vitaliiPsl/crappy-ai/internal/extensions/skills"
-	"github.com/vitaliiPsl/crappy-ai/internal/extensions/subagents"
-	"github.com/vitaliiPsl/crappy-ai/internal/extensions/summarization"
 )
 
 func main() {
@@ -48,32 +39,28 @@ func run() error {
 
 	flag.Parse()
 
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer cancel()
-
 	cwd, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("load cwd: %w", err)
 	}
+
+	flags := config.Flags{
+		Cwd:      cwd,
+		Provider: *provider,
+		Model:    *model,
+		Thinking: *thinking,
+		Mode:     *mode,
+	}
+
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
 
 	settingsStore, err := settings.Load()
 	if err != nil {
 		return fmt.Errorf("load settings: %w", err)
 	}
 
-	go func() {
-		if err := settingsStore.RefreshModels(context.Background()); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: refresh models from remote: %v\n", err)
-		}
-	}()
-
-	configStore, err := config.Load(settingsStore.Get().ConfigPath, config.Flags{
-		Cwd:      cwd,
-		Provider: *provider,
-		Model:    *model,
-		Thinking: *thinking,
-		Mode:     *mode,
-	})
+	configStore, err := config.Load(settingsStore.Get().ConfigPath, flags)
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
@@ -83,11 +70,14 @@ func run() error {
 		return fmt.Errorf("init session store: %w", err)
 	}
 
+	go func() {
+		if err := settingsStore.RefreshModels(context.Background()); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: refresh models from remote: %v\n", err)
+		}
+	}()
+
 	modelRegistry := models.NewRegistry(settingsStore)
 	skillRegistry := skills.NewRegistry(settingsStore)
-
-	backgroundManager := background.NewManager(ctx)
-	defer backgroundManager.Close()
 
 	mcpOauthStore, err := oauthstore.NewFileStore(settingsStore.Get().OAuthPath)
 	if err != nil {
@@ -102,41 +92,27 @@ func run() error {
 	)
 	defer mcpManager.Close()
 
-	permissionService := permission.NewService(configStore)
+	backgroundManager := background.NewManager(ctx)
+	defer backgroundManager.Close()
 
-	agentFactory := factory.New(permissionService, backgroundManager)
-
-	baseExtensions := []factory.Extension{
-		summarization.New(),
-		bgext.New(backgroundManager),
-		skillsext.New(skillRegistry),
-		mcpext.New(mcpManager),
-	}
-
-	rootExtensions := append(
-		append([]factory.Extension{}, baseExtensions...),
-		planning.New(sessStore),
-		subagents.New(agentFactory, baseExtensions, modelRegistry, backgroundManager, sessStore),
-	)
-
-	asst := assistant.New(
+	runtimeManager := runtime.NewManager(
 		configStore,
 		sessStore,
 		modelRegistry,
 		skillRegistry,
-		agentFactory,
-		rootExtensions,
+		mcpManager,
+		backgroundManager,
 	)
+	defer runtimeManager.Close()
 
 	srv := server.New(
-		asst,
+		runtimeManager,
 		settingsStore,
 		configStore,
-		sessStore,
 		modelRegistry,
 		skillRegistry,
-		backgroundManager,
 		mcpManager,
+		backgroundManager,
 	)
 
 	if *prompt != "" {
@@ -145,5 +121,5 @@ func run() error {
 		srv.AddTransport(tui.NewTransport(ctx, srv))
 	}
 
-	return srv.Run(ctx)
+	return srv.Start(ctx)
 }

@@ -33,7 +33,7 @@ func (s pathStrategy) Resolve(permissions model.Permissions, call kit.ToolCall) 
 	return resolveResult(permissions.Default, call, input, options)
 }
 
-func (s pathStrategy) options(tool, input string) []model.AskOption {
+func (s pathStrategy) options(tool, input string) []model.Option {
 	abs, err := utils.AbsPath(input)
 	if err != nil || abs == "" {
 		return nil
@@ -44,7 +44,7 @@ func (s pathStrategy) options(tool, input string) []model.AskOption {
 		patternBase = filepath.Dir(abs)
 	}
 
-	return []model.AskOption{
+	return []model.Option{
 		{
 			ID:       model.OptionAllowExact,
 			Label:    "Allow exact path",
