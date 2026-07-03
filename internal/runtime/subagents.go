@@ -119,6 +119,7 @@ func (s *Session) runSubagent(ctx context.Context, req SubagentRequest) (Subagen
 
 	childCfg := cfg
 	childCfg.Agent = sub
+	childCfg.Agents = nil
 
 	ag, err := s.buildAgent(ctx, child.ID, childCfg, model, newMemory(s.sessionStore, child.ID))
 	if err != nil {
