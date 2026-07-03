@@ -6,20 +6,21 @@ import (
 )
 
 type Request struct {
-	ID      string
-	Title   string
-	Detail  string
-	Options []Option
+	ID      string   `json:"id"`
+	Title   string   `json:"title"`
+	Detail  string   `json:"detail,omitempty"`
+	Options []Option `json:"options,omitempty"`
 }
 
 type Option struct {
-	ID    string
-	Label string
+	ID     string `json:"id"`
+	Label  string `json:"label"`
+	Detail string `json:"detail,omitempty"`
 }
 
 type Response struct {
-	RequestID string
-	OptionID  string
+	RequestID string `json:"request_id"`
+	OptionID  string `json:"option_id"`
 }
 
 type Asker interface {

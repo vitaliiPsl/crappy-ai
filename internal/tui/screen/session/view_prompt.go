@@ -10,11 +10,9 @@ import (
 )
 
 const (
-	promptPaddingX    = 1
-	promptLabelMaxLen = 60
-	promptPrompt      = "> "
-	promptHintGap     = "g Pattern"
-	promptHintGapSep  = ": "
+	promptPrompt     = "> "
+	promptHintGap    = "g Pattern"
+	promptHintGapSep = ": "
 )
 
 const (
@@ -84,7 +82,7 @@ func askOption(req ask.Request, id string) (ask.Option, bool) {
 }
 
 func promptPatternHint(option ask.Option, previous []string, width int) string {
-	if option.Label == "" {
+	if option.Detail == "" {
 		return promptHintGap
 	}
 
@@ -96,7 +94,7 @@ func promptPatternHint(option ask.Option, previous []string, width int) string {
 		return promptHintGap
 	}
 
-	return prefix + truncateInlineWidth(option.Label, available)
+	return prefix + truncateInlineWidth(option.Detail, available)
 }
 
 func truncateInlineWidth(s string, width int) string {

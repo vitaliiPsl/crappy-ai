@@ -36,9 +36,14 @@ func NewPrompt(call kit.ToolCall, input string, suggested []Option) Prompt {
 	options = append(options, denyOnceOption())
 
 	return Prompt{
-		Call:    call,
-		Input:   input,
-		Request: ask.Request{ID: call.ID, Title: fmt.Sprintf("Allow %s?", call.Name), Detail: input, Options: askOptions(options)},
+		Call:  call,
+		Input: input,
+		Request: ask.Request{
+			ID:      call.ID,
+			Title:   fmt.Sprintf("Allow %s?", toolLabel(call)),
+			Detail:  input,
+			Options: askOptions(options),
+		},
 		Options: options,
 	}
 }
@@ -74,8 +79,39 @@ func denyOnceOption() Option {
 func askOptions(options []Option) []ask.Option {
 	out := make([]ask.Option, len(options))
 	for i, option := range options {
-		out[i] = ask.Option{ID: option.ID, Label: option.Label}
+		out[i] = ask.Option{
+			ID:     option.ID,
+			Label:  option.Label,
+			Detail: optionDetail(option),
+		}
 	}
 
 	return out
+}
+
+func optionDetail(option Option) string {
+	if option.Rule == nil {
+		return ""
+	}
+
+	return option.Rule.Pattern
+}
+
+func toolLabel(call kit.ToolCall) string {
+	switch {
+	case toolArg(call, "command") != "":
+		return fmt.Sprintf("%s: $ %s", call.Name, toolArg(call, "command"))
+	case toolArg(call, "path") != "":
+		return fmt.Sprintf("%s: %s", call.Name, toolArg(call, "path"))
+	case toolArg(call, "url") != "":
+		return fmt.Sprintf("%s: %s", call.Name, toolArg(call, "url"))
+	default:
+		return call.Name
+	}
+}
+
+func toolArg(call kit.ToolCall, key string) string {
+	value, _ := call.Arguments[key].(string)
+
+	return value
 }

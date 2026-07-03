@@ -158,7 +158,7 @@ func TestService_AsksAndSavesSelectedGlobalRule(t *testing.T) {
 	}
 
 	req := a.requests[0]
-	if req.ID != "call_1" || req.Title != "Allow read_file?" || req.Detail != "/tmp/project/main.go" {
+	if req.ID != "call_1" || req.Title != "Allow read_file: /tmp/project/main.go?" || req.Detail != "/tmp/project/main.go" {
 		t.Fatalf("ask request = %+v, want read_file prompt for path", req)
 	}
 
