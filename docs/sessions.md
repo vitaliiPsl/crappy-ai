@@ -22,7 +22,7 @@ Events include messages, streamed assistant output, tool activity, permission pr
 
 The most important event is `message`, because message events are what Crappy uses as conversation context when continuing a session.
 
-Streaming events such as `content_started`, `content_delta`, and `content_done` preserve what happened while the assistant was responding. Other events, such as `turn_complete`, `turn_cancelled`, `error`, and `permission_prompt`, record the state around a turn.
+Streaming events such as `content_started`, `content_delta`, and `content_done` preserve what happened while the assistant was responding. Other events, such as `turn_complete`, `turn_cancelled`, `error`, and `ask`, record the state around a turn.
 
 ## Context
 

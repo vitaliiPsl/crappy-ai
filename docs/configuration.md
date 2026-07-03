@@ -98,7 +98,7 @@ agents:
 - `name` and `description` identify the subagent in the available-subagents list.
 - `provider`, `model`, `thinking`, `temperature`, and `max_output_tokens` inherit from the root agent when omitted; everything else (`prompt`, `permissions`, `tools`) is the subagent's own.
 - `tools` is an allowlist: the subagent only sees those tools.
-- `permissions` are evaluated for the subagent's own tool calls. Subagents cannot prompt the user, so an `ask` decision is treated as denied.
+- `permissions` are evaluated for the subagent's own tool calls. If a subagent tool call needs approval, Crappy prompts in the parent session.
 
 By default, `task` runs the subagent to completion and returns its final output. The subagent gets a persistent child session with isolated session memory and `parent_id` set to the calling session.
 
