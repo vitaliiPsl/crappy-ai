@@ -87,23 +87,39 @@ func (m *Manager) LoadEvents(ctx context.Context, id string) ([]session.Event, e
 }
 
 func (m *Manager) Subscribe(ctx context.Context, sessionID string) (*eventbus.Subscription[session.Event], error) {
-	if _, err := m.sessionStore.Get(ctx, sessionID); err != nil {
+	sessionRuntime, err := m.session(ctx, sessionID)
+	if err != nil {
 		return nil, err
 	}
 
-	return m.getOrCreate(sessionID).Subscribe(), nil
+	return sessionRuntime.Subscribe(), nil
 }
 
 func (m *Manager) Run(ctx context.Context, sessionID string, req Request) error {
-	return m.getOrCreate(sessionID).Run(ctx, req)
+	sessionRuntime, err := m.session(ctx, sessionID)
+	if err != nil {
+		return err
+	}
+
+	return sessionRuntime.Run(ctx, req)
 }
 
 func (m *Manager) RunSubagent(ctx context.Context, sessionID string, req SubagentRequest) (SubagentResult, error) {
-	return m.getOrCreate(sessionID).RunSubagent(ctx, req)
+	sessionRuntime, err := m.session(ctx, sessionID)
+	if err != nil {
+		return SubagentResult{}, err
+	}
+
+	return sessionRuntime.RunSubagent(ctx, req)
 }
 
 func (m *Manager) Compact(ctx context.Context, sessionID string) error {
-	return m.getOrCreate(sessionID).Compact(ctx)
+	sessionRuntime, err := m.session(ctx, sessionID)
+	if err != nil {
+		return err
+	}
+
+	return sessionRuntime.Compact(ctx)
 }
 
 func (m *Manager) Cancel(sessionID string) {
@@ -119,6 +135,14 @@ func (m *Manager) Respond(sessionID string, resp ask.Response) error {
 	}
 
 	return session.Respond(resp)
+}
+
+func (m *Manager) session(ctx context.Context, sessionID string) (*Session, error) {
+	if _, err := m.sessionStore.Get(ctx, sessionID); err != nil {
+		return nil, err
+	}
+
+	return m.getOrCreate(sessionID), nil
 }
 
 func (m *Manager) getOrCreate(sessionID string) *Session {

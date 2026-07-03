@@ -31,20 +31,12 @@ type ext struct {
 	registry *coreskills.Registry
 }
 
-type Extension interface {
-	appagent.Contributor
-}
-
 var _ appagent.Contributor = (*ext)(nil)
 
-func New(registry *coreskills.Registry) Extension {
+func New(registry *coreskills.Registry) appagent.Contributor {
 	return &ext{
 		registry: registry,
 	}
-}
-
-func (e *ext) Name() string {
-	return "skills"
 }
 
 func (e *ext) Contribute(context.Context, appagent.Request) (appagent.Contribution, error) {

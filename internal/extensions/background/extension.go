@@ -26,20 +26,12 @@ type ext struct {
 	manager *bg.Manager
 }
 
-type Extension interface {
-	appagent.Contributor
-}
-
 var _ appagent.Contributor = (*ext)(nil)
 
-func New(manager *bg.Manager) Extension {
+func New(manager *bg.Manager) appagent.Contributor {
 	return &ext{
 		manager: manager,
 	}
-}
-
-func (e *ext) Name() string {
-	return "background"
 }
 
 func (e *ext) Contribute(_ context.Context, req appagent.Request) (appagent.Contribution, error) {

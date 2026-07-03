@@ -13,20 +13,12 @@ type ext struct {
 	manager *mcpcore.Manager
 }
 
-type Extension interface {
-	appagent.Contributor
-}
-
 var _ appagent.Contributor = (*ext)(nil)
 
-func New(manager *mcpcore.Manager) Extension {
+func New(manager *mcpcore.Manager) appagent.Contributor {
 	return &ext{
 		manager: manager,
 	}
-}
-
-func (e *ext) Name() string {
-	return "mcp"
 }
 
 func (e *ext) Contribute(ctx context.Context, _ appagent.Request) (appagent.Contribution, error) {

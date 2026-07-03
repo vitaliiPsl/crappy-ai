@@ -33,20 +33,12 @@ type ext struct {
 	store session.ArtifactStore
 }
 
-type Extension interface {
-	appagent.Contributor
-}
-
 var _ appagent.Contributor = (*ext)(nil)
 
-func New(store session.ArtifactStore) Extension {
+func New(store session.ArtifactStore) appagent.Contributor {
 	return &ext{
 		store: store,
 	}
-}
-
-func (e *ext) Name() string {
-	return "planning"
 }
 
 func (e *ext) Contribute(_ context.Context, req appagent.Request) (appagent.Contribution, error) {
