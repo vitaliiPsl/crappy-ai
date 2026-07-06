@@ -91,6 +91,57 @@ func TestMCPPromptCommandMissingRequiredArgument(t *testing.T) {
 	}
 }
 
+func TestMCPPromptCommandAcceptsExplicitArguments(t *testing.T) {
+	src := &promptSource{
+		result: mcp.PromptResult{
+			Messages: []mcp.PromptMessage{{
+				Content: []mcp.PromptContent{{Type: "text", Text: "Say hi to Vitalii"}},
+			}},
+		},
+	}
+	cmd := command.NewMCPPromptCommand(src, mcp.ServerPrompt{
+		Server: "everything",
+		Prompt: mcp.Prompt{Name: "greet"},
+	})
+
+	msg := cmd.Execute(context.Background(), command.Request{Args: []string{"name=Vitalii"}})()
+
+	if _, ok := msg.(command.SubmitTextMsg); !ok {
+		t.Fatalf("msg = %#v, want SubmitTextMsg", msg)
+	}
+
+	if src.got.args["name"] != "Vitalii" {
+		t.Fatalf("args = %#v, want name=Vitalii", src.got.args)
+	}
+}
+
+func TestMCPPromptCommandExplicitArgumentsCanSatisfyDeclaredArgs(t *testing.T) {
+	src := &promptSource{
+		result: mcp.PromptResult{
+			Messages: []mcp.PromptMessage{{
+				Content: []mcp.PromptContent{{Type: "text", Text: "Review main.go"}},
+			}},
+		},
+	}
+	cmd := command.NewMCPPromptCommand(src, mcp.ServerPrompt{
+		Server: "github",
+		Prompt: mcp.Prompt{
+			Name:      "review",
+			Arguments: []mcp.PromptArgument{{Name: "path", Required: true}},
+		},
+	})
+
+	msg := cmd.Execute(context.Background(), command.Request{Args: []string{"path=main.go"}})()
+
+	if _, ok := msg.(command.SubmitTextMsg); !ok {
+		t.Fatalf("msg = %#v, want SubmitTextMsg", msg)
+	}
+
+	if src.got.args["path"] != "main.go" {
+		t.Fatalf("args = %#v, want path=main.go", src.got.args)
+	}
+}
+
 func TestRegistryIncludesMCPPromptCommands(t *testing.T) {
 	src := &promptSource{
 		prompts: []mcp.ServerPrompt{{

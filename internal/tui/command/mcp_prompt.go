@@ -62,8 +62,25 @@ func MCPPromptCommandName(prompt mcp.ServerPrompt) string {
 
 func promptArgs(defs []mcp.PromptArgument, values []string) (map[string]string, error) {
 	args := make(map[string]string, len(defs))
-	for i, def := range defs {
-		if i >= len(values) {
+	positional := make([]string, 0, len(values))
+	for _, value := range values {
+		key, val, ok := strings.Cut(value, "=")
+		if ok && key != "" {
+			args[key] = val
+
+			continue
+		}
+
+		positional = append(positional, value)
+	}
+
+	pos := 0
+	for _, def := range defs {
+		if _, exists := args[def.Name]; exists {
+			continue
+		}
+
+		if pos >= len(positional) {
 			if def.Required {
 				return nil, fmt.Errorf("missing required argument %q", def.Name)
 			}
@@ -71,7 +88,8 @@ func promptArgs(defs []mcp.PromptArgument, values []string) (map[string]string, 
 			continue
 		}
 
-		args[def.Name] = values[i]
+		args[def.Name] = positional[pos]
+		pos++
 	}
 
 	return args, nil
