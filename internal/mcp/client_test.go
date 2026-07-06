@@ -151,6 +151,18 @@ func TestOperationsRequireConnection(t *testing.T) {
 		t.Fatalf("ListTools() error = %v, want %q", err, wantErr)
 	}
 
+	if _, err := client.ListPrompts(context.Background()); err == nil || err.Error() != wantErr {
+		t.Fatalf("ListPrompts() error = %v, want %q", err, wantErr)
+	}
+
+	if _, err := client.ListResources(context.Background()); err == nil || err.Error() != wantErr {
+		t.Fatalf("ListResources() error = %v, want %q", err, wantErr)
+	}
+
+	if _, err := client.ListResourceTemplates(context.Background()); err == nil || err.Error() != wantErr {
+		t.Fatalf("ListResourceTemplates() error = %v, want %q", err, wantErr)
+	}
+
 	if _, err := client.CallTool(context.Background(), kit.NewToolCall("1", "greet", nil)); err == nil || err.Error() != wantErr {
 		t.Fatalf("CallTool() error = %v, want %q", err, wantErr)
 	}
@@ -179,6 +191,82 @@ func TestToolLifecycle(t *testing.T) {
 
 	if !strings.Contains(result.Output, "Hi Ada") {
 		t.Fatalf("output = %q, want greeting", result.Output)
+	}
+}
+
+func TestMCPMetadataLifecycle(t *testing.T) {
+	server := newServer(t, "greet")
+	server.AddPrompt(&mcpsdk.Prompt{
+		Name:        "review",
+		Title:       "Review",
+		Description: "Review code",
+		Arguments: []*mcpsdk.PromptArgument{{
+			Name:        "path",
+			Description: "Path to review",
+			Required:    true,
+		}},
+	}, func(context.Context, *mcpsdk.GetPromptRequest) (*mcpsdk.GetPromptResult, error) {
+		return &mcpsdk.GetPromptResult{}, nil
+	})
+	server.AddResource(&mcpsdk.Resource{
+		Name:        "readme",
+		Title:       "README",
+		Description: "Project README",
+		URI:         "file:///README.md",
+		MIMEType:    "text/markdown",
+		Size:        42,
+	}, func(context.Context, *mcpsdk.ReadResourceRequest) (*mcpsdk.ReadResourceResult, error) {
+		return &mcpsdk.ReadResourceResult{}, nil
+	})
+	server.AddResourceTemplate(&mcpsdk.ResourceTemplate{
+		Name:        "file",
+		Description: "Project file",
+		URITemplate: "file:///{path}",
+		MIMEType:    "text/plain",
+	}, func(context.Context, *mcpsdk.ReadResourceRequest) (*mcpsdk.ReadResourceResult, error) {
+		return &mcpsdk.ReadResourceResult{}, nil
+	})
+
+	client := connect(t, server)
+
+	tools, err := client.ListTools(context.Background())
+	if err != nil {
+		t.Fatalf("ListTools() error = %v", err)
+	}
+
+	if len(tools) != 1 || tools[0].Definition().Name != "mcp__test__greet" {
+		t.Fatalf("Tools = %+v, want namespaced greet", tools)
+	}
+
+	prompts, err := client.ListPrompts(context.Background())
+	if err != nil {
+		t.Fatalf("ListPrompts() error = %v", err)
+	}
+
+	if len(prompts) != 1 || prompts[0].Name != "review" {
+		t.Fatalf("Prompts = %+v, want review", prompts)
+	}
+
+	if len(prompts[0].Arguments) != 1 || !prompts[0].Arguments[0].Required {
+		t.Fatalf("Prompt arguments = %+v, want required path", prompts[0].Arguments)
+	}
+
+	resources, err := client.ListResources(context.Background())
+	if err != nil {
+		t.Fatalf("ListResources() error = %v", err)
+	}
+
+	if len(resources) != 1 || resources[0].URI != "file:///README.md" {
+		t.Fatalf("Resources = %+v, want README resource", resources)
+	}
+
+	resourceTemplates, err := client.ListResourceTemplates(context.Background())
+	if err != nil {
+		t.Fatalf("ListResourceTemplates() error = %v", err)
+	}
+
+	if len(resourceTemplates) != 1 || resourceTemplates[0].URITemplate != "file:///{path}" {
+		t.Fatalf("ResourceTemplates = %+v, want file template", resourceTemplates)
 	}
 }
 
@@ -253,7 +341,7 @@ func TestRefetchFailureKeepsConnectedAndKeepsCache(t *testing.T) {
 
 	failCalls.Store(true)
 
-	client.refetchTools(context.Background())
+	client.refetchLists(context.Background())
 
 	if got := client.State().Status; got != ClientConnected {
 		t.Fatalf("Status = %q, want connected", got)
@@ -275,7 +363,7 @@ func TestRefetchCancellationKeepsConnected(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	client.refetchTools(ctx)
+	client.refetchLists(ctx)
 
 	state := client.State()
 	if state.Status != ClientConnected {

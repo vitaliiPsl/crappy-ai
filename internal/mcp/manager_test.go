@@ -9,10 +9,13 @@ import (
 )
 
 type fakeClient struct {
-	config Config
-	status ClientStatus
-	tools  []kit.Tool
-	err    error
+	config            Config
+	status            ClientStatus
+	tools             []kit.Tool
+	prompts           []Prompt
+	resources         []Resource
+	resourceTemplates []ResourceTemplate
+	err               error
 
 	connects int
 	closes   int
@@ -52,6 +55,18 @@ func (c *fakeClient) Close() error {
 
 func (c *fakeClient) ListTools(context.Context) ([]kit.Tool, error) {
 	return c.tools, c.err
+}
+
+func (c *fakeClient) ListPrompts(context.Context) ([]Prompt, error) {
+	return c.prompts, c.err
+}
+
+func (c *fakeClient) ListResources(context.Context) ([]Resource, error) {
+	return c.resources, c.err
+}
+
+func (c *fakeClient) ListResourceTemplates(context.Context) ([]ResourceTemplate, error) {
+	return c.resourceTemplates, c.err
 }
 
 func (c *fakeClient) CallTool(_ context.Context, call kit.ToolCall) (kit.ToolResult, error) {

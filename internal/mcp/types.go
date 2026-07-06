@@ -17,6 +17,9 @@ type Client interface {
 	Close() error
 
 	ListTools(ctx context.Context) ([]kit.Tool, error)
+	ListPrompts(ctx context.Context) ([]Prompt, error)
+	ListResources(ctx context.Context) ([]Resource, error)
+	ListResourceTemplates(ctx context.Context) ([]ResourceTemplate, error)
 	CallTool(ctx context.Context, call kit.ToolCall) (kit.ToolResult, error)
 }
 
@@ -49,6 +52,37 @@ type ClientState struct {
 type ClientSnapshot struct {
 	Config Config
 	State  ClientState
+}
+
+type Prompt struct {
+	Name        string
+	Title       string
+	Description string
+	Arguments   []PromptArgument
+}
+
+type PromptArgument struct {
+	Name        string
+	Title       string
+	Description string
+	Required    bool
+}
+
+type Resource struct {
+	Name        string
+	Title       string
+	Description string
+	URI         string
+	MIMEType    string
+	Size        int64
+}
+
+type ResourceTemplate struct {
+	Name        string
+	Title       string
+	Description string
+	URITemplate string
+	MIMEType    string
 }
 
 type Config struct {

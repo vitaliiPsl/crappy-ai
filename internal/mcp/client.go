@@ -24,8 +24,12 @@ type sdkClient struct {
 	connMu sync.Mutex
 	mu     sync.RWMutex
 
-	session *mcpsdk.ClientSession
-	tools   []kit.Tool
+	session           *mcpsdk.ClientSession
+
+	tools             []kit.Tool
+	prompts           []Prompt
+	resources         []Resource
+	resourceTemplates []ResourceTemplate
 
 	status ClientStatus
 	err    error
@@ -87,6 +91,39 @@ func (c *sdkClient) ListTools(_ context.Context) ([]kit.Tool, error) {
 	return c.tools, nil
 }
 
+func (c *sdkClient) ListPrompts(_ context.Context) ([]Prompt, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.session == nil || c.status != ClientConnected {
+		return nil, fmt.Errorf("mcp: client is not connected")
+	}
+
+	return append([]Prompt(nil), c.prompts...), nil
+}
+
+func (c *sdkClient) ListResources(_ context.Context) ([]Resource, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.session == nil || c.status != ClientConnected {
+		return nil, fmt.Errorf("mcp: client is not connected")
+	}
+
+	return append([]Resource(nil), c.resources...), nil
+}
+
+func (c *sdkClient) ListResourceTemplates(_ context.Context) ([]ResourceTemplate, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.session == nil || c.status != ClientConnected {
+		return nil, fmt.Errorf("mcp: client is not connected")
+	}
+
+	return append([]ResourceTemplate(nil), c.resourceTemplates...), nil
+}
+
 func (c *sdkClient) CallTool(ctx context.Context, call kit.ToolCall) (kit.ToolResult, error) {
 	ctx, cancel := withTimeout(ctx, c.config.RequestTimeout)
 	defer cancel()
@@ -123,7 +160,7 @@ func (c *sdkClient) connectLocked(ctx context.Context) error {
 		return err
 	}
 
-	tools, err := c.fetchTools(ctx, session)
+	tools, prompts, resources, resourceTemplates, err := c.fetchLists(ctx, session)
 	if err != nil {
 		_ = session.Close()
 
@@ -137,6 +174,9 @@ func (c *sdkClient) connectLocked(ctx context.Context) error {
 
 	c.session = session
 	c.tools = tools
+	c.prompts = prompts
+	c.resources = resources
+	c.resourceTemplates = resourceTemplates
 
 	c.status = ClientConnected
 	c.err = nil
@@ -152,7 +192,7 @@ func (c *sdkClient) closeLocked() error {
 
 	session := c.session
 	c.session = nil
-	c.tools = nil
+	c.clearLists()
 
 	c.status = ClientDisconnected
 	c.err = nil
@@ -180,7 +220,13 @@ func (c *sdkClient) dial(ctx context.Context) (*mcpsdk.ClientSession, error) {
 		},
 		&mcpsdk.ClientOptions{
 			ToolListChangedHandler: func(context.Context, *mcpsdk.ToolListChangedRequest) {
-				go c.refetchTools(context.Background())
+				go c.refetchLists(context.Background())
+			},
+			PromptListChangedHandler: func(context.Context, *mcpsdk.PromptListChangedRequest) {
+				go c.refetchLists(context.Background())
+			},
+			ResourceListChangedHandler: func(context.Context, *mcpsdk.ResourceListChangedRequest) {
+				go c.refetchLists(context.Background())
 			},
 		},
 	)
@@ -193,35 +239,40 @@ func (c *sdkClient) dial(ctx context.Context) (*mcpsdk.ClientSession, error) {
 	return session, nil
 }
 
-func (c *sdkClient) fetchTools(ctx context.Context, session *mcpsdk.ClientSession) ([]kit.Tool, error) {
+func (c *sdkClient) fetchLists(ctx context.Context, session *mcpsdk.ClientSession) ([]kit.Tool, []Prompt, []Resource, []ResourceTemplate, error) {
 	ctx, cancel := withTimeout(ctx, c.config.RequestTimeout)
 	defer cancel()
 
-	res, err := session.ListTools(ctx, nil)
+	tools, err := fetchTools(ctx, c.config, c, session)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, nil, err
 	}
 
-	defs, err := convertTools(res.Tools)
+	prompts, err := fetchOptional(ctx, session, fetchPrompts)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, nil, err
 	}
 
-	tools := make([]kit.Tool, 0, len(defs))
-	for _, def := range defs {
-		tools = append(tools, newTool(c.config.Name, c, def))
+	resources, err := fetchOptional(ctx, session, fetchResources)
+	if err != nil {
+		return nil, nil, nil, nil, err
 	}
 
-	return tools, nil
+	resourceTemplates, err := fetchOptional(ctx, session, fetchResourceTemplates)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+
+	return tools, prompts, resources, resourceTemplates, nil
 }
 
-func (c *sdkClient) refetchTools(ctx context.Context) {
+func (c *sdkClient) refetchLists(ctx context.Context) {
 	session, err := c.activeSession()
 	if err != nil {
 		return
 	}
 
-	tools, err := c.fetchTools(ctx, session)
+	tools, prompts, resources, resourceTemplates, err := c.fetchLists(ctx, session)
 	if err != nil {
 		c.handleRequestError(err)
 
@@ -230,6 +281,9 @@ func (c *sdkClient) refetchTools(ctx context.Context) {
 
 	c.mu.Lock()
 	c.tools = tools
+	c.prompts = prompts
+	c.resources = resources
+	c.resourceTemplates = resourceTemplates
 	c.mu.Unlock()
 }
 
@@ -244,9 +298,16 @@ func (c *sdkClient) watch(session *mcpsdk.ClientSession) {
 	}
 
 	c.session = nil
-	c.tools = nil
+	c.clearLists()
 	c.status = ClientDisconnected
 	c.err = nil
+}
+
+func (c *sdkClient) clearLists() {
+	c.tools = nil
+	c.prompts = nil
+	c.resources = nil
+	c.resourceTemplates = nil
 }
 
 func (c *sdkClient) activeSession() (*mcpsdk.ClientSession, error) {
