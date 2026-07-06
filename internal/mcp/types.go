@@ -21,6 +21,7 @@ type Client interface {
 	ListResources(ctx context.Context) ([]Resource, error)
 	ListResourceTemplates(ctx context.Context) ([]ResourceTemplate, error)
 	CallTool(ctx context.Context, call kit.ToolCall) (kit.ToolResult, error)
+	ReadResource(ctx context.Context, uri string) (ResourceResult, error)
 }
 
 type Authenticator interface {
@@ -83,6 +84,17 @@ type ResourceTemplate struct {
 	Description string
 	URITemplate string
 	MIMEType    string
+}
+
+type ResourceResult struct {
+	Contents []ResourceContent
+}
+
+type ResourceContent struct {
+	URI      string
+	MIMEType string
+	Text     string
+	Blob     []byte
 }
 
 type Config struct {

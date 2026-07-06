@@ -36,5 +36,7 @@ func (e *ext) Contribute(ctx context.Context, _ appagent.Request) (appagent.Cont
 		tools = append(tools, clientTools...)
 	}
 
+	tools = append(tools, newResourceTools(e.manager)...)
+
 	return appagent.Contribution{Tools: tools}, nil
 }

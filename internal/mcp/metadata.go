@@ -142,6 +142,35 @@ func convertResourceTemplate(template *mcpsdk.ResourceTemplate) ResourceTemplate
 	}
 }
 
+func convertResourceResult(result *mcpsdk.ReadResourceResult) ResourceResult {
+	if result == nil {
+		return ResourceResult{}
+	}
+
+	out := ResourceResult{
+		Contents: make([]ResourceContent, 0, len(result.Contents)),
+	}
+
+	for _, content := range result.Contents {
+		out.Contents = append(out.Contents, convertResourceContent(content))
+	}
+
+	return out
+}
+
+func convertResourceContent(content *mcpsdk.ResourceContents) ResourceContent {
+	if content == nil {
+		return ResourceContent{}
+	}
+
+	return ResourceContent{
+		URI:      content.URI,
+		MIMEType: content.MIMEType,
+		Text:     content.Text,
+		Blob:     append([]byte(nil), content.Blob...),
+	}
+}
+
 func isUnsupportedCapability(err error) bool {
 	var rpcErr *jsonrpc.Error
 	return errors.As(err, &rpcErr) && rpcErr.Code == jsonrpc.CodeMethodNotFound

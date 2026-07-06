@@ -166,6 +166,10 @@ func TestOperationsRequireConnection(t *testing.T) {
 	if _, err := client.CallTool(context.Background(), kit.NewToolCall("1", "greet", nil)); err == nil || err.Error() != wantErr {
 		t.Fatalf("CallTool() error = %v, want %q", err, wantErr)
 	}
+
+	if _, err := client.ReadResource(context.Background(), "file:///README.md"); err == nil || err.Error() != wantErr {
+		t.Fatalf("ReadResource() error = %v, want %q", err, wantErr)
+	}
 }
 
 func TestToolLifecycle(t *testing.T) {
@@ -216,7 +220,13 @@ func TestMCPMetadataLifecycle(t *testing.T) {
 		MIMEType:    "text/markdown",
 		Size:        42,
 	}, func(context.Context, *mcpsdk.ReadResourceRequest) (*mcpsdk.ReadResourceResult, error) {
-		return &mcpsdk.ReadResourceResult{}, nil
+		return &mcpsdk.ReadResourceResult{
+			Contents: []*mcpsdk.ResourceContents{{
+				URI:      "file:///README.md",
+				MIMEType: "text/markdown",
+				Text:     "# Test",
+			}},
+		}, nil
 	})
 	server.AddResourceTemplate(&mcpsdk.ResourceTemplate{
 		Name:        "file",
@@ -267,6 +277,15 @@ func TestMCPMetadataLifecycle(t *testing.T) {
 
 	if len(resourceTemplates) != 1 || resourceTemplates[0].URITemplate != "file:///{path}" {
 		t.Fatalf("ResourceTemplates = %+v, want file template", resourceTemplates)
+	}
+
+	result, err := client.ReadResource(context.Background(), "file:///README.md")
+	if err != nil {
+		t.Fatalf("ReadResource() error = %v", err)
+	}
+
+	if len(result.Contents) != 1 || result.Contents[0].Text != "# Test" {
+		t.Fatalf("ReadResource() = %+v, want README text", result)
 	}
 }
 

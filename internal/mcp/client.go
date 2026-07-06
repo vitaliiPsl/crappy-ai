@@ -24,7 +24,7 @@ type sdkClient struct {
 	connMu sync.Mutex
 	mu     sync.RWMutex
 
-	session           *mcpsdk.ClientSession
+	session *mcpsdk.ClientSession
 
 	tools             []kit.Tool
 	prompts           []Prompt
@@ -144,6 +144,25 @@ func (c *sdkClient) CallTool(ctx context.Context, call kit.ToolCall) (kit.ToolRe
 	}
 
 	return convertToolResult(call, res), nil
+}
+
+func (c *sdkClient) ReadResource(ctx context.Context, uri string) (ResourceResult, error) {
+	ctx, cancel := withTimeout(ctx, c.config.RequestTimeout)
+	defer cancel()
+
+	session, err := c.activeSession()
+	if err != nil {
+		return ResourceResult{}, err
+	}
+
+	res, err := session.ReadResource(ctx, &mcpsdk.ReadResourceParams{URI: uri})
+	if err != nil {
+		c.handleRequestError(err)
+
+		return ResourceResult{}, err
+	}
+
+	return convertResourceResult(res), nil
 }
 
 func (c *sdkClient) connectLocked(ctx context.Context) error {

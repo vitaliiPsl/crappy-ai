@@ -21,6 +21,7 @@ type fakeClient struct {
 	closes   int
 	called   kit.ToolCall
 	result   kit.ToolResult
+	resource ResourceResult
 }
 
 func (c *fakeClient) Config() Config {
@@ -73,6 +74,10 @@ func (c *fakeClient) CallTool(_ context.Context, call kit.ToolCall) (kit.ToolRes
 	c.called = call
 
 	return c.result, c.err
+}
+
+func (c *fakeClient) ReadResource(context.Context, string) (ResourceResult, error) {
+	return c.resource, c.err
 }
 
 type fakeAuthenticator struct {
