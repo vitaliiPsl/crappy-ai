@@ -15,6 +15,22 @@ func (s *Server) GetMCPClientSnapshots() []mcp.ClientSnapshot {
 	return s.mcpManager.Snapshots()
 }
 
+func (s *Server) GetMCPPrompts(ctx context.Context) []mcp.ServerPrompt {
+	if s.mcpManager == nil {
+		return nil
+	}
+
+	return s.mcpManager.Prompts(ctx)
+}
+
+func (s *Server) GetMCPPrompt(ctx context.Context, server, name string, args map[string]string) (mcp.PromptResult, error) {
+	if s.mcpManager == nil {
+		return mcp.PromptResult{}, fmt.Errorf("mcp: manager is not configured")
+	}
+
+	return s.mcpManager.GetPrompt(ctx, server, name, args)
+}
+
 func (s *Server) ReconnectMCPClient(ctx context.Context, name string) error {
 	if s.mcpManager == nil {
 		return nil

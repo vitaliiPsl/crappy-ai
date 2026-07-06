@@ -146,6 +146,28 @@ func (c *sdkClient) CallTool(ctx context.Context, call kit.ToolCall) (kit.ToolRe
 	return convertToolResult(call, res), nil
 }
 
+func (c *sdkClient) GetPrompt(ctx context.Context, name string, args map[string]string) (PromptResult, error) {
+	ctx, cancel := withTimeout(ctx, c.config.RequestTimeout)
+	defer cancel()
+
+	session, err := c.activeSession()
+	if err != nil {
+		return PromptResult{}, err
+	}
+
+	res, err := session.GetPrompt(ctx, &mcpsdk.GetPromptParams{
+		Name:      name,
+		Arguments: args,
+	})
+	if err != nil {
+		c.handleRequestError(err)
+
+		return PromptResult{}, err
+	}
+
+	return convertPromptResult(res), nil
+}
+
 func (c *sdkClient) ReadResource(ctx context.Context, uri string) (ResourceResult, error) {
 	ctx, cancel := withTimeout(ctx, c.config.RequestTimeout)
 	defer cancel()

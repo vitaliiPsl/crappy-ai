@@ -154,6 +154,42 @@ func (m *Manager) Clients() []Client {
 	return m.List()
 }
 
+func (m *Manager) Prompts(ctx context.Context) []ServerPrompt {
+	var prompts []ServerPrompt
+	for _, client := range m.List() {
+		if client.State().Status != ClientConnected {
+			continue
+		}
+
+		clientPrompts, err := client.ListPrompts(ctx)
+		if err != nil {
+			continue
+		}
+
+		for _, prompt := range clientPrompts {
+			prompts = append(prompts, ServerPrompt{
+				Server: client.Config().Name,
+				Prompt: prompt,
+			})
+		}
+	}
+
+	sort.Slice(prompts, func(i, j int) bool {
+		return prompts[i].Server+"\x00"+prompts[i].Name < prompts[j].Server+"\x00"+prompts[j].Name
+	})
+
+	return prompts
+}
+
+func (m *Manager) GetPrompt(ctx context.Context, server, name string, args map[string]string) (PromptResult, error) {
+	client, err := m.Get(server)
+	if err != nil {
+		return PromptResult{}, err
+	}
+
+	return client.GetPrompt(ctx, name, args)
+}
+
 func (m *Manager) Snapshots() []ClientSnapshot {
 	clients := m.List()
 

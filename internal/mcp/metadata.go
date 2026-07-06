@@ -113,6 +113,66 @@ func convertPromptArgument(arg *mcpsdk.PromptArgument) PromptArgument {
 	}
 }
 
+func convertPromptResult(result *mcpsdk.GetPromptResult) PromptResult {
+	if result == nil {
+		return PromptResult{}
+	}
+
+	out := PromptResult{
+		Description: result.Description,
+		Messages:    make([]PromptMessage, 0, len(result.Messages)),
+	}
+
+	for _, message := range result.Messages {
+		out.Messages = append(out.Messages, convertPromptMessage(message))
+	}
+
+	return out
+}
+
+func convertPromptMessage(message *mcpsdk.PromptMessage) PromptMessage {
+	if message == nil {
+		return PromptMessage{}
+	}
+
+	return PromptMessage{
+		Role:    string(message.Role),
+		Content: []PromptContent{convertPromptContent(message.Content)},
+	}
+}
+
+func convertPromptContent(content mcpsdk.Content) PromptContent {
+	switch c := content.(type) {
+	case *mcpsdk.TextContent:
+		return PromptContent{Type: "text", Text: c.Text}
+	case *mcpsdk.ImageContent:
+		return PromptContent{Type: "image", MIMEType: c.MIMEType, Data: append([]byte(nil), c.Data...)}
+	case *mcpsdk.AudioContent:
+		return PromptContent{Type: "audio", MIMEType: c.MIMEType, Data: append([]byte(nil), c.Data...)}
+	case *mcpsdk.ResourceLink:
+		return PromptContent{
+			Type:        "resource_link",
+			URI:         c.URI,
+			Name:        c.Name,
+			Title:       c.Title,
+			Description: c.Description,
+			MIMEType:    c.MIMEType,
+		}
+	case *mcpsdk.EmbeddedResource:
+		resource := convertResourceContent(c.Resource)
+
+		return PromptContent{
+			Type:     "resource",
+			URI:      resource.URI,
+			MIMEType: resource.MIMEType,
+			Text:     resource.Text,
+			Resource: &resource,
+		}
+	default:
+		return PromptContent{Type: "unknown"}
+	}
+}
+
 func convertResource(resource *mcpsdk.Resource) Resource {
 	if resource == nil {
 		return Resource{}

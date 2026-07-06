@@ -1,6 +1,7 @@
 package command
 
 import (
+	"context"
 	"fmt"
 	"sort"
 )
@@ -9,7 +10,7 @@ type Registry struct {
 	commands map[string]Command
 }
 
-func NewRegistry(skillSource SkillSource) *Registry {
+func NewRegistry(source SkillSource) *Registry {
 	r := &Registry{commands: make(map[string]Command)}
 
 	r.Register(NewNewCommand())
@@ -20,13 +21,24 @@ func NewRegistry(skillSource SkillSource) *Registry {
 	r.Register(NewCompactCommand())
 	r.Register(NewHelpCommand(r))
 
-	if skillSource != nil {
-		for _, sk := range skillSource.GetSkills() {
+	if source != nil {
+		for _, sk := range source.GetSkills() {
 			if _, exists := r.commands[sk.Name]; exists {
 				continue
 			}
 
 			r.Register(NewSkillCommand(sk))
+		}
+	}
+
+	if promptSource, ok := source.(MCPPromptSource); ok {
+		for _, prompt := range promptSource.GetMCPPrompts(context.Background()) {
+			cmd := NewMCPPromptCommand(promptSource, prompt)
+			if _, exists := r.commands[cmd.Definition().Name]; exists {
+				continue
+			}
+
+			r.Register(cmd)
 		}
 	}
 

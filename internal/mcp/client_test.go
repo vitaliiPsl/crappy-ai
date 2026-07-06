@@ -167,6 +167,10 @@ func TestOperationsRequireConnection(t *testing.T) {
 		t.Fatalf("CallTool() error = %v, want %q", err, wantErr)
 	}
 
+	if _, err := client.GetPrompt(context.Background(), "review", nil); err == nil || err.Error() != wantErr {
+		t.Fatalf("GetPrompt() error = %v, want %q", err, wantErr)
+	}
+
 	if _, err := client.ReadResource(context.Background(), "file:///README.md"); err == nil || err.Error() != wantErr {
 		t.Fatalf("ReadResource() error = %v, want %q", err, wantErr)
 	}
@@ -209,8 +213,14 @@ func TestMCPMetadataLifecycle(t *testing.T) {
 			Description: "Path to review",
 			Required:    true,
 		}},
-	}, func(context.Context, *mcpsdk.GetPromptRequest) (*mcpsdk.GetPromptResult, error) {
-		return &mcpsdk.GetPromptResult{}, nil
+	}, func(_ context.Context, req *mcpsdk.GetPromptRequest) (*mcpsdk.GetPromptResult, error) {
+		return &mcpsdk.GetPromptResult{
+			Description: "Review code",
+			Messages: []*mcpsdk.PromptMessage{{
+				Role:    "user",
+				Content: &mcpsdk.TextContent{Text: "Review " + req.Params.Arguments["path"]},
+			}},
+		}, nil
 	})
 	server.AddResource(&mcpsdk.Resource{
 		Name:        "readme",
@@ -259,6 +269,15 @@ func TestMCPMetadataLifecycle(t *testing.T) {
 
 	if len(prompts[0].Arguments) != 1 || !prompts[0].Arguments[0].Required {
 		t.Fatalf("Prompt arguments = %+v, want required path", prompts[0].Arguments)
+	}
+
+	promptResult, err := client.GetPrompt(context.Background(), "review", map[string]string{"path": "main.go"})
+	if err != nil {
+		t.Fatalf("GetPrompt() error = %v", err)
+	}
+
+	if len(promptResult.Messages) != 1 || len(promptResult.Messages[0].Content) != 1 || promptResult.Messages[0].Content[0].Text != "Review main.go" {
+		t.Fatalf("GetPrompt() = %+v, want review message", promptResult)
 	}
 
 	resources, err := client.ListResources(context.Background())

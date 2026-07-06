@@ -61,6 +61,8 @@ func sectionLabel(kind command.Kind) string {
 	switch kind {
 	case command.KindSkill:
 		return "Skills"
+	case command.KindMCP:
+		return "MCP Prompts"
 	default:
 		return "Commands"
 	}

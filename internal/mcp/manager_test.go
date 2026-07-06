@@ -21,6 +21,7 @@ type fakeClient struct {
 	closes   int
 	called   kit.ToolCall
 	result   kit.ToolResult
+	prompt   PromptResult
 	resource ResourceResult
 }
 
@@ -74,6 +75,10 @@ func (c *fakeClient) CallTool(_ context.Context, call kit.ToolCall) (kit.ToolRes
 	c.called = call
 
 	return c.result, c.err
+}
+
+func (c *fakeClient) GetPrompt(context.Context, string, map[string]string) (PromptResult, error) {
+	return c.prompt, c.err
 }
 
 func (c *fakeClient) ReadResource(context.Context, string) (ResourceResult, error) {

@@ -11,6 +11,7 @@ type Kind int
 const (
 	KindBuiltin Kind = iota
 	KindSkill
+	KindMCP
 )
 
 type Definition struct {

@@ -21,6 +21,7 @@ type Client interface {
 	ListResources(ctx context.Context) ([]Resource, error)
 	ListResourceTemplates(ctx context.Context) ([]ResourceTemplate, error)
 	CallTool(ctx context.Context, call kit.ToolCall) (kit.ToolResult, error)
+	GetPrompt(ctx context.Context, name string, args map[string]string) (PromptResult, error)
 	ReadResource(ctx context.Context, uri string) (ResourceResult, error)
 }
 
@@ -62,11 +63,38 @@ type Prompt struct {
 	Arguments   []PromptArgument
 }
 
+type ServerPrompt struct {
+	Server string
+	Prompt
+}
+
 type PromptArgument struct {
 	Name        string
 	Title       string
 	Description string
 	Required    bool
+}
+
+type PromptResult struct {
+	Description string
+	Messages    []PromptMessage
+}
+
+type PromptMessage struct {
+	Role    string
+	Content []PromptContent
+}
+
+type PromptContent struct {
+	Type        string
+	Text        string
+	MIMEType    string
+	URI         string
+	Name        string
+	Title       string
+	Description string
+	Data        []byte
+	Resource    *ResourceContent
 }
 
 type Resource struct {
