@@ -308,6 +308,75 @@ func TestMCPMetadataLifecycle(t *testing.T) {
 	}
 }
 
+func TestConnectSupportsPromptOnlyServer(t *testing.T) {
+	server := mcpsdk.NewServer(&mcpsdk.Implementation{Name: "test", Version: "0.1.0"}, nil)
+	server.AddPrompt(&mcpsdk.Prompt{Name: "review"}, func(context.Context, *mcpsdk.GetPromptRequest) (*mcpsdk.GetPromptResult, error) {
+		return &mcpsdk.GetPromptResult{
+			Messages: []*mcpsdk.PromptMessage{{
+				Role:    "user",
+				Content: &mcpsdk.TextContent{Text: "Review this"},
+			}},
+		}, nil
+	})
+
+	client := connect(t, server)
+
+	tools, err := client.ListTools(context.Background())
+	if err != nil {
+		t.Fatalf("ListTools() error = %v", err)
+	}
+
+	if len(tools) != 0 {
+		t.Fatalf("len(tools) = %d, want 0", len(tools))
+	}
+
+	prompts, err := client.ListPrompts(context.Background())
+	if err != nil {
+		t.Fatalf("ListPrompts() error = %v", err)
+	}
+
+	if len(prompts) != 1 || prompts[0].Name != "review" {
+		t.Fatalf("Prompts = %+v, want review", prompts)
+	}
+}
+
+func TestConnectSupportsResourceOnlyServer(t *testing.T) {
+	server := mcpsdk.NewServer(&mcpsdk.Implementation{Name: "test", Version: "0.1.0"}, nil)
+	server.AddResource(&mcpsdk.Resource{
+		Name:     "readme",
+		URI:      "file:///README.md",
+		MIMEType: "text/markdown",
+	}, func(context.Context, *mcpsdk.ReadResourceRequest) (*mcpsdk.ReadResourceResult, error) {
+		return &mcpsdk.ReadResourceResult{
+			Contents: []*mcpsdk.ResourceContents{{
+				URI:      "file:///README.md",
+				MIMEType: "text/markdown",
+				Text:     "# Test",
+			}},
+		}, nil
+	})
+
+	client := connect(t, server)
+
+	tools, err := client.ListTools(context.Background())
+	if err != nil {
+		t.Fatalf("ListTools() error = %v", err)
+	}
+
+	if len(tools) != 0 {
+		t.Fatalf("len(tools) = %d, want 0", len(tools))
+	}
+
+	resources, err := client.ListResources(context.Background())
+	if err != nil {
+		t.Fatalf("ListResources() error = %v", err)
+	}
+
+	if len(resources) != 1 || resources[0].URI != "file:///README.md" {
+		t.Fatalf("Resources = %+v, want README resource", resources)
+	}
+}
+
 func TestListToolsCachesBetweenCalls(t *testing.T) {
 	client := connect(t, newServer(t, "greet"))
 

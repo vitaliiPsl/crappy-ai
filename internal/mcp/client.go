@@ -24,7 +24,8 @@ type sdkClient struct {
 	connMu sync.Mutex
 	mu     sync.RWMutex
 
-	session *mcpsdk.ClientSession
+	session      *mcpsdk.ClientSession
+	capabilities *mcpsdk.ServerCapabilities
 
 	tools             []kit.Tool
 	prompts           []Prompt
@@ -201,7 +202,9 @@ func (c *sdkClient) connectLocked(ctx context.Context) error {
 		return err
 	}
 
-	tools, prompts, resources, resourceTemplates, err := c.fetchLists(ctx, session)
+	capabilities := serverCapabilities(session)
+
+	tools, prompts, resources, resourceTemplates, err := c.fetchLists(ctx, session, capabilities)
 	if err != nil {
 		_ = session.Close()
 
@@ -214,6 +217,7 @@ func (c *sdkClient) connectLocked(ctx context.Context) error {
 	defer c.mu.Unlock()
 
 	c.session = session
+	c.capabilities = capabilities
 	c.tools = tools
 	c.prompts = prompts
 	c.resources = resources
@@ -233,6 +237,7 @@ func (c *sdkClient) closeLocked() error {
 
 	session := c.session
 	c.session = nil
+	c.capabilities = nil
 	c.clearLists()
 
 	c.status = ClientDisconnected
@@ -280,40 +285,59 @@ func (c *sdkClient) dial(ctx context.Context) (*mcpsdk.ClientSession, error) {
 	return session, nil
 }
 
-func (c *sdkClient) fetchLists(ctx context.Context, session *mcpsdk.ClientSession) ([]kit.Tool, []Prompt, []Resource, []ResourceTemplate, error) {
+func (c *sdkClient) fetchLists(ctx context.Context, session *mcpsdk.ClientSession, capabilities *mcpsdk.ServerCapabilities) ([]kit.Tool, []Prompt, []Resource, []ResourceTemplate, error) {
 	ctx, cancel := withTimeout(ctx, c.config.RequestTimeout)
 	defer cancel()
 
-	tools, err := fetchTools(ctx, c.config, c, session)
-	if err != nil {
-		return nil, nil, nil, nil, err
+	var tools []kit.Tool
+	if supportsTools(capabilities) {
+		var err error
+
+		tools, err = fetchTools(ctx, c.config, c, session)
+		if err != nil {
+			return nil, nil, nil, nil, err
+		}
 	}
 
-	prompts, err := fetchOptional(ctx, session, fetchPrompts)
-	if err != nil {
-		return nil, nil, nil, nil, err
+	var prompts []Prompt
+	if supportsPrompts(capabilities) {
+		var err error
+
+		prompts, err = fetchPrompts(ctx, session)
+		if err != nil {
+			return nil, nil, nil, nil, err
+		}
 	}
 
-	resources, err := fetchOptional(ctx, session, fetchResources)
-	if err != nil {
-		return nil, nil, nil, nil, err
-	}
+	var (
+		resources         []Resource
+		resourceTemplates []ResourceTemplate
+	)
 
-	resourceTemplates, err := fetchOptional(ctx, session, fetchResourceTemplates)
-	if err != nil {
-		return nil, nil, nil, nil, err
+	if supportsResources(capabilities) {
+		var err error
+
+		resources, err = fetchResources(ctx, session)
+		if err != nil {
+			return nil, nil, nil, nil, err
+		}
+
+		resourceTemplates, err = fetchResourceTemplates(ctx, session)
+		if err != nil {
+			return nil, nil, nil, nil, err
+		}
 	}
 
 	return tools, prompts, resources, resourceTemplates, nil
 }
 
 func (c *sdkClient) refetchLists(ctx context.Context) {
-	session, err := c.activeSession()
+	session, capabilities, err := c.activeConnection()
 	if err != nil {
 		return
 	}
 
-	tools, prompts, resources, resourceTemplates, err := c.fetchLists(ctx, session)
+	tools, prompts, resources, resourceTemplates, err := c.fetchLists(ctx, session, capabilities)
 	if err != nil {
 		c.handleRequestError(err)
 
@@ -339,6 +363,7 @@ func (c *sdkClient) watch(session *mcpsdk.ClientSession) {
 	}
 
 	c.session = nil
+	c.capabilities = nil
 	c.clearLists()
 	c.status = ClientDisconnected
 	c.err = nil
@@ -360,6 +385,17 @@ func (c *sdkClient) activeSession() (*mcpsdk.ClientSession, error) {
 	}
 
 	return c.session, nil
+}
+
+func (c *sdkClient) activeConnection() (*mcpsdk.ClientSession, *mcpsdk.ServerCapabilities, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.session == nil || c.status != ClientConnected {
+		return nil, nil, fmt.Errorf("mcp: client is not connected")
+	}
+
+	return c.session, c.capabilities, nil
 }
 
 func (c *sdkClient) setStatus(status ClientStatus, err error) {
@@ -384,4 +420,24 @@ func (c *sdkClient) handleRequestError(err error) {
 	if errors.Is(err, mcpauth.ErrOAuth) {
 		c.setStatus(ClientAuthRequired, err)
 	}
+}
+
+func serverCapabilities(session *mcpsdk.ClientSession) *mcpsdk.ServerCapabilities {
+	if session == nil || session.InitializeResult() == nil {
+		return nil
+	}
+
+	return session.InitializeResult().Capabilities
+}
+
+func supportsTools(capabilities *mcpsdk.ServerCapabilities) bool {
+	return capabilities == nil || capabilities.Tools != nil
+}
+
+func supportsPrompts(capabilities *mcpsdk.ServerCapabilities) bool {
+	return capabilities == nil || capabilities.Prompts != nil
+}
+
+func supportsResources(capabilities *mcpsdk.ServerCapabilities) bool {
+	return capabilities == nil || capabilities.Resources != nil
 }

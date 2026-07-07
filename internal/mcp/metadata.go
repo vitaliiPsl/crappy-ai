@@ -2,9 +2,7 @@ package mcp
 
 import (
 	"context"
-	"errors"
 
-	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
@@ -27,19 +25,6 @@ func fetchTools(ctx context.Context, cfg Config, client Client, session *mcpsdk.
 	}
 
 	return tools, nil
-}
-
-func fetchOptional[T any](ctx context.Context, session *mcpsdk.ClientSession, fetch func(context.Context, *mcpsdk.ClientSession) ([]T, error)) ([]T, error) {
-	items, err := fetch(ctx, session)
-	if err != nil {
-		if isUnsupportedCapability(err) {
-			return nil, nil
-		}
-
-		return nil, err
-	}
-
-	return items, nil
 }
 
 func fetchPrompts(ctx context.Context, session *mcpsdk.ClientSession) ([]Prompt, error) {
@@ -229,10 +214,4 @@ func convertResourceContent(content *mcpsdk.ResourceContents) ResourceContent {
 		Text:     content.Text,
 		Blob:     append([]byte(nil), content.Blob...),
 	}
-}
-
-func isUnsupportedCapability(err error) bool {
-	var rpcErr *jsonrpc.Error
-
-	return errors.As(err, &rpcErr) && rpcErr.Code == jsonrpc.CodeMethodNotFound
 }
