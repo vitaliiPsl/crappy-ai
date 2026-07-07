@@ -22,7 +22,7 @@ func Reduce(s State, ev sessiondata.Event) State {
 	case sessiondata.EventContentDone:
 		return reduceContentDone(s, ev.Content)
 	case sessiondata.EventMessage:
-		return reduceMessage(s, ev.Message, ev.Skill)
+		return reduceMessage(s, ev.Message, ev.Skill, ev.MCPPrompt)
 	case sessiondata.EventAsk:
 		return reduceAsk(s, ev.Ask)
 	case sessiondata.EventTurnComplete:
@@ -146,7 +146,12 @@ func reduceContentDone(s State, c *kit.Content) State {
 	return s
 }
 
-func reduceMessage(s State, msg *kit.Message, skill *sessiondata.SkillInvocation) State {
+func reduceMessage(
+	s State,
+	msg *kit.Message,
+	skill *sessiondata.SkillInvocation,
+	mcpPrompt *sessiondata.MCPPromptInvocation,
+) State {
 	if msg == nil {
 		return s
 	}
@@ -164,6 +169,10 @@ func reduceMessage(s State, msg *kit.Message, skill *sessiondata.SkillInvocation
 	rendered := kitToMessage(*msg)
 	if skill != nil && msg.Role == kit.RoleUser {
 		rendered.Text = skill.String()
+	}
+
+	if mcpPrompt != nil && msg.Role == kit.RoleUser {
+		rendered.Text = mcpPrompt.String()
 	}
 
 	s.Messages = append(cloneMessages(s.Messages), rendered)

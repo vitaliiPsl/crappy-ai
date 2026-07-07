@@ -143,7 +143,7 @@ func (s *Session) run(ctx context.Context, req Request) error {
 		return s.fail(err)
 	}
 
-	input, event, err := s.buildAgentInput(req)
+	input, event, err := s.buildAgentInput(ctx, req)
 	if err != nil {
 		return s.fail(err)
 	}
@@ -222,8 +222,9 @@ func (s *Session) recordUsage(ctx context.Context, id string, usage kit.Usage) (
 	return sess.Usage, true
 }
 
-func (s *Session) buildAgentInput(req Request) (kit.Message, session.Event, error) {
+func (s *Session) buildAgentInput(ctx context.Context, req Request) (kit.Message, session.Event, error) {
 	text := req.Text
+
 	if req.Skill != nil {
 		skill, err := s.skillRegistry.GetSkill(req.Skill.Name)
 		if err != nil {
@@ -231,6 +232,22 @@ func (s *Session) buildAgentInput(req Request) (kit.Message, session.Event, erro
 		}
 
 		text = skills.FormatLoaded(skill, strings.Join(req.Skill.Args, " "))
+	}
+
+	if req.MCPPrompt != nil {
+		if s.mcpManager == nil {
+			return kit.Message{}, session.Event{}, fmt.Errorf("load mcp prompt %q from %q: mcp manager is not configured", req.MCPPrompt.Name, req.MCPPrompt.Server)
+		}
+
+		result, err := s.mcpManager.GetPrompt(ctx, req.MCPPrompt.Server, req.MCPPrompt.Name, req.MCPPrompt.Args)
+		if err != nil {
+			return kit.Message{}, session.Event{}, fmt.Errorf("load mcp prompt %q from %q: %w", req.MCPPrompt.Name, req.MCPPrompt.Server, err)
+		}
+
+		text = formatMCPPromptResult(result)
+		if strings.TrimSpace(text) == "" {
+			return kit.Message{}, session.Event{}, fmt.Errorf("load mcp prompt %q from %q: returned no text", req.MCPPrompt.Name, req.MCPPrompt.Server)
+		}
 	}
 
 	msg := kit.NewUserMessage(kit.NewTextContent(text))
@@ -243,7 +260,53 @@ func (s *Session) buildAgentInput(req Request) (kit.Message, session.Event, erro
 		})
 	}
 
+	if req.MCPPrompt != nil {
+		event = session.NewMCPPromptMessageEvent(s.id, msg, session.MCPPromptInvocation{
+			Server: req.MCPPrompt.Server,
+			Name:   req.MCPPrompt.Name,
+			Args:   req.MCPPrompt.Args,
+		})
+	}
+
 	return msg, event, nil
+}
+
+func formatMCPPromptResult(result mcp.PromptResult) string {
+	var parts []string
+	for _, message := range result.Messages {
+		for _, content := range message.Content {
+			if text := mcpPromptContentText(content); text != "" {
+				parts = append(parts, text)
+			}
+		}
+	}
+
+	return strings.Join(parts, "\n\n")
+}
+
+func mcpPromptContentText(content mcp.PromptContent) string {
+	switch content.Type {
+	case "text":
+		return content.Text
+	case "resource":
+		if content.Resource != nil && content.Resource.Text != "" {
+			return content.Resource.Text
+		}
+
+		if content.Text != "" {
+			return content.Text
+		}
+
+		return fmt.Sprintf("[resource: %s, %s]", content.URI, content.MIMEType)
+	case "resource_link":
+		return fmt.Sprintf("[resource: %s]", content.URI)
+	case "image":
+		return fmt.Sprintf("[image: %s, %d bytes]", content.MIMEType, len(content.Data))
+	case "audio":
+		return fmt.Sprintf("[audio: %s, %d bytes]", content.MIMEType, len(content.Data))
+	default:
+		return ""
+	}
 }
 
 func (s *Session) buildAgent(ctx context.Context, sessionID string, cfg config.Config, model kit.Model, mem kit.Memory) (*adk.Agent, error) {

@@ -45,6 +45,12 @@ type SubmitSkillMsg struct {
 	Args []string
 }
 
+type SubmitMCPPromptMsg struct {
+	Server string
+	Name   string
+	Args   map[string]string
+}
+
 type NavNewSessionMsg struct{}
 
 type NavSessionsMsg struct{}

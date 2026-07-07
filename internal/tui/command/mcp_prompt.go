@@ -12,7 +12,6 @@ import (
 
 type MCPPromptSource interface {
 	GetMCPPrompts(ctx context.Context) []mcp.ServerPrompt
-	GetMCPPrompt(ctx context.Context, server, name string, args map[string]string) (mcp.PromptResult, error)
 }
 
 type mcpPromptProvider struct {
@@ -58,24 +57,18 @@ func (c *MCPPromptCommand) Definition() Definition {
 	}
 }
 
-func (c *MCPPromptCommand) Execute(ctx context.Context, req Request) tea.Cmd {
+func (c *MCPPromptCommand) Execute(_ context.Context, req Request) tea.Cmd {
 	return func() tea.Msg {
 		args, err := promptArgs(c.prompt.Arguments, req.Args)
 		if err != nil {
 			return SystemMsg{Text: err.Error()}
 		}
 
-		result, err := c.source.GetMCPPrompt(ctx, c.prompt.Server, c.prompt.Name, args)
-		if err != nil {
-			return SystemMsg{Text: fmt.Sprintf("MCP prompt %s failed: %v", MCPPromptCommandName(c.prompt), err)}
+		return SubmitMCPPromptMsg{
+			Server: c.prompt.Server,
+			Name:   c.prompt.Name,
+			Args:   args,
 		}
-
-		text := FormatPromptResult(result)
-		if strings.TrimSpace(text) == "" {
-			return SystemMsg{Text: fmt.Sprintf("MCP prompt %s returned no text", MCPPromptCommandName(c.prompt))}
-		}
-
-		return SubmitTextMsg{Text: text}
 	}
 }
 
@@ -117,42 +110,4 @@ func promptArgs(defs []mcp.PromptArgument, values []string) (map[string]string, 
 	}
 
 	return args, nil
-}
-
-func FormatPromptResult(result mcp.PromptResult) string {
-	var parts []string
-	for _, message := range result.Messages {
-		for _, content := range message.Content {
-			if text := promptContentText(content); text != "" {
-				parts = append(parts, text)
-			}
-		}
-	}
-
-	return strings.Join(parts, "\n\n")
-}
-
-func promptContentText(content mcp.PromptContent) string {
-	switch content.Type {
-	case "text":
-		return content.Text
-	case "resource":
-		if content.Resource != nil && content.Resource.Text != "" {
-			return content.Resource.Text
-		}
-
-		if content.Text != "" {
-			return content.Text
-		}
-
-		return fmt.Sprintf("[resource: %s, %s]", content.URI, content.MIMEType)
-	case "resource_link":
-		return fmt.Sprintf("[resource: %s]", content.URI)
-	case "image":
-		return fmt.Sprintf("[image: %s, %d bytes]", content.MIMEType, len(content.Data))
-	case "audio":
-		return fmt.Sprintf("[audio: %s, %d bytes]", content.MIMEType, len(content.Data))
-	default:
-		return ""
-	}
 }

@@ -5,48 +5,19 @@ import (
 	"testing"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/mcp"
-	"github.com/vitaliiPsl/crappy-ai/internal/skills"
 	"github.com/vitaliiPsl/crappy-ai/internal/tui/command"
 )
 
 type promptSource struct {
 	prompts []mcp.ServerPrompt
-	result  mcp.PromptResult
-	got     struct {
-		server string
-		name   string
-		args   map[string]string
-	}
-}
-
-func (s *promptSource) GetSkills() []skills.Skill {
-	return nil
 }
 
 func (s *promptSource) GetMCPPrompts(context.Context) []mcp.ServerPrompt {
 	return s.prompts
 }
 
-func (s *promptSource) GetMCPPrompt(_ context.Context, server, name string, args map[string]string) (mcp.PromptResult, error) {
-	s.got.server = server
-	s.got.name = name
-	s.got.args = args
-
-	return s.result, nil
-}
-
-func TestMCPPromptCommandExecuteSubmitsResolvedPrompt(t *testing.T) {
-	src := &promptSource{
-		result: mcp.PromptResult{
-			Messages: []mcp.PromptMessage{{
-				Role: "user",
-				Content: []mcp.PromptContent{{
-					Type: "text",
-					Text: "Review main.go",
-				}},
-			}},
-		},
-	}
+func TestMCPPromptCommandExecuteSubmitsInvocation(t *testing.T) {
+	src := &promptSource{}
 	prompt := mcp.ServerPrompt{
 		Server: "github",
 		Prompt: mcp.Prompt{
@@ -61,17 +32,13 @@ func TestMCPPromptCommandExecuteSubmitsResolvedPrompt(t *testing.T) {
 
 	msg := cmd.Execute(context.Background(), command.Request{Args: []string{"main.go"}})()
 
-	submit, ok := msg.(command.SubmitTextMsg)
+	submit, ok := msg.(command.SubmitMCPPromptMsg)
 	if !ok {
-		t.Fatalf("msg = %#v, want SubmitTextMsg", msg)
+		t.Fatalf("msg = %#v, want SubmitMCPPromptMsg", msg)
 	}
 
-	if submit.Text != "Review main.go" {
-		t.Fatalf("Text = %q, want resolved prompt text", submit.Text)
-	}
-
-	if src.got.server != "github" || src.got.name != "review" || src.got.args["path"] != "main.go" {
-		t.Fatalf("GetMCPPrompt call = %+v, want github review path=main.go", src.got)
+	if submit.Server != "github" || submit.Name != "review" || submit.Args["path"] != "main.go" {
+		t.Fatalf("submit = %+v, want github review path=main.go", submit)
 	}
 }
 
@@ -92,13 +59,7 @@ func TestMCPPromptCommandMissingRequiredArgument(t *testing.T) {
 }
 
 func TestMCPPromptCommandAcceptsExplicitArguments(t *testing.T) {
-	src := &promptSource{
-		result: mcp.PromptResult{
-			Messages: []mcp.PromptMessage{{
-				Content: []mcp.PromptContent{{Type: "text", Text: "Say hi to Vitalii"}},
-			}},
-		},
-	}
+	src := &promptSource{}
 	cmd := command.NewMCPPromptCommand(src, mcp.ServerPrompt{
 		Server: "everything",
 		Prompt: mcp.Prompt{Name: "greet"},
@@ -106,23 +67,18 @@ func TestMCPPromptCommandAcceptsExplicitArguments(t *testing.T) {
 
 	msg := cmd.Execute(context.Background(), command.Request{Args: []string{"name=Vitalii"}})()
 
-	if _, ok := msg.(command.SubmitTextMsg); !ok {
-		t.Fatalf("msg = %#v, want SubmitTextMsg", msg)
+	submit, ok := msg.(command.SubmitMCPPromptMsg)
+	if !ok {
+		t.Fatalf("msg = %#v, want SubmitMCPPromptMsg", msg)
 	}
 
-	if src.got.args["name"] != "Vitalii" {
-		t.Fatalf("args = %#v, want name=Vitalii", src.got.args)
+	if submit.Args["name"] != "Vitalii" {
+		t.Fatalf("args = %#v, want name=Vitalii", submit.Args)
 	}
 }
 
 func TestMCPPromptCommandExplicitArgumentsCanSatisfyDeclaredArgs(t *testing.T) {
-	src := &promptSource{
-		result: mcp.PromptResult{
-			Messages: []mcp.PromptMessage{{
-				Content: []mcp.PromptContent{{Type: "text", Text: "Review main.go"}},
-			}},
-		},
-	}
+	src := &promptSource{}
 	cmd := command.NewMCPPromptCommand(src, mcp.ServerPrompt{
 		Server: "github",
 		Prompt: mcp.Prompt{
@@ -133,12 +89,13 @@ func TestMCPPromptCommandExplicitArgumentsCanSatisfyDeclaredArgs(t *testing.T) {
 
 	msg := cmd.Execute(context.Background(), command.Request{Args: []string{"path=main.go"}})()
 
-	if _, ok := msg.(command.SubmitTextMsg); !ok {
-		t.Fatalf("msg = %#v, want SubmitTextMsg", msg)
+	submit, ok := msg.(command.SubmitMCPPromptMsg)
+	if !ok {
+		t.Fatalf("msg = %#v, want SubmitMCPPromptMsg", msg)
 	}
 
-	if src.got.args["path"] != "main.go" {
-		t.Fatalf("args = %#v, want path=main.go", src.got.args)
+	if submit.Args["path"] != "main.go" {
+		t.Fatalf("args = %#v, want path=main.go", submit.Args)
 	}
 }
 

@@ -1,6 +1,7 @@
 package session
 
 import (
+	"sort"
 	"strings"
 	"time"
 
@@ -37,6 +38,28 @@ func (s SkillInvocation) String() string {
 	return "/" + s.Name + " " + strings.Join(s.Args, " ")
 }
 
+type MCPPromptInvocation struct {
+	Server string            `json:"server"`
+	Name   string            `json:"name"`
+	Args   map[string]string `json:"args,omitempty"`
+}
+
+func (p MCPPromptInvocation) String() string {
+	text := "/mcp:" + p.Server + ":" + p.Name
+	if len(p.Args) == 0 {
+		return text
+	}
+
+	args := make([]string, 0, len(p.Args))
+	for name, value := range p.Args {
+		args = append(args, name+"="+value)
+	}
+
+	sort.Strings(args)
+
+	return text + " " + strings.Join(args, " ")
+}
+
 type TurnStats struct {
 	Usage         kit.Usage `json:"usage"`
 	ContextUsed   int64     `json:"context_used"`
@@ -54,9 +77,10 @@ type Event struct {
 
 	Error string `json:"error,omitempty"`
 
-	Stats *TurnStats       `json:"stats,omitempty"`
-	Skill *SkillInvocation `json:"skill,omitempty"`
-	Ask   *ask.Request     `json:"ask,omitempty"`
+	Stats     *TurnStats           `json:"stats,omitempty"`
+	Skill     *SkillInvocation     `json:"skill,omitempty"`
+	MCPPrompt *MCPPromptInvocation `json:"mcp_prompt,omitempty"`
+	Ask       *ask.Request         `json:"ask,omitempty"`
 }
 
 func newEvent(sessionID string, t EventType) Event {
@@ -99,6 +123,13 @@ func NewMessageEvent(sessionID string, msg kit.Message) Event {
 func NewSkillMessageEvent(sessionID string, msg kit.Message, skill SkillInvocation) Event {
 	e := NewMessageEvent(sessionID, msg)
 	e.Skill = &skill
+
+	return e
+}
+
+func NewMCPPromptMessageEvent(sessionID string, msg kit.Message, prompt MCPPromptInvocation) Event {
+	e := NewMessageEvent(sessionID, msg)
+	e.MCPPrompt = &prompt
 
 	return e
 }

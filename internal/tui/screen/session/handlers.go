@@ -205,6 +205,17 @@ func (m Model) handleSkillSubmit(msg command.SubmitSkillMsg) (Model, tea.Cmd) {
 	})
 }
 
+func (m Model) handleMCPPromptSubmit(msg command.SubmitMCPPromptMsg) (Model, tea.Cmd) {
+	return m.handleRunRequest(runtime.Request{
+		Text: msg.Name,
+		MCPPrompt: &runtime.MCPPromptInvocation{
+			Server: msg.Server,
+			Name:   msg.Name,
+			Args:   msg.Args,
+		},
+	})
+}
+
 func (m Model) applyHistory(msg historyLoadedMsg) (Model, tea.Cmd) {
 	if msg.err != nil {
 		m.state = m.state.SetError(msg.err)

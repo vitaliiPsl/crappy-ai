@@ -122,6 +122,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	case command.SubmitSkillMsg:
 		m, cmd = m.handleSkillSubmit(msg)
 
+	case command.SubmitMCPPromptMsg:
+		m, cmd = m.handleMCPPromptSubmit(msg)
+
 	case command.CompactSessionMsg:
 		m, cmd = m.handleCompact()
 
