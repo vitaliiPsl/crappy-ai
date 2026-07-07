@@ -153,7 +153,7 @@ func TestRegistryIncludesMCPPromptCommands(t *testing.T) {
 		}},
 	}
 
-	registry := command.NewRegistry(src)
+	registry := command.NewRegistry(context.Background(), command.NewMCPPromptProvider(src))
 
 	cmd, ok := registry.Get("mcp:github:review")
 	if !ok {

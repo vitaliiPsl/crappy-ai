@@ -233,5 +233,6 @@ func convertResourceContent(content *mcpsdk.ResourceContents) ResourceContent {
 
 func isUnsupportedCapability(err error) bool {
 	var rpcErr *jsonrpc.Error
+
 	return errors.As(err, &rpcErr) && rpcErr.Code == jsonrpc.CodeMethodNotFound
 }

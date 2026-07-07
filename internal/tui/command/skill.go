@@ -12,6 +12,29 @@ type SkillSource interface {
 	GetSkills() []skills.Skill
 }
 
+type skillProvider struct {
+	source SkillSource
+}
+
+func NewSkillProvider(source SkillSource) Provider {
+	if source == nil {
+		return nil
+	}
+
+	return skillProvider{source: source}
+}
+
+func (p skillProvider) Commands(_ context.Context) []Command {
+	skills := p.source.GetSkills()
+
+	cmds := make([]Command, 0, len(skills))
+	for _, sk := range skills {
+		cmds = append(cmds, NewSkillCommand(sk))
+	}
+
+	return cmds
+}
+
 type SkillCommand struct {
 	skill skills.Skill
 }

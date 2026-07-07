@@ -15,6 +15,29 @@ type MCPPromptSource interface {
 	GetMCPPrompt(ctx context.Context, server, name string, args map[string]string) (mcp.PromptResult, error)
 }
 
+type mcpPromptProvider struct {
+	source MCPPromptSource
+}
+
+func NewMCPPromptProvider(source MCPPromptSource) Provider {
+	if source == nil {
+		return nil
+	}
+
+	return mcpPromptProvider{source: source}
+}
+
+func (p mcpPromptProvider) Commands(ctx context.Context) []Command {
+	prompts := p.source.GetMCPPrompts(ctx)
+
+	cmds := make([]Command, 0, len(prompts))
+	for _, prompt := range prompts {
+		cmds = append(cmds, NewMCPPromptCommand(p.source, prompt))
+	}
+
+	return cmds
+}
+
 type MCPPromptCommand struct {
 	source MCPPromptSource
 	prompt mcp.ServerPrompt
@@ -62,6 +85,7 @@ func MCPPromptCommandName(prompt mcp.ServerPrompt) string {
 
 func promptArgs(defs []mcp.PromptArgument, values []string) (map[string]string, error) {
 	args := make(map[string]string, len(defs))
+
 	positional := make([]string, 0, len(values))
 	for _, value := range values {
 		key, val, ok := strings.Cut(value, "=")

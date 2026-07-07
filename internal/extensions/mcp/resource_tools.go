@@ -205,6 +205,7 @@ func formatResourceResult(server, uri string, result mcpcore.ResourceResult) str
 
 	if len(result.Contents) == 0 {
 		out.WriteString("\nNo contents returned.")
+
 		return out.String()
 	}
 
@@ -220,6 +221,7 @@ func formatResourceResult(server, uri string, result mcpcore.ResourceResult) str
 		}
 
 		fmt.Fprintf(&out, "\nContent %d\nURI: %s\nMIME: %s\n", i+1, itemURI, mime)
+
 		switch {
 		case content.Text != "":
 			out.WriteString(content.Text)

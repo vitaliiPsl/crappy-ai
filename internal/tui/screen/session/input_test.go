@@ -1,6 +1,7 @@
 package session
 
 import (
+	"context"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -12,7 +13,7 @@ import (
 func TestUpdateRoutesPasteToInput(t *testing.T) {
 	m := Model{
 		state: State{Phase: PhaseIdle},
-		input: newInputBar(command.NewRegistry(nil)),
+		input: newInputBar(command.NewRegistry(context.Background())),
 	}
 
 	got, _ := m.Update(tea.PasteMsg{Content: "hello\nfrom paste"})
@@ -28,7 +29,7 @@ func TestUpdateDoesNotPasteIntoInputDuringPrompt(t *testing.T) {
 			Phase:  PhaseAwaitingPermission,
 			Prompt: &ask.Request{},
 		},
-		input: newInputBar(command.NewRegistry(nil)),
+		input: newInputBar(command.NewRegistry(context.Background())),
 	}
 
 	got, _ := m.Update(tea.PasteMsg{Content: "ignored"})

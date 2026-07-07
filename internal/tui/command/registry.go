@@ -2,7 +2,6 @@ package command
 
 import (
 	"context"
-	"fmt"
 	"sort"
 )
 
@@ -10,7 +9,15 @@ type Registry struct {
 	commands map[string]Command
 }
 
-func NewRegistry(source SkillSource) *Registry {
+type Provider interface {
+	Commands(ctx context.Context) []Command
+}
+
+func NewRegistry(ctx context.Context, providers ...Provider) *Registry {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	r := &Registry{commands: make(map[string]Command)}
 
 	r.Register(NewNewCommand())
@@ -21,23 +28,12 @@ func NewRegistry(source SkillSource) *Registry {
 	r.Register(NewCompactCommand())
 	r.Register(NewHelpCommand(r))
 
-	if source != nil {
-		for _, sk := range source.GetSkills() {
-			if _, exists := r.commands[sk.Name]; exists {
-				continue
-			}
-
-			r.Register(NewSkillCommand(sk))
+	for _, provider := range providers {
+		if provider == nil {
+			continue
 		}
-	}
 
-	if promptSource, ok := source.(MCPPromptSource); ok {
-		for _, prompt := range promptSource.GetMCPPrompts(context.Background()) {
-			cmd := NewMCPPromptCommand(promptSource, prompt)
-			if _, exists := r.commands[cmd.Definition().Name]; exists {
-				continue
-			}
-
+		for _, cmd := range provider.Commands(ctx) {
 			r.Register(cmd)
 		}
 	}
@@ -48,7 +44,7 @@ func NewRegistry(source SkillSource) *Registry {
 func (r *Registry) Register(cmd Command) {
 	name := cmd.Definition().Name
 	if _, exists := r.commands[name]; exists {
-		panic(fmt.Sprintf("command %q already registered", name))
+		return
 	}
 
 	r.commands[name] = cmd

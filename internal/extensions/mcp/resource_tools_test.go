@@ -9,6 +9,7 @@ import (
 	"time"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
+
 	"github.com/vitaliiPsl/crappy-adk/kit"
 
 	mcpcore "github.com/vitaliiPsl/crappy-ai/internal/mcp"
@@ -47,6 +48,7 @@ func TestResourceToolsListAndRead(t *testing.T) {
 
 	eventually(t, time.Second, func() bool {
 		client, err := manager.Get("docs")
+
 		return err == nil && client.State().Status == mcpcore.ClientConnected
 	})
 
@@ -57,6 +59,7 @@ func TestResourceToolsListAndRead(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list_mcp_resources: %v", err)
 	}
+
 	if !strings.Contains(resources, `"server": "docs"`) || !strings.Contains(resources, `"uri": "docs://readme"`) {
 		t.Fatalf("list_mcp_resources output = %s, want docs resource", resources)
 	}
@@ -65,6 +68,7 @@ func TestResourceToolsListAndRead(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list_mcp_resource_templates: %v", err)
 	}
+
 	if !strings.Contains(templates, `"uri_template": "docs://{name}"`) {
 		t.Fatalf("list_mcp_resource_templates output = %s, want docs template", templates)
 	}
@@ -73,6 +77,7 @@ func TestResourceToolsListAndRead(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read_mcp_resource: %v", err)
 	}
+
 	if !strings.Contains(content, "# Docs") {
 		t.Fatalf("read_mcp_resource output = %s, want resource text", content)
 	}

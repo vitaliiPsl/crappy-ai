@@ -51,7 +51,7 @@ func TestRegistrySkipsSkillNameCollisionWithBuiltin(t *testing.T) {
 	skillstest.WriteSkill(t, filepath.Join(userDir, "help", "SKILL.md"), "help", "Custom help", "ignored")
 	skillstest.WriteSkill(t, filepath.Join(userDir, "review", "SKILL.md"), "review", "Review code", "Find bugs first.")
 
-	registry := command.NewRegistry(skillstest.NewRegistry(userDir))
+	registry := command.NewRegistry(context.Background(), command.NewSkillProvider(skillstest.NewRegistry(userDir)))
 
 	helpCmd, _ := registry.Get("help")
 	if _, ok := helpCmd.(*command.HelpCommand); !ok {
