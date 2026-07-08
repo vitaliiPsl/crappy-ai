@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -60,9 +59,18 @@ func TestResourceToolsListAndRead(t *testing.T) {
 		t.Fatalf("list_mcp_resources: %v", err)
 	}
 
-	resourceText := kit.ContentsText(resources.Content)
-	if !strings.Contains(resourceText, `"server": "docs"`) || !strings.Contains(resourceText, `"uri": "docs://readme"`) {
-		t.Fatalf("list_mcp_resources output = %s, want docs resource", resourceText)
+	resourceData, ok := resources.Structured.(map[string]any)
+	if !ok {
+		t.Fatalf("list_mcp_resources structured = %T, want map", resources.Structured)
+	}
+
+	resourceList, ok := resourceData["resources"].([]resourceOutput)
+	if !ok {
+		t.Fatalf("list_mcp_resources resources = %T, want []resourceOutput", resourceData["resources"])
+	}
+
+	if len(resourceList) != 1 || resourceList[0].Server != "docs" || resourceList[0].URI != "docs://readme" {
+		t.Fatalf("list_mcp_resources output = %+v, want docs resource", resourceList)
 	}
 
 	templates, err := tools[listResourceTemplatesName].Execute(rc, kit.NewToolCall("call-2", listResourceTemplatesName, nil))
@@ -70,9 +78,18 @@ func TestResourceToolsListAndRead(t *testing.T) {
 		t.Fatalf("list_mcp_resource_templates: %v", err)
 	}
 
-	templateText := kit.ContentsText(templates.Content)
-	if !strings.Contains(templateText, `"uri_template": "docs://{name}"`) {
-		t.Fatalf("list_mcp_resource_templates output = %s, want docs template", templateText)
+	templateData, ok := templates.Structured.(map[string]any)
+	if !ok {
+		t.Fatalf("list_mcp_resource_templates structured = %T, want map", templates.Structured)
+	}
+
+	templateList, ok := templateData["resource_templates"].([]resourceTemplateOutput)
+	if !ok {
+		t.Fatalf("list_mcp_resource_templates templates = %T, want []resourceTemplateOutput", templateData["resource_templates"])
+	}
+
+	if len(templateList) != 1 || templateList[0].URITemplate != "docs://{name}" {
+		t.Fatalf("list_mcp_resource_templates output = %+v, want docs template", templateList)
 	}
 
 	content, err := tools[readResourceName].Execute(rc, kit.NewToolCall("call-3", readResourceName, map[string]any{"server": "docs", "uri": "docs://readme"}))
@@ -80,9 +97,20 @@ func TestResourceToolsListAndRead(t *testing.T) {
 		t.Fatalf("read_mcp_resource: %v", err)
 	}
 
-	contentText := kit.ContentsText(content.Content)
-	if !strings.Contains(contentText, "# Docs") {
-		t.Fatalf("read_mcp_resource output = %s, want resource text", contentText)
+	if len(content.Content) != 1 ||
+		content.Content[0].Resource == nil ||
+		content.Content[0].Resource.URI != "docs://readme" ||
+		content.Content[0].Resource.Text != "# Docs" {
+		t.Fatalf("read_mcp_resource content = %+v, want resource content", content.Content)
+	}
+
+	readMeta, ok := content.Structured.(readResourceOutput)
+	if !ok {
+		t.Fatalf("read_mcp_resource structured = %T, want readResourceOutput", content.Structured)
+	}
+
+	if readMeta.Server != "docs" || readMeta.URI != "docs://readme" {
+		t.Fatalf("read_mcp_resource metadata = %+v, want docs/readme", readMeta)
 	}
 }
 

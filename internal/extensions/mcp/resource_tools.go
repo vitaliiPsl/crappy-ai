@@ -1,7 +1,6 @@
 package mcp
 
 import (
-	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -16,8 +15,6 @@ const (
 	listResourcesName         = "list_mcp_resources"
 	listResourceTemplatesName = "list_mcp_resource_templates"
 	readResourceName          = "read_mcp_resource"
-
-	maxResourceOutputChars = 20_000
 )
 
 type listResourcesInput struct {
@@ -48,6 +45,11 @@ type resourceTemplateOutput struct {
 	MIMEType    string `json:"mime_type,omitempty"`
 }
 
+type readResourceOutput struct {
+	Server string `json:"server"`
+	URI    string `json:"uri"`
+}
+
 func newResourceTools(manager *mcpcore.Manager) []kit.Tool {
 	return []kit.Tool{
 		newListResourcesTool(manager),
@@ -60,13 +62,13 @@ func newListResourcesTool(manager *mcpcore.Manager) kit.Tool {
 	return tool.MustNew(
 		listResourcesName,
 		"Lists resources provided by connected MCP servers. Resources provide context such as files, database schemas, documentation, or application-specific information.",
-		func(rc *kit.RunContext, input listResourcesInput) (string, error) {
+		func(rc *kit.RunContext, input listResourcesInput) (kit.ToolOutput, error) {
 			resources, err := listResources(rc, manager, strings.TrimSpace(input.Server))
 			if err != nil {
-				return "", err
+				return kit.ToolOutput{}, err
 			}
 
-			return marshalOutput(map[string]any{"resources": resources})
+			return kit.NewStructuredToolOutput(map[string]any{"resources": resources}), nil
 		},
 	)
 }
@@ -75,13 +77,13 @@ func newListResourceTemplatesTool(manager *mcpcore.Manager) kit.Tool {
 	return tool.MustNew(
 		listResourceTemplatesName,
 		"Lists resource templates provided by connected MCP servers. Resource templates are parameterized resource URI patterns that can be filled and read with read_mcp_resource.",
-		func(rc *kit.RunContext, input listResourcesInput) (string, error) {
+		func(rc *kit.RunContext, input listResourcesInput) (kit.ToolOutput, error) {
 			templates, err := listResourceTemplates(rc, manager, strings.TrimSpace(input.Server))
 			if err != nil {
-				return "", err
+				return kit.ToolOutput{}, err
 			}
 
-			return marshalOutput(map[string]any{"resource_templates": templates})
+			return kit.NewStructuredToolOutput(map[string]any{"resource_templates": templates}), nil
 		},
 	)
 }
@@ -90,28 +92,34 @@ func newReadResourceTool(manager *mcpcore.Manager) kit.Tool {
 	return tool.MustNew(
 		readResourceName,
 		"Read a specific MCP resource using the server name and resource URI. Use list_mcp_resources or list_mcp_resource_templates first when you need to discover available resource URIs.",
-		func(rc *kit.RunContext, input readResourceInput) (string, error) {
+		func(rc *kit.RunContext, input readResourceInput) (kit.ToolOutput, error) {
 			server := strings.TrimSpace(input.Server)
 			if server == "" {
-				return "", fmt.Errorf("server is required")
+				return kit.ToolOutput{}, fmt.Errorf("server is required")
 			}
 
 			uri := strings.TrimSpace(input.URI)
 			if uri == "" {
-				return "", fmt.Errorf("uri is required")
+				return kit.ToolOutput{}, fmt.Errorf("uri is required")
 			}
 
 			client, err := manager.Get(server)
 			if err != nil {
-				return "", err
+				return kit.ToolOutput{}, err
 			}
 
 			result, err := client.ReadResource(rc.Context, uri)
 			if err != nil {
-				return "", err
+				return kit.ToolOutput{}, err
 			}
 
-			return truncateResourceOutput(formatResourceResult(server, uri, result)), nil
+			return kit.ToolOutput{
+				Content: result,
+				Structured: readResourceOutput{
+					Server: server,
+					URI:    uri,
+				},
+			}, nil
 		},
 	)
 }
@@ -197,79 +205,4 @@ func listResourceTemplates(rc *kit.RunContext, manager *mcpcore.Manager, server 
 	})
 
 	return out, nil
-}
-
-func formatResourceResult(server, uri string, content []kit.Content) string {
-	var out strings.Builder
-	fmt.Fprintf(&out, "MCP Resource\nServer: %s\nURI: %s\n", server, uri)
-
-	if len(content) == 0 {
-		out.WriteString("\nNo contents returned.")
-
-		return out.String()
-	}
-
-	for i, item := range content {
-		itemURI, mime := resourceContentMetadata(item, uri)
-
-		fmt.Fprintf(&out, "\nContent %d\nURI: %s\nMIME: %s\n", i+1, itemURI, mime)
-
-		if text, ok := kit.ContentText(item); ok && text != "" {
-			out.WriteString(text)
-			out.WriteString("\n")
-
-			continue
-		}
-
-		out.WriteString("[MCP resource content without readable fallback]\n")
-	}
-
-	return strings.TrimSpace(out.String())
-}
-
-func resourceContentMetadata(content kit.Content, fallbackURI string) (string, string) {
-	uri := fallbackURI
-	mime := "application/octet-stream"
-
-	switch content.Type {
-	case kit.ContentTypeResource:
-		if content.Resource == nil {
-			return uri, mime
-		}
-
-		if content.Resource.URI != "" {
-			uri = content.Resource.URI
-		}
-
-		if content.Resource.MIMEType != "" {
-			mime = content.Resource.MIMEType
-		}
-	case kit.ContentTypeImage:
-		if content.Image != nil && content.Image.MIMEType != "" {
-			mime = content.Image.MIMEType
-		}
-	case kit.ContentTypeAudio:
-		if content.Audio != nil && content.Audio.MIMEType != "" {
-			mime = content.Audio.MIMEType
-		}
-	}
-
-	return uri, mime
-}
-
-func marshalOutput(value any) (string, error) {
-	data, err := json.MarshalIndent(value, "", "  ")
-	if err != nil {
-		return "", err
-	}
-
-	return string(data), nil
-}
-
-func truncateResourceOutput(value string) string {
-	if len(value) <= maxResourceOutputChars {
-		return value
-	}
-
-	return value[:maxResourceOutputChars] + "\n\n... truncated"
 }
