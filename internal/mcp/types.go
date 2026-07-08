@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/vitaliiPsl/crappy-ai/internal/mcp/oauth"
-
 	"github.com/vitaliiPsl/crappy-adk/kit"
+
+	"github.com/vitaliiPsl/crappy-ai/internal/mcp/oauth"
 )
 
 type Client interface {
@@ -21,8 +21,8 @@ type Client interface {
 	ListResources(ctx context.Context) ([]Resource, error)
 	ListResourceTemplates(ctx context.Context) ([]ResourceTemplate, error)
 	CallTool(ctx context.Context, call kit.ToolCall) (kit.ToolResult, error)
-	GetPrompt(ctx context.Context, name string, args map[string]string) (PromptResult, error)
-	ReadResource(ctx context.Context, uri string) (ResourceResult, error)
+	GetPrompt(ctx context.Context, name string, args map[string]string) ([]kit.Message, error)
+	ReadResource(ctx context.Context, uri string) ([]kit.Content, error)
 }
 
 type Authenticator interface {
@@ -75,28 +75,6 @@ type PromptArgument struct {
 	Required    bool
 }
 
-type PromptResult struct {
-	Description string
-	Messages    []PromptMessage
-}
-
-type PromptMessage struct {
-	Role    string
-	Content []PromptContent
-}
-
-type PromptContent struct {
-	Type        string
-	Text        string
-	MIMEType    string
-	URI         string
-	Name        string
-	Title       string
-	Description string
-	Data        []byte
-	Resource    *ResourceContent
-}
-
 type Resource struct {
 	Name        string
 	Title       string
@@ -112,17 +90,6 @@ type ResourceTemplate struct {
 	Description string
 	URITemplate string
 	MIMEType    string
-}
-
-type ResourceResult struct {
-	Contents []ResourceContent
-}
-
-type ResourceContent struct {
-	URI      string
-	MIMEType string
-	Text     string
-	Blob     []byte
 }
 
 type Config struct {

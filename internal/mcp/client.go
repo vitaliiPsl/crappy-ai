@@ -147,13 +147,13 @@ func (c *sdkClient) CallTool(ctx context.Context, call kit.ToolCall) (kit.ToolRe
 	return convertToolResult(call, res), nil
 }
 
-func (c *sdkClient) GetPrompt(ctx context.Context, name string, args map[string]string) (PromptResult, error) {
+func (c *sdkClient) GetPrompt(ctx context.Context, name string, args map[string]string) ([]kit.Message, error) {
 	ctx, cancel := withTimeout(ctx, c.config.RequestTimeout)
 	defer cancel()
 
 	session, err := c.activeSession()
 	if err != nil {
-		return PromptResult{}, err
+		return nil, err
 	}
 
 	res, err := session.GetPrompt(ctx, &mcpsdk.GetPromptParams{
@@ -163,26 +163,26 @@ func (c *sdkClient) GetPrompt(ctx context.Context, name string, args map[string]
 	if err != nil {
 		c.handleRequestError(err)
 
-		return PromptResult{}, err
+		return nil, err
 	}
 
 	return convertPromptResult(res), nil
 }
 
-func (c *sdkClient) ReadResource(ctx context.Context, uri string) (ResourceResult, error) {
+func (c *sdkClient) ReadResource(ctx context.Context, uri string) ([]kit.Content, error) {
 	ctx, cancel := withTimeout(ctx, c.config.RequestTimeout)
 	defer cancel()
 
 	session, err := c.activeSession()
 	if err != nil {
-		return ResourceResult{}, err
+		return nil, err
 	}
 
 	res, err := session.ReadResource(ctx, &mcpsdk.ReadResourceParams{URI: uri})
 	if err != nil {
 		c.handleRequestError(err)
 
-		return ResourceResult{}, err
+		return nil, err
 	}
 
 	return convertResourceResult(res), nil

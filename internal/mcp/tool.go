@@ -81,7 +81,7 @@ func schemaToMap(schema any) (map[string]any, error) {
 
 func convertToolResult(call kit.ToolCall, res *mcpsdk.CallToolResult) kit.ToolResult {
 	parts := make([]string, 0, 2)
-	if text := toolResultText(res); text != "" {
+	if text := kit.ContentsTextFallback(convertToolResultContent(res)); text != "" {
 		parts = append(parts, text)
 	}
 
@@ -104,42 +104,20 @@ func convertToolResult(call kit.ToolCall, res *mcpsdk.CallToolResult) kit.ToolRe
 	return kit.NewToolResult(call, text, nil)
 }
 
-func toolResultText(res *mcpsdk.CallToolResult) string {
-	parts := make([]string, 0, len(res.Content))
+func convertToolResultContent(res *mcpsdk.CallToolResult) []kit.Content {
+	if res == nil {
+		return nil
+	}
+
+	out := make([]kit.Content, 0, len(res.Content))
 	for _, content := range res.Content {
-		text := contentText(content)
-		if text == "" {
+		item := convertMCPContent(content)
+		if item.Type == "" {
 			continue
 		}
 
-		parts = append(parts, text)
+		out = append(out, item)
 	}
 
-	return strings.Join(parts, "\n")
-}
-
-func contentText(content mcpsdk.Content) string {
-	switch c := content.(type) {
-	case *mcpsdk.TextContent:
-		return c.Text
-	case *mcpsdk.ImageContent:
-		return fmt.Sprintf("[image: %s, %d bytes]", c.MIMEType, len(c.Data))
-	case *mcpsdk.AudioContent:
-		return fmt.Sprintf("[audio: %s, %d bytes]", c.MIMEType, len(c.Data))
-	case *mcpsdk.ResourceLink:
-		return fmt.Sprintf("[resource: %s]", c.URI)
-	case *mcpsdk.EmbeddedResource:
-		if c.Resource.Text != "" {
-			return c.Resource.Text
-		}
-
-		return fmt.Sprintf("[resource: %s, %s, %d bytes]", c.Resource.URI, c.Resource.MIMEType, len(c.Resource.Blob))
-	default:
-		data, err := json.Marshal(content)
-		if err != nil {
-			return ""
-		}
-
-		return string(data)
-	}
+	return out
 }

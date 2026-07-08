@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -98,63 +99,66 @@ func convertPromptArgument(arg *mcpsdk.PromptArgument) PromptArgument {
 	}
 }
 
-func convertPromptResult(result *mcpsdk.GetPromptResult) PromptResult {
+func convertPromptResult(result *mcpsdk.GetPromptResult) []kit.Message {
 	if result == nil {
-		return PromptResult{}
+		return nil
 	}
 
-	out := PromptResult{
-		Description: result.Description,
-		Messages:    make([]PromptMessage, 0, len(result.Messages)),
-	}
-
+	out := make([]kit.Message, 0, len(result.Messages))
 	for _, message := range result.Messages {
-		out.Messages = append(out.Messages, convertPromptMessage(message))
+		out = append(out, convertPromptMessage(message))
 	}
 
 	return out
 }
 
-func convertPromptMessage(message *mcpsdk.PromptMessage) PromptMessage {
+func convertPromptMessage(message *mcpsdk.PromptMessage) kit.Message {
 	if message == nil {
-		return PromptMessage{}
+		return kit.Message{}
 	}
 
-	return PromptMessage{
-		Role:    string(message.Role),
-		Content: []PromptContent{convertPromptContent(message.Content)},
+	return kit.Message{
+		Role:    convertPromptRole(message.Role),
+		Content: []kit.Content{convertMCPContent(message.Content)},
 	}
 }
 
-func convertPromptContent(content mcpsdk.Content) PromptContent {
+func convertPromptRole(role mcpsdk.Role) kit.Role {
+	switch string(role) {
+	case string(kit.RoleModel), "assistant":
+		return kit.RoleModel
+	case string(kit.RoleTool):
+		return kit.RoleTool
+	default:
+		return kit.RoleUser
+	}
+}
+
+func convertMCPContent(content mcpsdk.Content) kit.Content {
 	switch c := content.(type) {
 	case *mcpsdk.TextContent:
-		return PromptContent{Type: "text", Text: c.Text}
+		return kit.NewTextContent(c.Text)
 	case *mcpsdk.ImageContent:
-		return PromptContent{Type: "image", MIMEType: c.MIMEType, Data: append([]byte(nil), c.Data...)}
+		return kit.NewImageContent(c.MIMEType, c.Data)
 	case *mcpsdk.AudioContent:
-		return PromptContent{Type: "audio", MIMEType: c.MIMEType, Data: append([]byte(nil), c.Data...)}
+		return kit.NewAudioContent(c.MIMEType, c.Data)
 	case *mcpsdk.ResourceLink:
-		return PromptContent{
-			Type:        "resource_link",
+		return kit.NewResourceContent(kit.Resource{
 			URI:         c.URI,
 			Name:        c.Name,
 			Title:       c.Title,
 			Description: c.Description,
 			MIMEType:    c.MIMEType,
-		}
+		})
 	case *mcpsdk.EmbeddedResource:
-		resource := convertResourceContent(c.Resource)
-
-		return PromptContent{
-			Type:     "resource",
-			URI:      resource.URI,
-			MIMEType: resource.MIMEType,
-			Text:     resource.Text,
-			Resource: &resource,
-		}
+		return convertResourceContent(c.Resource)
 	default:
-		return PromptContent{Type: "unknown"}
+		data, err := json.Marshal(content)
+		if err != nil {
+			return kit.Content{}
+		}
+
+		return kit.NewTextContent(string(data))
 	}
 }
 
@@ -187,31 +191,28 @@ func convertResourceTemplate(template *mcpsdk.ResourceTemplate) ResourceTemplate
 	}
 }
 
-func convertResourceResult(result *mcpsdk.ReadResourceResult) ResourceResult {
+func convertResourceResult(result *mcpsdk.ReadResourceResult) []kit.Content {
 	if result == nil {
-		return ResourceResult{}
+		return nil
 	}
 
-	out := ResourceResult{
-		Contents: make([]ResourceContent, 0, len(result.Contents)),
-	}
-
+	out := make([]kit.Content, 0, len(result.Contents))
 	for _, content := range result.Contents {
-		out.Contents = append(out.Contents, convertResourceContent(content))
+		out = append(out, convertResourceContent(content))
 	}
 
 	return out
 }
 
-func convertResourceContent(content *mcpsdk.ResourceContents) ResourceContent {
+func convertResourceContent(content *mcpsdk.ResourceContents) kit.Content {
 	if content == nil {
-		return ResourceContent{}
+		return kit.Content{}
 	}
 
-	return ResourceContent{
+	return kit.NewResourceContent(kit.Resource{
 		URI:      content.URI,
 		MIMEType: content.MIMEType,
 		Text:     content.Text,
-		Blob:     append([]byte(nil), content.Blob...),
-	}
+		Blob:     content.Blob,
+	})
 }

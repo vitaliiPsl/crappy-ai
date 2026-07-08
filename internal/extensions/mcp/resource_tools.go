@@ -199,41 +199,62 @@ func listResourceTemplates(rc *kit.RunContext, manager *mcpcore.Manager, server 
 	return out, nil
 }
 
-func formatResourceResult(server, uri string, result mcpcore.ResourceResult) string {
+func formatResourceResult(server, uri string, content []kit.Content) string {
 	var out strings.Builder
 	fmt.Fprintf(&out, "MCP Resource\nServer: %s\nURI: %s\n", server, uri)
 
-	if len(result.Contents) == 0 {
+	if len(content) == 0 {
 		out.WriteString("\nNo contents returned.")
 
 		return out.String()
 	}
 
-	for i, content := range result.Contents {
-		itemURI := content.URI
-		if itemURI == "" {
-			itemURI = uri
-		}
-
-		mime := content.MIMEType
-		if mime == "" {
-			mime = "application/octet-stream"
-		}
+	for i, item := range content {
+		itemURI, mime := resourceContentMetadata(item, uri)
 
 		fmt.Fprintf(&out, "\nContent %d\nURI: %s\nMIME: %s\n", i+1, itemURI, mime)
 
-		switch {
-		case content.Text != "":
-			out.WriteString(content.Text)
+		if text, ok := kit.ContentTextFallback(item); ok && text != "" {
+			out.WriteString(text)
 			out.WriteString("\n")
-		case len(content.Blob) > 0:
-			fmt.Fprintf(&out, "[Binary MCP resource omitted: %s (%s, %d bytes)]\n", itemURI, mime, len(content.Blob))
-		default:
-			out.WriteString("[MCP resource content without text or blob]\n")
+
+			continue
 		}
+
+		out.WriteString("[MCP resource content without readable fallback]\n")
 	}
 
 	return strings.TrimSpace(out.String())
+}
+
+func resourceContentMetadata(content kit.Content, fallbackURI string) (string, string) {
+	uri := fallbackURI
+	mime := "application/octet-stream"
+
+	switch content.Type {
+	case kit.ContentTypeResource:
+		if content.Resource == nil {
+			return uri, mime
+		}
+
+		if content.Resource.URI != "" {
+			uri = content.Resource.URI
+		}
+
+		if content.Resource.MIMEType != "" {
+			mime = content.Resource.MIMEType
+		}
+	case kit.ContentTypeImage:
+		if content.Image != nil && content.Image.MIMEType != "" {
+			mime = content.Image.MIMEType
+		}
+	case kit.ContentTypeAudio:
+		if content.Audio != nil && content.Audio.MIMEType != "" {
+			mime = content.Audio.MIMEType
+		}
+	}
+
+	return uri, mime
 }
 
 func marshalOutput(value any) (string, error) {

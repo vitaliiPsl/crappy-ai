@@ -7,6 +7,8 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/vitaliiPsl/crappy-adk/kit"
+
 	"github.com/vitaliiPsl/crappy-ai/internal/mcp/oauth"
 )
 
@@ -181,10 +183,10 @@ func (m *Manager) Prompts(ctx context.Context) []ServerPrompt {
 	return prompts
 }
 
-func (m *Manager) GetPrompt(ctx context.Context, server, name string, args map[string]string) (PromptResult, error) {
+func (m *Manager) GetPrompt(ctx context.Context, server, name string, args map[string]string) ([]kit.Message, error) {
 	client, err := m.Get(server)
 	if err != nil {
-		return PromptResult{}, err
+		return nil, err
 	}
 
 	return client.GetPrompt(ctx, name, args)

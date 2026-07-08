@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/vitaliiPsl/crappy-adk/kit"
+
 	"github.com/vitaliiPsl/crappy-ai/internal/mcp"
 )
 
@@ -23,9 +25,9 @@ func (s *Server) GetMCPPrompts(ctx context.Context) []mcp.ServerPrompt {
 	return s.mcpManager.Prompts(ctx)
 }
 
-func (s *Server) GetMCPPrompt(ctx context.Context, server, name string, args map[string]string) (mcp.PromptResult, error) {
+func (s *Server) GetMCPPrompt(ctx context.Context, server, name string, args map[string]string) ([]kit.Message, error) {
 	if s.mcpManager == nil {
-		return mcp.PromptResult{}, fmt.Errorf("mcp: manager is not configured")
+		return nil, fmt.Errorf("mcp: manager is not configured")
 	}
 
 	return s.mcpManager.GetPrompt(ctx, server, name, args)

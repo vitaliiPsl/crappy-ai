@@ -271,13 +271,17 @@ func TestMCPMetadataLifecycle(t *testing.T) {
 		t.Fatalf("Prompt arguments = %+v, want required path", prompts[0].Arguments)
 	}
 
-	promptResult, err := client.GetPrompt(context.Background(), "review", map[string]string{"path": "main.go"})
+	promptMessages, err := client.GetPrompt(context.Background(), "review", map[string]string{"path": "main.go"})
 	if err != nil {
 		t.Fatalf("GetPrompt() error = %v", err)
 	}
 
-	if len(promptResult.Messages) != 1 || len(promptResult.Messages[0].Content) != 1 || promptResult.Messages[0].Content[0].Text != "Review main.go" {
-		t.Fatalf("GetPrompt() = %+v, want review message", promptResult)
+	if len(promptMessages) != 1 ||
+		len(promptMessages[0].Content) != 1 ||
+		promptMessages[0].Role != kit.RoleUser ||
+		promptMessages[0].Content[0].Text == nil ||
+		promptMessages[0].Content[0].Text.Text != "Review main.go" {
+		t.Fatalf("GetPrompt() = %+v, want review message", promptMessages)
 	}
 
 	resources, err := client.ListResources(context.Background())
@@ -303,7 +307,9 @@ func TestMCPMetadataLifecycle(t *testing.T) {
 		t.Fatalf("ReadResource() error = %v", err)
 	}
 
-	if len(result.Contents) != 1 || result.Contents[0].Text != "# Test" {
+	if len(result) != 1 ||
+		result[0].Resource == nil ||
+		result[0].Resource.Text != "# Test" {
 		t.Fatalf("ReadResource() = %+v, want README text", result)
 	}
 }

@@ -28,6 +28,7 @@ func NewInputProcessor(sessionID string, skillRegistry *skills.Registry, mcpMana
 
 func (p *InputProcessor) Process(ctx context.Context, req Request) (kit.Message, session.Event, error) {
 	text := req.Text
+	content := []kit.Content{kit.NewTextContent(text)}
 
 	if req.Skill != nil {
 		resolved, err := p.resolveSkill(*req.Skill)
@@ -36,6 +37,7 @@ func (p *InputProcessor) Process(ctx context.Context, req Request) (kit.Message,
 		}
 
 		text = resolved
+		content = []kit.Content{kit.NewTextContent(text)}
 	}
 
 	if req.MCPPrompt != nil {
@@ -44,10 +46,10 @@ func (p *InputProcessor) Process(ctx context.Context, req Request) (kit.Message,
 			return kit.Message{}, session.Event{}, err
 		}
 
-		text = resolved
+		content = resolved
 	}
 
-	msg := kit.NewUserMessage(kit.NewTextContent(text))
+	msg := kit.NewUserMessage(content...)
 
 	event := session.NewMessageEvent(p.sessionID, msg)
 	if req.Skill != nil {
@@ -81,58 +83,35 @@ func (p *InputProcessor) resolveSkill(invocation SkillInvocation) (string, error
 	return skills.FormatLoaded(skill, strings.Join(invocation.Args, " ")), nil
 }
 
-func (p *InputProcessor) resolveMCPPrompt(ctx context.Context, prompt MCPPromptInvocation) (string, error) {
+func (p *InputProcessor) resolveMCPPrompt(ctx context.Context, prompt MCPPromptInvocation) ([]kit.Content, error) {
 	if p.mcpManager == nil {
-		return "", fmt.Errorf("load mcp prompt %q from %q: mcp manager is not configured", prompt.Name, prompt.Server)
+		return nil, fmt.Errorf("load mcp prompt %q from %q: mcp manager is not configured", prompt.Name, prompt.Server)
 	}
 
-	result, err := p.mcpManager.GetPrompt(ctx, prompt.Server, prompt.Name, prompt.Args)
+	messages, err := p.mcpManager.GetPrompt(ctx, prompt.Server, prompt.Name, prompt.Args)
 	if err != nil {
-		return "", fmt.Errorf("load mcp prompt %q from %q: %w", prompt.Name, prompt.Server, err)
+		return nil, fmt.Errorf("load mcp prompt %q from %q: %w", prompt.Name, prompt.Server, err)
 	}
 
-	text := formatMCPPromptResult(result)
-	if strings.TrimSpace(text) == "" {
-		return "", fmt.Errorf("load mcp prompt %q from %q: returned no text", prompt.Name, prompt.Server)
+	content := mcpPromptContent(messages)
+	if len(content) == 0 {
+		return nil, fmt.Errorf("load mcp prompt %q from %q: returned no content", prompt.Name, prompt.Server)
 	}
 
-	return text, nil
+	return content, nil
 }
 
-func formatMCPPromptResult(result mcpcore.PromptResult) string {
-	var parts []string
-	for _, message := range result.Messages {
-		for _, content := range message.Content {
-			if text := mcpPromptContentText(content); text != "" {
-				parts = append(parts, text)
+func mcpPromptContent(messages []kit.Message) []kit.Content {
+	var out []kit.Content
+	for _, message := range messages {
+		for _, item := range message.Content {
+			if item.Type == "" {
+				continue
 			}
+
+			out = append(out, item)
 		}
 	}
 
-	return strings.Join(parts, "\n\n")
-}
-
-func mcpPromptContentText(content mcpcore.PromptContent) string {
-	switch content.Type {
-	case "text":
-		return content.Text
-	case "resource":
-		if content.Resource != nil && content.Resource.Text != "" {
-			return content.Resource.Text
-		}
-
-		if content.Text != "" {
-			return content.Text
-		}
-
-		return fmt.Sprintf("[resource: %s, %s]", content.URI, content.MIMEType)
-	case "resource_link":
-		return fmt.Sprintf("[resource: %s]", content.URI)
-	case "image":
-		return fmt.Sprintf("[image: %s, %d bytes]", content.MIMEType, len(content.Data))
-	case "audio":
-		return fmt.Sprintf("[audio: %s, %d bytes]", content.MIMEType, len(content.Data))
-	default:
-		return ""
-	}
+	return out
 }

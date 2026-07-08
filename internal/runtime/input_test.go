@@ -11,6 +11,8 @@ import (
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/vitaliiPsl/crappy-adk/kit"
+
 	mcpcore "github.com/vitaliiPsl/crappy-ai/internal/mcp"
 	"github.com/vitaliiPsl/crappy-ai/internal/skills/skillstest"
 )
@@ -135,25 +137,30 @@ func TestInputProcessorMCPPromptRequiresManager(t *testing.T) {
 	}
 }
 
-func TestFormatMCPPromptResultHandlesContentTypes(t *testing.T) {
-	got := formatMCPPromptResult(mcpcore.PromptResult{
-		Messages: []mcpcore.PromptMessage{{
-			Content: []mcpcore.PromptContent{
-				{Type: "text", Text: "hello"},
-				{Type: "resource_link", URI: "file://README.md"},
-				{Type: "image", MIMEType: "image/png", Data: []byte("abc")},
-			},
-		}},
-	})
+func TestMCPPromptContentPreservesContentTypes(t *testing.T) {
+	got := mcpPromptContent([]kit.Message{{
+		Role: kit.RoleUser,
+		Content: []kit.Content{
+			kit.NewTextContent("hello"),
+			kit.NewResourceContent(kit.Resource{URI: "file://README.md"}),
+			kit.NewImageContent("image/png", []byte("abc")),
+		},
+	}})
 
-	for _, want := range []string{
-		"hello",
-		"[resource: file://README.md]",
-		"[image: image/png, 3 bytes]",
-	} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("formatted prompt missing %q:\n%s", want, got)
-		}
+	if len(got) != 3 {
+		t.Fatalf("len(content) = %d, want 3", len(got))
+	}
+
+	if got[0].Text == nil || got[0].Text.Text != "hello" {
+		t.Fatalf("content[0] = %+v, want text hello", got[0])
+	}
+
+	if got[1].Resource == nil || got[1].Resource.URI != "file://README.md" {
+		t.Fatalf("content[1] = %+v, want resource link", got[1])
+	}
+
+	if got[2].Image == nil || got[2].Image.MIMEType != "image/png" || string(got[2].Image.Data) != "abc" {
+		t.Fatalf("content[2] = %+v, want image content", got[2])
 	}
 }
 
