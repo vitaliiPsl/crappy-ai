@@ -3,6 +3,8 @@ package background
 import (
 	"errors"
 	"time"
+
+	"github.com/vitaliiPsl/crappy-adk/kit"
 )
 
 const (
@@ -25,12 +27,12 @@ const (
 )
 
 type Job struct {
-	ID          string     `json:"job_id"`
-	SessionID   string     `json:"session_id,omitempty"`
-	Tool        string     `json:"tool"`
-	Status      Status     `json:"status"`
-	Output      string     `json:"output,omitempty"`
-	Error       string     `json:"error,omitempty"`
-	StartedAt   time.Time  `json:"started_at"`
-	CompletedAt *time.Time `json:"completed_at,omitempty"`
+	ID          string          `json:"job_id"`
+	SessionID   string          `json:"session_id,omitempty"`
+	Tool        string          `json:"tool"`
+	Status      Status          `json:"status"`
+	Output      *kit.ToolOutput `json:"output,omitempty"`
+	Error       string          `json:"error,omitempty"`
+	StartedAt   time.Time       `json:"started_at"`
+	CompletedAt *time.Time      `json:"completed_at,omitempty"`
 }

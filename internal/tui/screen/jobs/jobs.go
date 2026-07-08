@@ -9,6 +9,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	"github.com/vitaliiPsl/crappy-adk/kit"
+
 	"github.com/vitaliiPsl/crappy-ai/internal/background"
 	"github.com/vitaliiPsl/crappy-ai/internal/server"
 )
@@ -245,8 +247,8 @@ func jobMeta(job background.Job) []string {
 
 func jobPreview(job background.Job) string {
 	text := job.Error
-	if text == "" {
-		text = job.Output
+	if text == "" && job.Output != nil {
+		text = kit.ContentsText(job.Output.Content)
 	}
 
 	text = strings.TrimSpace(text)

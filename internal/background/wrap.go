@@ -10,15 +10,15 @@ import (
 
 type wrappedTool struct {
 	def kit.ToolDefinition
-	run func(rc *kit.RunContext, input map[string]any) (string, error)
+	run func(rc *kit.RunContext, call kit.ToolCall) (kit.ToolOutput, error)
 }
 
 func (t wrappedTool) Definition() kit.ToolDefinition {
 	return t.def
 }
 
-func (t wrappedTool) Execute(rc *kit.RunContext, input map[string]any) (string, error) {
-	return t.run(rc, input)
+func (t wrappedTool) Execute(rc *kit.RunContext, call kit.ToolCall) (kit.ToolOutput, error) {
+	return t.run(rc, call)
 }
 
 func Wrap(tool kit.Tool, jobs Jobs) (kit.Tool, error) {
@@ -33,37 +33,33 @@ func Wrap(tool kit.Tool, jobs Jobs) (kit.Tool, error) {
 
 	return wrappedTool{
 		def: def,
-		run: func(rc *kit.RunContext, input map[string]any) (string, error) {
-			background, args, err := splitBackground(input)
+		run: func(rc *kit.RunContext, call kit.ToolCall) (kit.ToolOutput, error) {
+			background, args, err := splitBackground(call.Arguments)
 			if err != nil {
-				return "", err
+				return kit.ToolOutput{}, err
 			}
 
+			call.Arguments = args
 			if !background {
-				return tool.Execute(rc, args)
+				return tool.Execute(rc, call)
 			}
 
 			if err := rc.Err(); err != nil {
-				return "", err
+				return kit.ToolOutput{}, err
 			}
 
-			job, err := jobs.Start(tool.Definition().Name, func(ctx context.Context) (string, error) {
+			job, err := jobs.Start(tool.Definition().Name, func(ctx context.Context) (kit.ToolOutput, error) {
 				jobRC := *rc
 				jobRC.Context = ctx
 				jobRC.Events = kit.NoopEmitter[kit.AgentEvent]{}
 
-				return tool.Execute(&jobRC, args)
+				return tool.Execute(&jobRC, call)
 			})
 			if err != nil {
-				return "", err
+				return kit.ToolOutput{}, err
 			}
 
-			data, err := json.Marshal(job)
-			if err != nil {
-				return "", err
-			}
-
-			return string(data), nil
+			return kit.NewStructuredToolOutput(job), nil
 		},
 	}, nil
 }

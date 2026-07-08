@@ -5,6 +5,8 @@ import (
 	"errors"
 	"sync"
 	"testing"
+
+	"github.com/vitaliiPsl/crappy-adk/kit"
 )
 
 func TestManagerStartWaitSuccess(t *testing.T) {
@@ -15,10 +17,10 @@ func TestManagerStartWaitSuccess(t *testing.T) {
 
 	jobs := manager.ForSession("session-1")
 
-	started, err := jobs.Start("worker", func(context.Context) (string, error) {
+	started, err := jobs.Start("worker", func(context.Context) (kit.ToolOutput, error) {
 		<-release
 
-		return "done", nil
+		return kit.NewToolOutput(kit.NewTextContent("done")), nil
 	})
 	if err != nil {
 		t.Fatalf("Start: %v", err)
@@ -35,7 +37,7 @@ func TestManagerStartWaitSuccess(t *testing.T) {
 		t.Fatalf("Wait: %v", err)
 	}
 
-	if done.Status != StatusSucceeded || done.Output != "done" || done.CompletedAt == nil {
+	if done.Status != StatusSucceeded || done.Output == nil || kit.ContentsText(done.Output.Content) != "done" || done.CompletedAt == nil {
 		t.Fatalf("done = %+v, want succeeded with output and completion time", done)
 	}
 }
@@ -48,8 +50,8 @@ func TestManagerStartFailure(t *testing.T) {
 
 	jobs := manager.ForSession("session-1")
 
-	started, err := jobs.Start("worker", func(context.Context) (string, error) {
-		return "", wantErr
+	started, err := jobs.Start("worker", func(context.Context) (kit.ToolOutput, error) {
+		return kit.ToolOutput{}, wantErr
 	})
 	if err != nil {
 		t.Fatalf("Start: %v", err)
@@ -73,11 +75,11 @@ func TestManagerCancelRunningJob(t *testing.T) {
 
 	jobs := manager.ForSession("session-1")
 
-	started, err := jobs.Start("worker", func(ctx context.Context) (string, error) {
+	started, err := jobs.Start("worker", func(ctx context.Context) (kit.ToolOutput, error) {
 		<-ctx.Done()
 		close(ctxDone)
 
-		return "", ctx.Err()
+		return kit.ToolOutput{}, ctx.Err()
 	})
 	if err != nil {
 		t.Fatalf("Start: %v", err)
@@ -119,8 +121,8 @@ func TestManagerStartConcurrentIDsAreUnique(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			started, err := manager.ForSession("session-1").Start("worker", func(context.Context) (string, error) {
-				return "ok", nil
+			started, err := manager.ForSession("session-1").Start("worker", func(context.Context) (kit.ToolOutput, error) {
+				return kit.NewToolOutput(kit.NewTextContent("ok")), nil
 			})
 			if err != nil {
 				t.Errorf("Start: %v", err)
@@ -155,12 +157,16 @@ func TestManagerListNewestFirst(t *testing.T) {
 
 	jobs := manager.ForSession("session-1")
 
-	first, err := jobs.Start("first", func(context.Context) (string, error) { return "first", nil })
+	first, err := jobs.Start("first", func(context.Context) (kit.ToolOutput, error) {
+		return kit.NewToolOutput(kit.NewTextContent("first")), nil
+	})
 	if err != nil {
 		t.Fatalf("Start first: %v", err)
 	}
 
-	second, err := jobs.Start("second", func(context.Context) (string, error) { return "second", nil })
+	second, err := jobs.Start("second", func(context.Context) (kit.ToolOutput, error) {
+		return kit.NewToolOutput(kit.NewTextContent("second")), nil
+	})
 	if err != nil {
 		t.Fatalf("Start second: %v", err)
 	}
@@ -197,12 +203,16 @@ func TestManagerFiltersBySession(t *testing.T) {
 	sessionTwoJobs := manager.ForSession("session-2")
 	allJobs := manager.ForSession("")
 
-	sessionOne, err := sessionOneJobs.Start("one", func(context.Context) (string, error) { return "one", nil })
+	sessionOne, err := sessionOneJobs.Start("one", func(context.Context) (kit.ToolOutput, error) {
+		return kit.NewToolOutput(kit.NewTextContent("one")), nil
+	})
 	if err != nil {
 		t.Fatalf("Start session one: %v", err)
 	}
 
-	sessionTwo, err := sessionTwoJobs.Start("two", func(context.Context) (string, error) { return "two", nil })
+	sessionTwo, err := sessionTwoJobs.Start("two", func(context.Context) (kit.ToolOutput, error) {
+		return kit.NewToolOutput(kit.NewTextContent("two")), nil
+	})
 	if err != nil {
 		t.Fatalf("Start session two: %v", err)
 	}

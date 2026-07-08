@@ -2,7 +2,6 @@ package background
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
@@ -18,10 +17,13 @@ func (t *testTool) Definition() kit.ToolDefinition {
 	return t.def
 }
 
-func (t *testTool) Execute(rc *kit.RunContext, input map[string]any) (string, error) {
+func (t *testTool) Execute(rc *kit.RunContext, call kit.ToolCall) (kit.ToolOutput, error) {
+	input := call.Arguments
 	t.calls = append(t.calls, input)
 
-	return t.execute(rc, input)
+	output, err := t.execute(rc, input)
+
+	return kit.NewToolOutput(kit.NewTextContent(output)), err
 }
 
 func TestWrapAddsBackgroundArgument(t *testing.T) {
@@ -76,16 +78,16 @@ func TestWrapForegroundStripsBackgroundArgument(t *testing.T) {
 		t.Fatalf("Wrap: %v", err)
 	}
 
-	output, err := wrapped.Execute(kit.NewRunContext(context.Background()), map[string]any{
+	output, err := wrapped.Execute(kit.NewRunContext(context.Background()), kit.NewToolCall("call-1", "bash", map[string]any{
 		"command": "echo hi",
 		ArgName:   false,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
 
-	if output != "echo hi" {
-		t.Fatalf("output = %q, want echo hi", output)
+	if got := kit.ContentsText(output.Content); got != "echo hi" {
+		t.Fatalf("output = %q, want echo hi", got)
 	}
 }
 
@@ -116,17 +118,17 @@ func TestWrapBackgroundStartsJob(t *testing.T) {
 
 	rc := kit.NewRunContext(context.Background())
 
-	output, err := wrapped.Execute(rc, map[string]any{
+	output, err := wrapped.Execute(rc, kit.NewToolCall("call-1", "bash", map[string]any{
 		"command": "go test ./...",
 		ArgName:   true,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
 
-	var job Job
-	if err := json.Unmarshal([]byte(output), &job); err != nil {
-		t.Fatalf("unmarshal job: %v", err)
+	job, ok := output.Structured.(Job)
+	if !ok {
+		t.Fatalf("structured output = %T, want Job", output.Structured)
 	}
 
 	if job.ID == "" || job.SessionID != "session-1" || job.Status != StatusRunning {
@@ -141,8 +143,12 @@ func TestWrapBackgroundStartsJob(t *testing.T) {
 		t.Fatalf("Wait: %v", err)
 	}
 
-	if done.Output != "go test ./... done" {
-		t.Fatalf("output = %q, want command output", done.Output)
+	if done.Output == nil {
+		t.Fatal("output = nil, want command output")
+	}
+
+	if got := kit.ContentsText(done.Output.Content); got != "go test ./... done" {
+		t.Fatalf("output = %q, want command output", got)
 	}
 }
 
@@ -178,9 +184,9 @@ func TestWrapBackgroundArgumentMustBeBoolean(t *testing.T) {
 		t.Fatalf("Wrap: %v", err)
 	}
 
-	_, err = wrapped.Execute(kit.NewRunContext(context.Background()), map[string]any{
+	_, err = wrapped.Execute(kit.NewRunContext(context.Background()), kit.NewToolCall("call-1", "bash", map[string]any{
 		ArgName: "true",
-	})
+	}))
 	if err == nil {
 		t.Fatal("Execute should reject non-boolean background argument")
 	}

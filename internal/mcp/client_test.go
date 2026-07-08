@@ -197,8 +197,8 @@ func TestToolLifecycle(t *testing.T) {
 		t.Fatalf("CallTool() error = %v", err)
 	}
 
-	if !strings.Contains(result.Output, "Hi Ada") {
-		t.Fatalf("output = %q, want greeting", result.Output)
+	if got := kit.ContentsText(result.Output.Content); !strings.Contains(got, "Hi Ada") {
+		t.Fatalf("output = %q, want greeting", got)
 	}
 }
 

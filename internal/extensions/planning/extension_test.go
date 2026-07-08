@@ -62,19 +62,19 @@ func TestWritePlanTool_SavesPlanArtifact(t *testing.T) {
 	store := newArtifactStore()
 	tool := newTool(testSessionID, store)
 
-	out, err := tool.Execute(kit.NewRunContext(context.Background()), map[string]any{
+	out, err := tool.Execute(kit.NewRunContext(context.Background()), kit.NewToolCall("call-1", toolName, map[string]any{
 		"explanation": "Need a few steps",
 		"items": []any{
 			map[string]any{"step": "Inspect code", "status": string(StatusCompleted)},
 			map[string]any{"step": "Implement planning", "status": string(StatusInProgress)},
 		},
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
 
-	if out != toolResult {
-		t.Fatalf("output = %q, want %q", out, toolResult)
+	if got := kit.ContentsText(out.Content); got != toolResult {
+		t.Fatalf("output = %q, want %q", got, toolResult)
 	}
 
 	var got Plan
@@ -100,11 +100,11 @@ func TestWritePlanTool_PropagatesSaveError(t *testing.T) {
 
 	tool := newTool(testSessionID, store)
 
-	_, err := tool.Execute(kit.NewRunContext(context.Background()), map[string]any{
+	_, err := tool.Execute(kit.NewRunContext(context.Background()), kit.NewToolCall("call-1", toolName, map[string]any{
 		"items": []any{
 			map[string]any{"step": "One", "status": string(StatusPending)},
 		},
-	})
+	}))
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("Execute error = %v, want wraps %v", err, wantErr)
 	}

@@ -55,31 +55,34 @@ func TestResourceToolsListAndRead(t *testing.T) {
 	tools := mapTools(newResourceTools(manager))
 	rc := kit.NewRunContext(context.Background())
 
-	resources, err := tools[listResourcesName].Execute(rc, nil)
+	resources, err := tools[listResourcesName].Execute(rc, kit.NewToolCall("call-1", listResourcesName, nil))
 	if err != nil {
 		t.Fatalf("list_mcp_resources: %v", err)
 	}
 
-	if !strings.Contains(resources, `"server": "docs"`) || !strings.Contains(resources, `"uri": "docs://readme"`) {
-		t.Fatalf("list_mcp_resources output = %s, want docs resource", resources)
+	resourceText := kit.ContentsText(resources.Content)
+	if !strings.Contains(resourceText, `"server": "docs"`) || !strings.Contains(resourceText, `"uri": "docs://readme"`) {
+		t.Fatalf("list_mcp_resources output = %s, want docs resource", resourceText)
 	}
 
-	templates, err := tools[listResourceTemplatesName].Execute(rc, nil)
+	templates, err := tools[listResourceTemplatesName].Execute(rc, kit.NewToolCall("call-2", listResourceTemplatesName, nil))
 	if err != nil {
 		t.Fatalf("list_mcp_resource_templates: %v", err)
 	}
 
-	if !strings.Contains(templates, `"uri_template": "docs://{name}"`) {
-		t.Fatalf("list_mcp_resource_templates output = %s, want docs template", templates)
+	templateText := kit.ContentsText(templates.Content)
+	if !strings.Contains(templateText, `"uri_template": "docs://{name}"`) {
+		t.Fatalf("list_mcp_resource_templates output = %s, want docs template", templateText)
 	}
 
-	content, err := tools[readResourceName].Execute(rc, map[string]any{"server": "docs", "uri": "docs://readme"})
+	content, err := tools[readResourceName].Execute(rc, kit.NewToolCall("call-3", readResourceName, map[string]any{"server": "docs", "uri": "docs://readme"}))
 	if err != nil {
 		t.Fatalf("read_mcp_resource: %v", err)
 	}
 
-	if !strings.Contains(content, "# Docs") {
-		t.Fatalf("read_mcp_resource output = %s, want resource text", content)
+	contentText := kit.ContentsText(content.Content)
+	if !strings.Contains(contentText, "# Docs") {
+		t.Fatalf("read_mcp_resource output = %s, want resource text", contentText)
 	}
 }
 

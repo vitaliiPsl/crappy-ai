@@ -10,19 +10,19 @@ import (
 func TestToolExecuteCallsClientTool(t *testing.T) {
 	client := &fakeClient{
 		config: Config{Name: "github"},
-		result: kit.NewToolResult(kit.NewToolCall("", "search", nil), "done", nil),
+		result: kit.NewToolResult(kit.NewToolCall("", "search", nil), kit.NewToolOutput(kit.NewTextContent("done")), nil),
 	}
 
 	output, err := newTool("github", client, kit.ToolDefinition{Name: "search"}).Execute(
 		kit.NewRunContext(context.Background()),
-		map[string]any{"q": "x"},
+		kit.NewToolCall("call-1", "mcp__github__search", map[string]any{"q": "x"}),
 	)
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
 
-	if output != "done" {
-		t.Fatalf("output = %q, want done", output)
+	if got := kit.ContentsText(output.Content); got != "done" {
+		t.Fatalf("output = %q, want done", got)
 	}
 
 	if client.called.Name != "search" {

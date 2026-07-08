@@ -7,6 +7,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/vitaliiPsl/crappy-adk/kit"
 )
 
 type Manager struct {
@@ -53,7 +55,7 @@ func (m *Manager) Close() {
 	}
 }
 
-func (m *Manager) Start(sessionID, toolName string, run func(context.Context) (string, error)) (Job, error) {
+func (m *Manager) Start(sessionID, toolName string, run func(context.Context) (kit.ToolOutput, error)) (Job, error) {
 	if err := m.ctx.Err(); err != nil {
 		return Job{}, err
 	}
@@ -86,13 +88,13 @@ func (m *Manager) Start(sessionID, toolName string, run func(context.Context) (s
 
 	go func() {
 		var (
-			output string
+			output kit.ToolOutput
 			err    error
 		)
 
 		defer func() {
 			if recovered := recover(); recovered != nil {
-				output = ""
+				output = kit.ToolOutput{}
 				err = fmt.Errorf("job panicked: %v", recovered)
 			}
 
@@ -203,7 +205,7 @@ func (m *Manager) Cancel(sessionID, id string) (Job, error) {
 	return job, nil
 }
 
-func (m *Manager) finish(id, output string, err error) {
+func (m *Manager) finish(id string, output kit.ToolOutput, err error) {
 	m.mu.Lock()
 
 	running := m.running[id]
@@ -226,7 +228,7 @@ func (m *Manager) finish(id, output string, err error) {
 		job.Error = err.Error()
 	} else {
 		job.Status = StatusSucceeded
-		job.Output = output
+		job.Output = &output
 	}
 
 	_ = m.store.Update(job)

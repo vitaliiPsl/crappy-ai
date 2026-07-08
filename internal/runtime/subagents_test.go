@@ -76,11 +76,11 @@ func TestSubagentTaskToolUnknownSubagent(t *testing.T) {
 		t.Fatalf("tools len = %d, want 1", len(got.Tools))
 	}
 
-	_, err = got.Tools[0].Execute(kit.NewRunContext(context.Background()), map[string]any{
+	_, err = got.Tools[0].Execute(kit.NewRunContext(context.Background()), kit.NewToolCall("call-1", "task", map[string]any{
 		"agent":       "missing",
 		"task":        "do something",
 		"description": "find a thing",
-	})
+	}))
 	if err == nil {
 		t.Fatal("Execute error = nil, want unknown subagent")
 	}

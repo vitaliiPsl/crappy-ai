@@ -282,7 +282,7 @@ func mergeToolResult(s State, result kit.ToolResult) State {
 		ID:        result.Call.ID,
 		Name:      result.Call.Name,
 		Arguments: result.Call.Arguments,
-		Result:    result.Output,
+		Result:    toolResultText(result),
 		Error:     result.Error,
 		Done:      true,
 	})
@@ -297,7 +297,7 @@ func applyToolResult(target *Message, result kit.ToolResult) bool {
 
 	for i := range target.Tools {
 		if target.Tools[i].ID == result.Call.ID {
-			target.Tools[i].Result = result.Output
+			target.Tools[i].Result = toolResultText(result)
 			target.Tools[i].Error = result.Error
 			target.Tools[i].Done = true
 
@@ -306,6 +306,10 @@ func applyToolResult(target *Message, result kit.ToolResult) bool {
 	}
 
 	return false
+}
+
+func toolResultText(result kit.ToolResult) string {
+	return kit.ContentsText(result.Output.Content)
 }
 
 func mergeToolMessage(s State, msg kit.Message) State {

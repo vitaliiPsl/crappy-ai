@@ -64,7 +64,7 @@ func TestReduce_ContentDoneToolResult_MergesIntoDraft(t *testing.T) {
 	var s State
 
 	s = Reduce(s, sessiondata.NewContentDoneEvent("sess", kit.NewToolCallContent(call)))
-	s = Reduce(s, sessiondata.NewContentDoneEvent("sess", kit.NewToolResultContent(kit.NewToolResult(call, "a\nb", nil))))
+	s = Reduce(s, sessiondata.NewContentDoneEvent("sess", kit.NewToolResultContent(kit.NewToolResult(call, kit.NewToolOutput(kit.NewTextContent("a\nb")), nil))))
 
 	if len(s.Streaming.Tools) != 1 {
 		t.Fatalf("expected one tool after merge, got %d", len(s.Streaming.Tools))
@@ -90,7 +90,7 @@ func TestReduce_ToolResultMessage_MergesIntoCommittedAssistant(t *testing.T) {
 		}},
 	}
 
-	toolMsg := kit.NewToolMessage(kit.NewToolResultContent(kit.NewToolResult(call, "ok", nil)))
+	toolMsg := kit.NewToolMessage(kit.NewToolResultContent(kit.NewToolResult(call, kit.NewToolOutput(kit.NewTextContent("ok")), nil)))
 	s = Reduce(s, sessiondata.NewMessageEvent("sess", toolMsg))
 
 	if len(s.Messages) != 1 {

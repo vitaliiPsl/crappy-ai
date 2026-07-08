@@ -23,10 +23,10 @@ func TestUseSkillToolLoadsFullInstructions(t *testing.T) {
 	skillstest.WriteSkill(t, filepath.Join(userDir, "review", "SKILL.md"), "review", "review skill", "Find bugs first.")
 	registry := skillstest.NewRegistry(userDir)
 
-	got, err := newTool(registry).Execute(kit.NewRunContext(t.Context()), map[string]any{
+	got, err := newTool(registry).Execute(kit.NewRunContext(t.Context()), kit.NewToolCall("call-1", toolName, map[string]any{
 		"skill": "review",
 		"args":  "auth changes",
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
@@ -38,8 +38,9 @@ func TestUseSkillToolLoadsFullInstructions(t *testing.T) {
 		"## Instructions",
 		"Find bugs first.",
 	} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("tool output missing %q:\n%s", want, got)
+		text := kit.ContentsText(got.Content)
+		if !strings.Contains(text, want) {
+			t.Fatalf("tool output missing %q:\n%s", want, text)
 		}
 	}
 }
@@ -49,7 +50,7 @@ func TestUseSkillToolUnknownSkill(t *testing.T) {
 	skillstest.WriteSkill(t, filepath.Join(userDir, "review", "SKILL.md"), "review", "review skill", "Review changes.")
 	registry := skillstest.NewRegistry(userDir)
 
-	_, err := newTool(registry).Execute(kit.NewRunContext(t.Context()), map[string]any{"skill": "missing"})
+	_, err := newTool(registry).Execute(kit.NewRunContext(t.Context()), kit.NewToolCall("call-1", toolName, map[string]any{"skill": "missing"}))
 	if err == nil {
 		t.Fatal("Execute error = nil, want unknown skill")
 	}

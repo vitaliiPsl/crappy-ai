@@ -214,7 +214,7 @@ func formatResourceResult(server, uri string, content []kit.Content) string {
 
 		fmt.Fprintf(&out, "\nContent %d\nURI: %s\nMIME: %s\n", i+1, itemURI, mime)
 
-		if text, ok := kit.ContentTextFallback(item); ok && text != "" {
+		if text, ok := kit.ContentText(item); ok && text != "" {
 			out.WriteString(text)
 			out.WriteString("\n")
 

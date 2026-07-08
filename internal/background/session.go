@@ -1,6 +1,10 @@
 package background
 
-import "context"
+import (
+	"context"
+
+	"github.com/vitaliiPsl/crappy-adk/kit"
+)
 
 type Jobs struct {
 	manager   *Manager
@@ -14,7 +18,7 @@ func (m *Manager) ForSession(sessionID string) Jobs {
 	}
 }
 
-func (j Jobs) Start(toolName string, run func(context.Context) (string, error)) (Job, error) {
+func (j Jobs) Start(toolName string, run func(context.Context) (kit.ToolOutput, error)) (Job, error) {
 	return j.manager.Start(j.sessionID, toolName, run)
 }
 

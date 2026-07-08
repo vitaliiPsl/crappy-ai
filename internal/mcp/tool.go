@@ -3,7 +3,6 @@ package mcp
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -34,17 +33,23 @@ func (t *tool) Definition() kit.ToolDefinition {
 	}
 }
 
-func (t *tool) Execute(rc *kit.RunContext, args map[string]any) (string, error) {
-	result, err := t.client.CallTool(rc.Context, kit.NewToolCall("", t.def.Name, args))
+func (t *tool) Execute(rc *kit.RunContext, call kit.ToolCall) (kit.ToolOutput, error) {
+	mcpCall := call
+	mcpCall.Name = t.def.Name
+
+	result, err := t.client.CallTool(rc.Context, mcpCall)
 	if err != nil {
-		return "", err
+		return kit.ToolOutput{}, err
 	}
 
 	if result.Error != "" {
-		return "", fmt.Errorf("%s", result.Error)
+		return kit.ToolOutput{}, fmt.Errorf("%s", result.Error)
 	}
 
-	return result.Output, nil
+	return kit.ToolOutput{
+		Content:    result.Output.Content,
+		Structured: result.Output.Structured,
+	}, nil
 }
 
 func convertTools(tools []*mcpsdk.Tool) ([]kit.ToolDefinition, error) {
@@ -80,28 +85,22 @@ func schemaToMap(schema any) (map[string]any, error) {
 }
 
 func convertToolResult(call kit.ToolCall, res *mcpsdk.CallToolResult) kit.ToolResult {
-	parts := make([]string, 0, 2)
-	if text := kit.ContentsTextFallback(convertToolResultContent(res)); text != "" {
-		parts = append(parts, text)
+	output := kit.ToolOutput{
+		Content:    convertToolResultContent(res),
+		Structured: res.StructuredContent,
 	}
 
-	if res.StructuredContent != nil {
-		data, err := json.MarshalIndent(res.StructuredContent, "", "  ")
-		if err == nil {
-			parts = append(parts, string(data))
-		}
-	}
-
-	text := strings.Join(parts, "\n")
 	if res.IsError {
+		text := kit.ContentsText(output.Content)
 		if text == "" {
 			text = "MCP tool returned an error"
+			output.Content = []kit.Content{kit.NewTextContent(text)}
 		}
 
-		return kit.NewToolResult(call, text, fmt.Errorf("%s", text))
+		return kit.NewToolResult(call, output, fmt.Errorf("%s", text))
 	}
 
-	return kit.NewToolResult(call, text, nil)
+	return kit.NewToolResult(call, output, nil)
 }
 
 func convertToolResultContent(res *mcpsdk.CallToolResult) []kit.Content {
