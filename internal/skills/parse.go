@@ -24,7 +24,7 @@ func parse(path string, data []byte) (Skill, error) {
 
 	name := strings.TrimSpace(meta.Name)
 	if name == "" {
-		name = skillNameFromPath(path)
+		name = filepath.Base(path)
 	}
 
 	if !skillNamePattern.MatchString(name) {
@@ -61,8 +61,4 @@ func splitFrontMatter(text string) (frontMatter, string, error) {
 	}
 
 	return meta, body, nil
-}
-
-func skillNameFromPath(path string) string {
-	return filepath.Base(filepath.Dir(path))
 }

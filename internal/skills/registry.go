@@ -79,7 +79,7 @@ func loadSkills(root string) []Skill {
 }
 
 func loadSkill(path string) (Skill, error) {
-	data, err := readSkillFile(path)
+	data, err := readSkillFile(skillFilePath(path))
 	if err != nil {
 		return Skill{}, err
 	}
@@ -104,12 +104,16 @@ func skillPaths(root string) []string {
 			continue
 		}
 
-		paths = append(paths, filepath.Join(root, entry.Name(), skillFileName))
+		paths = append(paths, filepath.Join(root, entry.Name()))
 	}
 
 	slices.Sort(paths)
 
 	return paths
+}
+
+func skillFilePath(path string) string {
+	return filepath.Join(path, skillFileName)
 }
 
 func readSkillFile(path string) ([]byte, error) {

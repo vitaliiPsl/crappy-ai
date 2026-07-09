@@ -12,7 +12,7 @@ import (
 )
 
 func TestParseSkillWithFrontMatter(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "review", "SKILL.md")
+	path := filepath.Join(t.TempDir(), "review")
 
 	got, err := parse(path, []byte(strings.Join([]string{
 		"---",
@@ -39,10 +39,14 @@ func TestParseSkillWithFrontMatter(t *testing.T) {
 	if got.Body != "# Review\n\nFind bugs first." {
 		t.Fatalf("Body = %q", got.Body)
 	}
+
+	if got.Path != path {
+		t.Fatalf("Path = %q, want %q", got.Path, path)
+	}
 }
 
 func TestParseSkillDefaultsNameFromDirectory(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "explain", "SKILL.md")
+	path := filepath.Join(t.TempDir(), "explain")
 
 	got, err := parse(path, []byte("Explain the selected code."))
 	if err != nil {
@@ -73,6 +77,10 @@ func TestLoadSkillListLoadsMetadata(t *testing.T) {
 
 	if review.Body != "" {
 		t.Fatalf("review body = %q, want metadata without body", review.Body)
+	}
+
+	if review.Path != filepath.Join(userDir, "review") {
+		t.Fatalf("review path = %q, want skill directory", review.Path)
 	}
 
 	explain, ok := findSkill(list, "explain")
