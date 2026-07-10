@@ -26,23 +26,24 @@ type Input struct {
 	Description string `json:"description" jsonschema:"A short description of what this command does e.g. 'Run tests' or 'Install dependencies'"`
 }
 
-func NewBash() kit.Tool {
+func NewBash(cwd string) kit.Tool {
 	return tool.MustNew(
 		bashToolName,
 		bashToolDescription,
 		func(rc *kit.RunContext, input Input) (string, error) {
-			return runBash(rc.Context, input.Command)
+			return runBash(rc.Context, cwd, input.Command)
 		},
 	)
 }
 
-func runBash(ctx context.Context, command string) (string, error) {
+func runBash(ctx context.Context, cwd, command string) (string, error) {
 	shell := os.Getenv("SHELL")
 	if shell == "" {
 		shell = "sh"
 	}
 
 	cmd := exec.CommandContext(ctx, shell, "-c", command)
+	cmd.Dir = cwd
 
 	var buf bytes.Buffer
 

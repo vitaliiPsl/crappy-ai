@@ -42,7 +42,7 @@ func New(store session.ArtifactStore) appagent.Contributor {
 }
 
 func (e *ext) Contribute(_ context.Context, req appagent.Request) (appagent.Contribution, error) {
-	return e.contribution(req.SessionID), nil
+	return e.contribution(req.Session.ID), nil
 }
 
 func (e *ext) contribution(sessionID string) appagent.Contribution {

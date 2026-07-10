@@ -50,8 +50,8 @@ func instructionOptions(req appagent.Request) []adk.Option {
 	return []adk.Option{
 		adk.WithInstructions(
 			req.Config.Prompt,
-			instructions.Env(req.Config.Cwd),
-			instructions.Files(req.Config.Cwd),
+			instructions.Env(req.Session.Cwd),
+			instructions.Files(req.Session.Cwd),
 		),
 	}
 }
@@ -81,9 +81,9 @@ func guardOptions() []adk.Option {
 }
 
 func (c coreContributor) tools(req appagent.Request) ([]kit.Tool, error) {
-	bashTool := bash.NewBash()
+	bashTool := bash.NewBash(req.Session.Cwd)
 	if c.background != nil {
-		wrapped, err := background.Wrap(bashTool, c.background.ForSession(req.SessionID))
+		wrapped, err := background.Wrap(bashTool, c.background.ForSession(req.Session.ID))
 		if err != nil {
 			return nil, err
 		}

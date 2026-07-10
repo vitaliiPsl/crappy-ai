@@ -35,7 +35,7 @@ func New(manager *bg.Manager) appagent.Contributor {
 }
 
 func (e *ext) Contribute(_ context.Context, req appagent.Request) (appagent.Contribution, error) {
-	jobs := e.manager.ForSession(req.SessionID)
+	jobs := e.manager.ForSession(req.Session.ID)
 
 	return appagent.Contribution{
 		Tools: bg.Tools(jobs),

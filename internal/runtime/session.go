@@ -133,6 +133,11 @@ func (s *Session) start(ctx context.Context, fn func(context.Context) error) err
 }
 
 func (s *Session) run(ctx context.Context, req Request) error {
+	sess, err := s.sessionStore.Get(ctx, s.id)
+	if err != nil {
+		return s.fail(fmt.Errorf("load session: %w", err))
+	}
+
 	cfg := s.configStore.Get()
 	mem := newMemory(s.sessionStore, s.id)
 
@@ -141,7 +146,7 @@ func (s *Session) run(ctx context.Context, req Request) error {
 		return s.fail(fmt.Errorf("build model: %w", err))
 	}
 
-	agent, err := s.buildAgent(ctx, s.id, cfg, model, mem)
+	agent, err := s.buildAgent(ctx, *sess, cfg, model, mem)
 	if err != nil {
 		return s.fail(err)
 	}
@@ -225,13 +230,13 @@ func (s *Session) recordUsage(ctx context.Context, id string, usage kit.Usage) (
 	return sess.Usage, true
 }
 
-func (s *Session) buildAgent(ctx context.Context, sessionID string, cfg config.Config, model kit.Model, mem kit.Memory) (*adk.Agent, error) {
+func (s *Session) buildAgent(ctx context.Context, sess session.Session, cfg config.Config, model kit.Model, mem kit.Memory) (*adk.Agent, error) {
 	return appagent.Build(ctx, appagent.Request{
-		SessionID: sessionID,
-		Config:    cfg,
-		Model:     model,
-		Memory:    mem,
-		Asker:     s,
+		Session: sess,
+		Config:  cfg,
+		Model:   model,
+		Memory:  mem,
+		Asker:   s,
 	},
 		coreContributor{
 			background: s.backgroundManager,

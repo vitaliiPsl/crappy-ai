@@ -2,13 +2,14 @@ package bash
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
 
 func TestRunBash_Success(t *testing.T) {
-	out, err := runBash(context.Background(), "echo hello")
+	out, err := runBash(context.Background(), "", "echo hello")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -18,8 +19,21 @@ func TestRunBash_Success(t *testing.T) {
 	}
 }
 
+func TestRunBash_UsesWorkingDirectory(t *testing.T) {
+	cwd := t.TempDir()
+
+	out, err := runBash(context.Background(), cwd, "pwd")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if out != filepath.Clean(cwd) {
+		t.Errorf("working directory = %q, want %q", out, cwd)
+	}
+}
+
 func TestRunBash_StderrIncludedOnError(t *testing.T) {
-	_, err := runBash(context.Background(), "echo 'oops' >&2; exit 1")
+	_, err := runBash(context.Background(), "", "echo 'oops' >&2; exit 1")
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -33,14 +47,14 @@ func TestRunBash_Timeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
-	_, err := runBash(ctx, "sleep 10")
+	_, err := runBash(ctx, "", "sleep 10")
 	if err == nil {
 		t.Fatal("expected timeout error")
 	}
 }
 
 func TestRunBash_MultilineOutput(t *testing.T) {
-	out, err := runBash(context.Background(), "printf 'a\nb\nc'")
+	out, err := runBash(context.Background(), "", "printf 'a\nb\nc'")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +67,7 @@ func TestRunBash_MultilineOutput(t *testing.T) {
 func TestRunBash_UsesShellEnvVar(t *testing.T) {
 	t.Setenv("SHELL", "/bin/sh")
 
-	out, err := runBash(context.Background(), "echo fromsh")
+	out, err := runBash(context.Background(), "", "echo fromsh")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +80,7 @@ func TestRunBash_UsesShellEnvVar(t *testing.T) {
 func TestRunBash_FallsBackToShWhenNoShellEnv(t *testing.T) {
 	t.Setenv("SHELL", "")
 
-	out, err := runBash(context.Background(), "echo fallback")
+	out, err := runBash(context.Background(), "", "echo fallback")
 	if err != nil {
 		t.Fatal(err)
 	}

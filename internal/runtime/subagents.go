@@ -79,7 +79,7 @@ func (c subagentsContributor) Contribute(_ context.Context, req appagent.Request
 	)
 
 	if c.background != nil {
-		wrapped, err := background.Wrap(taskTool, c.background.ForSession(req.SessionID))
+		wrapped, err := background.Wrap(taskTool, c.background.ForSession(req.Session.ID))
 		if err != nil {
 			return appagent.Contribution{}, err
 		}
@@ -103,6 +103,11 @@ func (s *Session) runSubagent(ctx context.Context, req SubagentRequest) (Subagen
 		return SubagentResult{}, fmt.Errorf("unknown subagent %q", req.Agent)
 	}
 
+	parent, err := s.sessionStore.Get(ctx, s.id)
+	if err != nil {
+		return SubagentResult{}, fmt.Errorf("load parent session: %w", err)
+	}
+
 	model, err := s.modelRegistry.Build(sub.Provider, sub.Model)
 	if err != nil {
 		return SubagentResult{}, fmt.Errorf("build subagent %q model: %w", req.Agent, err)
@@ -110,7 +115,7 @@ func (s *Session) runSubagent(ctx context.Context, req SubagentRequest) (Subagen
 
 	child, err := s.sessionStore.Create(ctx, session.CreateParams{
 		Title:    subagentTitle(req),
-		Cwd:      cfg.Cwd,
+		Cwd:      parent.Cwd,
 		ParentID: s.id,
 	})
 	if err != nil {
@@ -121,7 +126,7 @@ func (s *Session) runSubagent(ctx context.Context, req SubagentRequest) (Subagen
 	childCfg.Agent = sub
 	childCfg.Agents = nil
 
-	ag, err := s.buildAgent(ctx, child.ID, childCfg, model, newMemory(s.sessionStore, child.ID))
+	ag, err := s.buildAgent(ctx, *child, childCfg, model, newMemory(s.sessionStore, child.ID))
 	if err != nil {
 		return SubagentResult{}, err
 	}

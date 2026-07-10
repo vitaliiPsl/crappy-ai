@@ -9,11 +9,12 @@ import (
 
 	"github.com/vitaliiPsl/crappy-ai/internal/ask"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
+	"github.com/vitaliiPsl/crappy-ai/internal/session"
 )
 
 type Request struct {
-	SessionID string
-	Config    config.Config
+	Session session.Session
+	Config  config.Config
 
 	Model  kit.Model
 	Memory kit.Memory
