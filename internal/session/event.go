@@ -1,8 +1,6 @@
 package session
 
 import (
-	"sort"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,20 +20,37 @@ const (
 	EventError          EventType = "error"
 	EventTurnComplete   EventType = "turn_complete"
 	EventTurnCancelled  EventType = "turn_cancelled"
+	EventQueueChanged   EventType = "queue_changed"
 	EventAsk            EventType = "ask"
 )
+
+type Event struct {
+	ID        string    `json:"id"`
+	SessionID string    `json:"session_id"`
+	Type      EventType `json:"type"`
+	Timestamp time.Time `json:"timestamp"`
+
+	Content *kit.Content    `json:"content,omitempty"`
+	Message *kit.Message    `json:"message,omitempty"`
+	Queue   []QueuedRequest `json:"queue,omitempty"`
+
+	Error string `json:"error,omitempty"`
+
+	Stats     *TurnStats           `json:"stats,omitempty"`
+	Skill     *SkillInvocation     `json:"skill,omitempty"`
+	MCPPrompt *MCPPromptInvocation `json:"mcp_prompt,omitempty"`
+	Ask       *ask.Request         `json:"ask,omitempty"`
+}
+
+type Request struct {
+	Text      string               `json:"text"`
+	Skill     *SkillInvocation     `json:"skill,omitempty"`
+	MCPPrompt *MCPPromptInvocation `json:"mcp_prompt,omitempty"`
+}
 
 type SkillInvocation struct {
 	Name string   `json:"name"`
 	Args []string `json:"args,omitempty"`
-}
-
-func (s SkillInvocation) String() string {
-	if len(s.Args) == 0 {
-		return "/" + s.Name
-	}
-
-	return "/" + s.Name + " " + strings.Join(s.Args, " ")
 }
 
 type MCPPromptInvocation struct {
@@ -44,43 +59,15 @@ type MCPPromptInvocation struct {
 	Args   map[string]string `json:"args,omitempty"`
 }
 
-func (p MCPPromptInvocation) String() string {
-	text := "/mcp:" + p.Server + ":" + p.Name
-	if len(p.Args) == 0 {
-		return text
-	}
-
-	args := make([]string, 0, len(p.Args))
-	for name, value := range p.Args {
-		args = append(args, name+"="+value)
-	}
-
-	sort.Strings(args)
-
-	return text + " " + strings.Join(args, " ")
+type QueuedRequest struct {
+	ID      string  `json:"id"`
+	Request Request `json:"request"`
 }
 
 type TurnStats struct {
 	Usage         kit.Usage `json:"usage"`
 	ContextUsed   int64     `json:"context_used"`
 	ContextWindow int64     `json:"context_window,omitempty"`
-}
-
-type Event struct {
-	ID        string    `json:"id"`
-	SessionID string    `json:"session_id"`
-	Type      EventType `json:"type"`
-	Timestamp time.Time `json:"timestamp"`
-
-	Content *kit.Content `json:"content,omitempty"`
-	Message *kit.Message `json:"message,omitempty"`
-
-	Error string `json:"error,omitempty"`
-
-	Stats     *TurnStats           `json:"stats,omitempty"`
-	Skill     *SkillInvocation     `json:"skill,omitempty"`
-	MCPPrompt *MCPPromptInvocation `json:"mcp_prompt,omitempty"`
-	Ask       *ask.Request         `json:"ask,omitempty"`
 }
 
 func newEvent(sessionID string, t EventType) Event {
@@ -150,6 +137,14 @@ func NewTurnCompleteEvent(sessionID string, stats TurnStats) Event {
 
 func NewTurnCancelledEvent(sessionID string) Event {
 	return newEvent(sessionID, EventTurnCancelled)
+}
+
+func NewQueueChangedEvent(sessionID string, queue []QueuedRequest) Event {
+	e := newEvent(sessionID, EventQueueChanged)
+
+	e.Queue = append([]QueuedRequest(nil), queue...)
+
+	return e
 }
 
 func NewAskEvent(sessionID string, request ask.Request) Event {

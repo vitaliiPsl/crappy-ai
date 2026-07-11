@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/google/uuid"
+
 	adk "github.com/vitaliiPsl/crappy-adk/agent"
 	"github.com/vitaliiPsl/crappy-adk/kit"
 
@@ -27,7 +29,9 @@ import (
 )
 
 type Session struct {
-	id string
+	id       string
+	ctx      context.Context
+	shutdown context.CancelFunc
 
 	configStore  *config.Store
 	sessionStore session.Store
@@ -44,8 +48,9 @@ type Session struct {
 	events         *eventbus.Bus[session.Event]
 	prompts        *ask.Broker
 
-	mu     sync.Mutex
-	cancel context.CancelFunc
+	mu      sync.Mutex
+	cancel  context.CancelFunc
+	pending []QueuedRequest
 }
 
 func newSession(
@@ -59,9 +64,12 @@ func newSession(
 	backgroundManager *background.Manager,
 ) *Session {
 	inputProcessor := NewInputProcessor(id, skillRegistry, mcpManager)
+	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Session{
 		id:                id,
+		ctx:               ctx,
+		shutdown:          cancel,
 		configStore:       configStore,
 		sessionStore:      sessionStore,
 		permissions:       permissions,
@@ -84,19 +92,70 @@ func (s *Session) Subscribe() *eventbus.Subscription[session.Event] {
 }
 
 func (s *Session) Run(ctx context.Context, req Request) error {
-	return s.start(ctx, func(turnCtx context.Context) error {
-		return s.run(turnCtx, req)
-	})
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	if err := s.ctx.Err(); err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	if s.cancel != nil {
+		s.pending = append(s.pending, QueuedRequest{ID: uuid.NewString(), Request: req})
+		s.events.Publish(session.NewQueueChangedEvent(s.id, queueSnapshot(s.pending)))
+		s.mu.Unlock()
+
+		return nil
+	}
+
+	turnCtx, cancel := context.WithCancel(s.ctx)
+	s.cancel = cancel
+	s.mu.Unlock()
+
+	go s.processQueue(turnCtx, req)
+
+	return nil
+}
+
+func (s *Session) Compact(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	if err := s.ctx.Err(); err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+
+	if s.cancel != nil {
+		s.mu.Unlock()
+
+		return fmt.Errorf("session %q already has an active turn", s.id)
+	}
+
+	compactCtx, cancel := context.WithCancel(s.ctx)
+	s.cancel = cancel
+	s.mu.Unlock()
+
+	go func() {
+		defer func() {
+			cancel()
+
+			s.mu.Lock()
+			s.cancel = nil
+			s.mu.Unlock()
+		}()
+
+		_ = s.compact(compactCtx)
+	}()
+
+	return nil
 }
 
 func (s *Session) RunSubagent(ctx context.Context, req SubagentRequest) (SubagentResult, error) {
 	return s.runSubagent(ctx, req)
-}
-
-func (s *Session) Compact(ctx context.Context) error {
-	return s.start(ctx, func(turnCtx context.Context) error {
-		return s.compact(turnCtx)
-	})
 }
 
 func (s *Session) Cancel() {
@@ -108,28 +167,83 @@ func (s *Session) Cancel() {
 	}
 }
 
-func (s *Session) start(ctx context.Context, fn func(context.Context) error) error {
+func (s *Session) Queue() []QueuedRequest {
 	s.mu.Lock()
-	if s.cancel != nil {
-		s.mu.Unlock()
+	defer s.mu.Unlock()
 
-		return fmt.Errorf("session %q already has an active turn", s.id)
+	return append([]QueuedRequest(nil), s.pending...)
+}
+
+func (s *Session) UpdateQueued(id string, req Request) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for i := range s.pending {
+		if s.pending[i].ID != id {
+			continue
+		}
+
+		s.pending[i].Request = req
+		s.events.Publish(session.NewQueueChangedEvent(s.id, queueSnapshot(s.pending)))
+
+		return nil
 	}
 
-	turnCtx, cancel := context.WithCancel(ctx)
-	s.cancel = cancel
-	s.mu.Unlock()
+	return fmt.Errorf("queued request %q not found", id)
+}
 
-	go func() {
-		defer func() {
-			cancel()
-			s.clearCancel()
-		}()
+func (s *Session) RemoveQueued(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-		_ = fn(turnCtx)
-	}()
+	for i := range s.pending {
+		if s.pending[i].ID != id {
+			continue
+		}
 
-	return nil
+		s.pending = append(s.pending[:i], s.pending[i+1:]...)
+		s.events.Publish(session.NewQueueChangedEvent(s.id, queueSnapshot(s.pending)))
+
+		return nil
+	}
+
+	return fmt.Errorf("queued request %q not found", id)
+}
+
+func (s *Session) Close() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.pending = nil
+	s.shutdown()
+
+	if s.cancel != nil {
+		s.cancel()
+	}
+}
+
+func (s *Session) processQueue(ctx context.Context, req Request) {
+	for {
+		_ = s.run(ctx, req)
+
+		s.mu.Lock()
+		s.cancel()
+
+		if len(s.pending) == 0 {
+			s.cancel = nil
+			s.mu.Unlock()
+
+			return
+		}
+
+		next := s.pending[0]
+		s.pending = s.pending[1:]
+		ctx, s.cancel = context.WithCancel(s.ctx)
+		req = next.Request
+
+		s.events.Publish(session.NewQueueChangedEvent(s.id, queueSnapshot(s.pending)))
+		s.mu.Unlock()
+	}
 }
 
 func (s *Session) run(ctx context.Context, req Request) error {
@@ -254,10 +368,4 @@ func (s *Session) buildAgent(ctx context.Context, sess session.Session, cfg conf
 		planningext.New(s.sessionStore),
 		mcpext.New(s.mcpManager),
 	)
-}
-
-func (s *Session) clearCancel() {
-	s.mu.Lock()
-	s.cancel = nil
-	s.mu.Unlock()
 }

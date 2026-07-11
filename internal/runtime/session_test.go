@@ -72,57 +72,77 @@ func TestAskRoundTrip(t *testing.T) {
 	}
 }
 
-func TestSecondTurnRejectedWhileActive(t *testing.T) {
+func TestCompactRejectedWhileTurnIsActive(t *testing.T) {
 	s := bareSession()
 
-	block := make(chan struct{})
-	defer close(block)
+	s.mu.Lock()
+	s.cancel = func() {}
+	s.mu.Unlock()
 
-	if err := s.start(context.Background(), func(context.Context) error {
-		<-block
-
-		return nil
-	}); err != nil {
-		t.Fatalf("first start: %v", err)
-	}
-
-	if err := s.start(context.Background(), func(context.Context) error { return nil }); err == nil {
-		t.Fatal("second start during an active turn should fail")
+	if err := s.Compact(context.Background()); err == nil {
+		t.Fatal("compaction during an active turn should fail")
 	}
 }
 
-func TestTurnGuardClearsAfterCompletion(t *testing.T) {
+func TestRunQueuesFollowUpWhileTurnIsActive(t *testing.T) {
 	s := bareSession()
+	s.cancel = func() {}
+	sub := s.Subscribe()
 
-	done := make(chan struct{})
-	if err := s.start(context.Background(), func(context.Context) error {
-		close(done)
-
-		return nil
-	}); err != nil {
-		t.Fatalf("start: %v", err)
+	if err := s.Run(context.Background(), Request{Text: "next"}); err != nil {
+		t.Fatalf("Run: %v", err)
 	}
 
-	<-done
-	// Wait for the guard to clear after the turn goroutine returns.
-	deadline := time.After(time.Second)
-	for {
-		s.mu.Lock()
-		cleared := s.cancel == nil
-		s.mu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-		if cleared {
-			break
-		}
-
-		select {
-		case <-deadline:
-			t.Fatal("turn guard never cleared")
-		case <-time.After(time.Millisecond):
-		}
+	if len(s.pending) != 1 {
+		t.Fatalf("pending turns = %d, want 1", len(s.pending))
 	}
 
-	if err := s.start(context.Background(), func(context.Context) error { return nil }); err != nil {
-		t.Fatalf("start after completion should succeed: %v", err)
+	if s.pending[0].Request.Text != "next" {
+		t.Fatalf("pending request text = %q, want next", s.pending[0].Request.Text)
+	}
+
+	event := recv(t, sub.Events())
+	if event.Type != session.EventQueueChanged || len(event.Queue) != 1 {
+		t.Fatalf("event = %+v, want queued turn", event)
+	}
+
+	if event.Queue[0].Request.Text != "next" {
+		t.Fatalf("queued request = %+v, want text next", event.Queue[0])
+	}
+}
+
+func TestUpdateQueuedPublishesQueueSnapshot(t *testing.T) {
+	s := bareSession()
+	s.pending = []QueuedRequest{{
+		ID:      "queued",
+		Request: Request{Text: "before"},
+	}}
+	sub := s.Subscribe()
+
+	if err := s.UpdateQueued("queued", Request{Text: "after"}); err != nil {
+		t.Fatalf("UpdateQueued: %v", err)
+	}
+
+	event := recv(t, sub.Events())
+	if len(event.Queue) != 1 || event.Queue[0].Request.Text != "after" {
+		t.Fatalf("queue snapshot = %+v, want updated request", event.Queue)
+	}
+}
+
+func TestRemoveQueuedPublishesQueueSnapshot(t *testing.T) {
+	s := bareSession()
+	s.pending = []QueuedRequest{{ID: "queued", Request: Request{Text: "remove me"}}}
+	sub := s.Subscribe()
+
+	if err := s.RemoveQueued("queued"); err != nil {
+		t.Fatalf("RemoveQueued: %v", err)
+	}
+
+	event := recv(t, sub.Events())
+	if event.Type != session.EventQueueChanged || len(event.Queue) != 0 {
+		t.Fatalf("event = %+v, want empty queue snapshot", event)
 	}
 }

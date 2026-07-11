@@ -59,7 +59,7 @@ func (m *Manager) Close() {
 	m.mu.Unlock()
 
 	for _, session := range sessions {
-		session.Cancel()
+		session.Close()
 	}
 }
 
@@ -126,6 +126,33 @@ func (m *Manager) Cancel(sessionID string) {
 	if session, ok := m.get(sessionID); ok {
 		session.Cancel()
 	}
+}
+
+func (m *Manager) Queue(sessionID string) ([]QueuedRequest, error) {
+	sessionRuntime, ok := m.get(sessionID)
+	if !ok {
+		return nil, fmt.Errorf("no live session %q", sessionID)
+	}
+
+	return sessionRuntime.Queue(), nil
+}
+
+func (m *Manager) UpdateQueued(sessionID, id string, req Request) error {
+	sessionRuntime, ok := m.get(sessionID)
+	if !ok {
+		return fmt.Errorf("no live session %q", sessionID)
+	}
+
+	return sessionRuntime.UpdateQueued(id, req)
+}
+
+func (m *Manager) RemoveQueued(sessionID, id string) error {
+	sessionRuntime, ok := m.get(sessionID)
+	if !ok {
+		return fmt.Errorf("no live session %q", sessionID)
+	}
+
+	return sessionRuntime.RemoveQueued(id)
 }
 
 func (m *Manager) Respond(sessionID string, resp ask.Response) error {

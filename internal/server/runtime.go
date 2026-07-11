@@ -19,6 +19,18 @@ func (s *Server) Cancel(sessionID string) {
 	s.runtime.Cancel(sessionID)
 }
 
+func (s *Server) Queue(sessionID string) ([]runtime.QueuedRequest, error) {
+	return s.runtime.Queue(sessionID)
+}
+
+func (s *Server) UpdateQueued(sessionID, id string, req runtime.Request) error {
+	return s.runtime.UpdateQueued(sessionID, id, req)
+}
+
+func (s *Server) RemoveQueued(sessionID, id string) error {
+	return s.runtime.RemoveQueued(sessionID, id)
+}
+
 func (s *Server) Respond(sessionID string, resp ask.Response) error {
 	return s.runtime.Respond(sessionID, resp)
 }
