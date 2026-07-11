@@ -1,6 +1,7 @@
 package session
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
@@ -29,6 +30,10 @@ func Reduce(s State, ev sessiondata.Event) State {
 		return reduceTurnComplete(s, ev.Stats)
 	case sessiondata.EventTurnCancelled:
 		return reduceTurnCancelled(s)
+	case sessiondata.EventQueueChanged:
+		s.Pending = append([]sessiondata.QueuedRequest(nil), ev.Queue...)
+
+		return s
 	case sessiondata.EventError:
 		return reduceErrorEvent(s, ev.Error)
 	}
@@ -168,17 +173,41 @@ func reduceMessage(
 
 	rendered := kitToMessage(*msg)
 	if skill != nil && msg.Role == kit.RoleUser {
-		rendered.Text = skill.String()
+		rendered.Text = skillInvocationText(*skill)
 	}
 
 	if mcpPrompt != nil && msg.Role == kit.RoleUser {
-		rendered.Text = mcpPrompt.String()
+		rendered.Text = mcpPromptInvocationText(*mcpPrompt)
 	}
 
 	s.Messages = append(cloneMessages(s.Messages), rendered)
 	s.Streaming = nil
 
 	return s
+}
+
+func skillInvocationText(skill sessiondata.SkillInvocation) string {
+	if len(skill.Args) == 0 {
+		return "/" + skill.Name
+	}
+
+	return "/" + skill.Name + " " + strings.Join(skill.Args, " ")
+}
+
+func mcpPromptInvocationText(prompt sessiondata.MCPPromptInvocation) string {
+	text := "/mcp:" + prompt.Server + ":" + prompt.Name
+	if len(prompt.Args) == 0 {
+		return text
+	}
+
+	args := make([]string, 0, len(prompt.Args))
+	for name, value := range prompt.Args {
+		args = append(args, name+"="+value)
+	}
+
+	sort.Strings(args)
+
+	return text + " " + strings.Join(args, " ")
 }
 
 func reduceAsk(s State, req *ask.Request) State {

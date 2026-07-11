@@ -62,6 +62,7 @@ type State struct {
 	Mode     config.Mode
 
 	Messages  []Message
+	Pending   []sessiondata.QueuedRequest
 	Streaming *Message
 
 	Phase    Phase
@@ -99,6 +100,7 @@ func (s State) WithSession(sess *sessiondata.Session) State {
 
 func (s State) Reset() State {
 	s.Messages = nil
+	s.Pending = nil
 	s.Streaming = nil
 	s.Phase = PhaseIdle
 	s.Stats = nil

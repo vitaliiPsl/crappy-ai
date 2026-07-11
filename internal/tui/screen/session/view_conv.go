@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+
+	sessiondata "github.com/vitaliiPsl/crappy-ai/internal/session"
 )
 
 const (
@@ -57,7 +59,26 @@ func renderConversation(s *State, opts ConvOpts) string {
 		b.WriteByte('\n')
 	}
 
+	for _, queued := range s.Pending {
+		b.WriteByte('\n')
+		b.WriteString(renderQueuedRequest(queued.Request, opts.Width))
+		b.WriteByte('\n')
+	}
+
 	return b.String()
+}
+
+func renderQueuedRequest(req sessiondata.Request, width int) string {
+	text := req.Text
+	if req.Skill != nil {
+		text = skillInvocationText(*req.Skill)
+	}
+
+	if req.MCPPrompt != nil {
+		text = mcpPromptInvocationText(*req.MCPPrompt)
+	}
+
+	return queuedMessageStyle.Width(width).Render("\n" + subtleTextStyle.Render(text) + "\n")
 }
 
 func isConversationEmpty(s *State) bool {

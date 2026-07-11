@@ -33,6 +33,9 @@ var (
 	userMessageStyle = lipgloss.NewStyle().
 				Background(sessionTheme.SurfaceAlt).
 				Padding(0, 1)
+	queuedMessageStyle = userMessageStyle.
+				Border(lipgloss.NormalBorder(), false, false, false, true).
+				BorderForeground(sessionTheme.Warning)
 
 	assistantMessageStyle = lipgloss.NewStyle().Padding(0, 1)
 

@@ -141,6 +141,22 @@ func TestReduce_TurnComplete_SetsStatsAndIdle(t *testing.T) {
 	}
 }
 
+func TestReduce_QueueChangedReplacesPending(t *testing.T) {
+	s := State{Phase: PhaseRunning}
+	s = Reduce(s, sessiondata.NewQueueChangedEvent("sess", []sessiondata.QueuedRequest{{
+		ID:      "next",
+		Request: sessiondata.Request{Text: "next"},
+	}}))
+
+	if s.Phase != PhaseRunning {
+		t.Fatalf("Phase = %v, want PhaseRunning", s.Phase)
+	}
+
+	if len(s.Pending) != 1 || s.Pending[0].ID != "next" {
+		t.Fatalf("Pending = %+v, want next", s.Pending)
+	}
+}
+
 func TestReduce_TurnCancelled_ClearsRunState(t *testing.T) {
 	s := State{Phase: PhaseRunning, Streaming: &Message{Role: RoleModel, Text: "x"}}
 	s = Reduce(s, sessiondata.NewTurnCancelledEvent("sess"))

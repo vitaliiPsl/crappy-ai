@@ -164,7 +164,7 @@ func (m Model) handleSubmit(text string) (Model, tea.Cmd) {
 }
 
 func (m Model) handleRunRequest(req runtime.Request) (Model, tea.Cmd) {
-	if m.state.Phase != PhaseIdle {
+	if m.state.Phase == PhaseCompacting || m.state.Phase == PhaseAwaitingPermission {
 		return m, nil
 	}
 
@@ -189,7 +189,10 @@ func (m Model) handleRunRequest(req runtime.Request) (Model, tea.Cmd) {
 		cmds = append(cmds, announceCreated(sess.ID), waitForEventCmd(ch))
 	}
 
-	m.state = m.state.StartTurn()
+	if m.state.Phase == PhaseIdle {
+		m.state = m.state.StartTurn()
+	}
+
 	cmds = append(cmds, sendCmd(m.ctx, m.server, m.state.ID, req), m.spinner.Tick)
 
 	return m, tea.Batch(cmds...)
