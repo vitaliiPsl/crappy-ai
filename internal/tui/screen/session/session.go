@@ -128,6 +128,12 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	case command.CompactSessionMsg:
 		m, cmd = m.handleCompact()
 
+	case command.ForkSessionMsg:
+		m, cmd = m.handleFork()
+
+	case forkedMsg:
+		m, cmd = m.handleForked(msg)
+
 	case modeUpdatedMsg:
 		m = m.handleModeUpdated(msg)
 

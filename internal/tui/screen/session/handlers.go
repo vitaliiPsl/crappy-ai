@@ -143,6 +143,30 @@ func (m Model) handleCompact() (Model, tea.Cmd) {
 	return m, tea.Batch(compactCmd(m.ctx, m.server, m.state.ID), m.spinner.Tick)
 }
 
+func (m Model) handleFork() (Model, tea.Cmd) {
+	if m.state.Phase != PhaseIdle || m.state.ID == "" {
+		return m, nil
+	}
+
+	return m, forkCmd(m.ctx, m.server, m.state.ID)
+}
+
+func (m Model) handleForked(msg forkedMsg) (Model, tea.Cmd) {
+	if msg.err != nil {
+		m.state = m.state.SetError(msg.err)
+
+		return m, nil
+	}
+
+	if msg.session == nil {
+		m.state = m.state.SetError(fmt.Errorf("fork returned no session"))
+
+		return m, nil
+	}
+
+	return m, func() tea.Msg { return ForkedMsg{SessionID: msg.session.ID} }
+}
+
 func (m Model) handlePromptKey(key tea.KeyMsg) (Model, tea.Cmd) {
 	req := m.state.Prompt
 	if req == nil {

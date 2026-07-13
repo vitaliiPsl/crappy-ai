@@ -94,6 +94,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.sessionID = msg.SessionID
 
 		return m, nil
+	case sessionScreen.ForkedMsg:
+		if m.session != nil {
+			m.session.Cleanup()
+		}
+
+		return m, m.openSession(msg.SessionID)
 	case sessionsScreen.OpenSessionMsg:
 		return m, m.openSession(msg.SessionID)
 	case sessionsScreen.OpenDraftSessionMsg:

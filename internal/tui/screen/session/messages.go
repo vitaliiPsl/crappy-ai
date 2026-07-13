@@ -9,6 +9,10 @@ type CreatedMsg struct {
 	SessionID string
 }
 
+type ForkedMsg struct {
+	SessionID string
+}
+
 type sessionEventMsg struct {
 	event sessiondata.Event
 }
@@ -35,4 +39,9 @@ type effectErrorMsg struct {
 type modeUpdatedMsg struct {
 	mode config.Mode
 	err  error
+}
+
+type forkedMsg struct {
+	session *sessiondata.Session
+	err     error
 }

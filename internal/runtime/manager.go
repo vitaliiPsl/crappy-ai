@@ -95,6 +95,15 @@ func (m *Manager) Subscribe(ctx context.Context, sessionID string) (*eventbus.Su
 	return sessionRuntime.Subscribe(), nil
 }
 
+func (m *Manager) ForkSession(ctx context.Context, sessionID, title string) (*session.Session, error) {
+	sessionRuntime, err := m.session(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	return sessionRuntime.Fork(ctx, title)
+}
+
 func (m *Manager) Run(ctx context.Context, sessionID string, req Request) error {
 	sessionRuntime, err := m.session(ctx, sessionID)
 	if err != nil {

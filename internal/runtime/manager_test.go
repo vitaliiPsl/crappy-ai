@@ -57,3 +57,41 @@ func TestManagerCompactRequiresExistingSession(t *testing.T) {
 		t.Fatalf("live sessions = %d, want 0", len(m.live))
 	}
 }
+
+func TestManagerForkSession(t *testing.T) {
+	m := testManager(t)
+	ctx := context.Background()
+
+	source, err := m.CreateSession(ctx, "source")
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+
+	fork, err := m.ForkSession(ctx, source.ID, "branch")
+	if err != nil {
+		t.Fatalf("ForkSession: %v", err)
+	}
+
+	if fork.Title != "branch" || fork.ForkedFromID != source.ID {
+		t.Fatalf("fork = %+v", fork)
+	}
+}
+
+func TestManagerForkSessionRejectsActiveSession(t *testing.T) {
+	m := testManager(t)
+	ctx := context.Background()
+
+	source, err := m.CreateSession(ctx, "source")
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+
+	live := m.getOrCreate(source.ID)
+	live.mu.Lock()
+	live.cancel = func() {}
+	live.mu.Unlock()
+
+	if _, err := m.ForkSession(ctx, source.ID, ""); err == nil {
+		t.Fatal("ForkSession active session error = nil")
+	}
+}

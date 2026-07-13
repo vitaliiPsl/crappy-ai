@@ -14,6 +14,10 @@ func (s *Server) GetSession(ctx context.Context, sessionID string) (*session.Ses
 	return s.runtime.GetSession(ctx, sessionID)
 }
 
+func (s *Server) ForkSession(ctx context.Context, sessionID, title string) (*session.Session, error) {
+	return s.runtime.ForkSession(ctx, sessionID, title)
+}
+
 func (s *Server) ListSessions(ctx context.Context) ([]*session.Session, error) {
 	return s.runtime.ListSessions(ctx)
 }

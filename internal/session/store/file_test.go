@@ -226,6 +226,68 @@ func TestList_ExcludesChildSessions(t *testing.T) {
 	}
 }
 
+func TestFork_CopiesConversationAndArtifacts(t *testing.T) {
+	st, _ := newTestStore(t)
+	ctx := context.Background()
+
+	source, _ := st.Create(ctx, session.CreateParams{Title: "source", Cwd: "/workspace"})
+
+	source.Usage = kit.Usage{InputTokens: 42}
+	if err := st.Save(ctx, source); err != nil {
+		t.Fatalf("Save source: %v", err)
+	}
+
+	event := session.NewMessageEvent(source.ID, kit.NewUserMessage(kit.NewTextContent("hello")))
+	if err := st.AppendEvents(ctx, source.ID, event); err != nil {
+		t.Fatalf("AppendEvents: %v", err)
+	}
+
+	if err := st.SaveArtifact(ctx, source.ID, "plan", map[string]string{"step": "one"}); err != nil {
+		t.Fatalf("SaveArtifact: %v", err)
+	}
+
+	fork, err := st.Fork(ctx, session.ForkParams{SourceID: source.ID})
+	if err != nil {
+		t.Fatalf("Fork: %v", err)
+	}
+
+	if fork.ParentID != "" || fork.ForkedFromID != source.ID {
+		t.Fatalf("fork lineage = %+v", fork)
+	}
+
+	if fork.Cwd != source.Cwd || fork.Title != "source (fork)" {
+		t.Fatalf("fork metadata = %+v", fork)
+	}
+
+	if fork.Usage != (kit.Usage{}) {
+		t.Fatalf("fork usage = %+v, want zero", fork.Usage)
+	}
+
+	events, err := st.LoadEvents(ctx, fork.ID)
+	if err != nil {
+		t.Fatalf("LoadEvents: %v", err)
+	}
+
+	if len(events) != 1 || events[0].ID != event.ID || events[0].SessionID != fork.ID {
+		t.Fatalf("fork events = %+v", events)
+	}
+
+	var artifact map[string]string
+
+	ok, err := st.LoadArtifact(ctx, fork.ID, "plan", &artifact)
+	if err != nil || !ok || artifact["step"] != "one" {
+		t.Fatalf("fork artifact = %+v, ok=%v, err=%v", artifact, ok, err)
+	}
+
+	if err := st.Delete(ctx, source.ID); err != nil {
+		t.Fatalf("Delete source: %v", err)
+	}
+
+	if _, err := st.Get(ctx, fork.ID); err != nil {
+		t.Fatalf("fork was deleted with source: %v", err)
+	}
+}
+
 func TestList_IgnoresNonDirEntries(t *testing.T) {
 	st, dir := newTestStore(t)
 

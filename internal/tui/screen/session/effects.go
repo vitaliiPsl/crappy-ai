@@ -55,6 +55,14 @@ func compactCmd(ctx context.Context, srv *server.Server, sessionID string) tea.C
 	}
 }
 
+func forkCmd(ctx context.Context, srv *server.Server, sessionID string) tea.Cmd {
+	return func() tea.Msg {
+		fork, err := srv.ForkSession(ctx, sessionID, "")
+
+		return forkedMsg{session: fork, err: err}
+	}
+}
+
 func respondPromptCmd(srv *server.Server, sessionID string, resp ask.Response) tea.Cmd {
 	return func() tea.Msg {
 		if err := srv.Respond(sessionID, resp); err != nil {

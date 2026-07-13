@@ -56,12 +56,13 @@ func (st *FileStore) Create(_ context.Context, params session.CreateParams) (*se
 	now := time.Now()
 
 	s := &session.Session{
-		ID:        uuid.NewString(),
-		ParentID:  params.ParentID,
-		Title:     params.Title,
-		Cwd:       params.Cwd,
-		CreatedAt: now,
-		UpdatedAt: now,
+		ID:           uuid.NewString(),
+		ParentID:     params.ParentID,
+		ForkedFromID: params.ForkedFromID,
+		Title:        params.Title,
+		Cwd:          params.Cwd,
+		CreatedAt:    now,
+		UpdatedAt:    now,
 	}
 
 	st.mu.Lock()
@@ -246,6 +247,52 @@ func (st *FileStore) LoadEvents(_ context.Context, id string) ([]session.Event, 
 	return events, scanner.Err()
 }
 
+func (st *FileStore) Fork(ctx context.Context, params session.ForkParams) (_ *session.Session, err error) {
+	source, err := st.Get(ctx, params.SourceID)
+	if err != nil {
+		return nil, fmt.Errorf("load source session: %w", err)
+	}
+
+	title := strings.TrimSpace(params.Title)
+	if title == "" {
+		title = source.Title + " (fork)"
+	}
+
+	fork, err := st.Create(ctx, session.CreateParams{
+		Title:        title,
+		Cwd:          source.Cwd,
+		ForkedFromID: source.ID,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	defer func() {
+		if err != nil {
+			_ = st.Delete(ctx, fork.ID)
+		}
+	}()
+
+	events, err := st.LoadEvents(ctx, source.ID)
+	if err != nil {
+		return nil, fmt.Errorf("load source events: %w", err)
+	}
+
+	for i := range events {
+		events[i].SessionID = fork.ID
+	}
+
+	if err := st.AppendEvents(ctx, fork.ID, events...); err != nil {
+		return nil, fmt.Errorf("copy source events: %w", err)
+	}
+
+	if err := st.copyArtifacts(source.ID, fork.ID); err != nil {
+		return nil, err
+	}
+
+	return st.Get(ctx, fork.ID)
+}
+
 func (st *FileStore) SaveArtifact(_ context.Context, id, name string, value any) error {
 	path, err := st.artifactPath(id, name)
 	if err != nil {
@@ -390,6 +437,43 @@ func (st *FileStore) artifactPath(id, name string) (string, error) {
 	}
 
 	return filepath.Join(st.artifactsDir(id), name+artifactExt), nil
+}
+
+func (st *FileStore) copyArtifacts(sourceID, targetID string) error {
+	entries, err := os.ReadDir(st.artifactsDir(sourceID))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+
+		return fmt.Errorf("read source artifacts: %w", err)
+	}
+
+	if err := os.MkdirAll(st.artifactsDir(targetID), 0o700); err != nil {
+		return fmt.Errorf("create fork artifacts dir: %w", err)
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		name, ok := artifactName(entry.Name())
+		if !ok {
+			continue
+		}
+
+		data, err := os.ReadFile(filepath.Join(st.artifactsDir(sourceID), entry.Name()))
+		if err != nil {
+			return fmt.Errorf("read source artifact %q: %w", name, err)
+		}
+
+		if err := os.WriteFile(filepath.Join(st.artifactsDir(targetID), entry.Name()), data, 0o600); err != nil {
+			return fmt.Errorf("write fork artifact %q: %w", name, err)
+		}
+	}
+
+	return nil
 }
 
 func (st *FileStore) touch(sess *session.Session) error {

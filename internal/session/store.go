@@ -3,13 +3,20 @@ package session
 import "context"
 
 type CreateParams struct {
+	Title        string
+	Cwd          string
+	ParentID     string
+	ForkedFromID string
+}
+
+type ForkParams struct {
+	SourceID string
 	Title    string
-	Cwd      string
-	ParentID string
 }
 
 type Store interface {
 	Create(ctx context.Context, params CreateParams) (*Session, error)
+	Fork(ctx context.Context, params ForkParams) (*Session, error)
 	Save(ctx context.Context, session *Session) error
 	Get(ctx context.Context, id string) (*Session, error)
 	List(ctx context.Context) ([]*Session, error)

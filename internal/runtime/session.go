@@ -174,6 +174,20 @@ func (s *Session) Queue() []QueuedRequest {
 	return append([]QueuedRequest(nil), s.pending...)
 }
 
+func (s *Session) Fork(ctx context.Context, title string) (*session.Session, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.cancel != nil || len(s.pending) > 0 {
+		return nil, fmt.Errorf("session %q is busy", s.id)
+	}
+
+	return s.sessionStore.Fork(ctx, session.ForkParams{
+		SourceID: s.id,
+		Title:    title,
+	})
+}
+
 func (s *Session) UpdateQueued(id string, req Request) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
