@@ -51,6 +51,10 @@ type SubmitMCPPromptMsg struct {
 	Args   map[string]string
 }
 
+type AttachFileMsg struct {
+	Path string
+}
+
 type NavNewSessionMsg struct{}
 
 type NavSessionsMsg struct{}

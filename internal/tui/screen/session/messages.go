@@ -1,6 +1,8 @@
 package session
 
 import (
+	"github.com/vitaliiPsl/crappy-adk/kit"
+
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	sessiondata "github.com/vitaliiPsl/crappy-ai/internal/session"
 )
@@ -23,7 +25,12 @@ type historyLoadedMsg struct {
 }
 
 type submitMsg struct {
-	Text string
+	Content []kit.Content
+}
+
+type attachmentLoadedMsg struct {
+	result attachment
+	err    error
 }
 
 type commandMsg struct {

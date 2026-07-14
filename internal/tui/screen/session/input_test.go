@@ -2,6 +2,8 @@ package session
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -20,6 +22,29 @@ func TestUpdateRoutesPasteToInput(t *testing.T) {
 
 	if value := got.input.input.Value(); value != "hello\nfrom paste" {
 		t.Fatalf("input value = %q, want pasted text", value)
+	}
+}
+
+func TestUpdateRoutesDroppedFileToAttachmentLoader(t *testing.T) {
+	dir := t.TempDir()
+
+	path := filepath.Join(dir, "image.png")
+	if err := os.WriteFile(path, []byte("image"), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	m := Model{
+		state: State{Phase: PhaseIdle, Cwd: dir},
+		input: newInputBar(command.NewRegistry(context.Background())),
+	}
+
+	got, cmd := m.Update(tea.PasteMsg{Content: path})
+	if cmd == nil {
+		t.Fatal("dropped file did not produce attachment command")
+	}
+
+	if value := got.input.input.Value(); value != "" {
+		t.Fatalf("input value = %q, want dropped path excluded from text", value)
 	}
 }
 

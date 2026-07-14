@@ -410,9 +410,14 @@ func kitToMessage(msg kit.Message) Message {
 		})
 	}
 
+	text := kitMessageText(msg)
+	if msg.Role == kit.RoleUser {
+		text = userContentText(msg.Content)
+	}
+
 	return Message{
 		Role:     role,
-		Text:     kitMessageText(msg),
+		Text:     text,
 		Thinking: kitMessageThinking(msg),
 		Tools:    tools,
 	}

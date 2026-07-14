@@ -145,7 +145,7 @@ func TestReduce_QueueChangedReplacesPending(t *testing.T) {
 	s := State{Phase: PhaseRunning}
 	s = Reduce(s, sessiondata.NewQueueChangedEvent("sess", []sessiondata.QueuedRequest{{
 		ID:      "next",
-		Request: sessiondata.Request{Text: "next"},
+		Request: sessiondata.Request{Content: []kit.Content{kit.NewTextContent("next")}},
 	}}))
 
 	if s.Phase != PhaseRunning {

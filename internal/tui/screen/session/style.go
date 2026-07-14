@@ -31,9 +31,11 @@ var (
 	toolBlockError   = toolBlockBase.BorderForeground(sessionTheme.Error)
 
 	userMessageStyle = lipgloss.NewStyle().
+				Foreground(sessionTheme.Text).
 				Background(sessionTheme.SurfaceAlt).
 				Padding(0, 1)
 	queuedMessageStyle = userMessageStyle.
+				Foreground(sessionTheme.SubtleText).
 				Border(lipgloss.NormalBorder(), false, false, false, true).
 				BorderForeground(sessionTheme.Warning)
 

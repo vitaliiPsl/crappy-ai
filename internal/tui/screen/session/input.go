@@ -5,6 +5,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/vitaliiPsl/crappy-adk/kit"
+
 	"github.com/vitaliiPsl/crappy-ai/internal/tui/command"
 	"github.com/vitaliiPsl/crappy-ai/internal/tui/component"
 )
@@ -23,8 +25,9 @@ const (
 )
 
 type inputBar struct {
-	input  component.Input
-	picker commandPicker
+	input       component.Input
+	picker      commandPicker
+	attachments []attachment
 }
 
 func newInputBar(registry *command.Registry) inputBar {
@@ -68,7 +71,7 @@ func (b inputBar) Update(msg tea.Msg) (inputBar, tea.Cmd) {
 	b.input.Reset()
 	b.picker.Clear()
 
-	if text == "" {
+	if text == "" && len(b.attachments) == 0 {
 		return b, cmd
 	}
 
@@ -76,11 +79,30 @@ func (b inputBar) Update(msg tea.Msg) (inputBar, tea.Cmd) {
 		return b, tea.Batch(cmd, emitCommand(cmdMsg))
 	}
 
-	return b, tea.Batch(cmd, emitSubmit(text))
+	content := make([]kit.Content, 0, len(b.attachments)+1)
+	if text != "" {
+		content = append(content, kit.NewTextContent(text))
+	}
+
+	for _, item := range b.attachments {
+		content = append(content, item.Content)
+	}
+
+	b.attachments = nil
+
+	return b, tea.Batch(cmd, emitSubmit(content))
 }
 
 func (b inputBar) View() string {
 	input := strings.TrimRight(b.input.View(), "\n")
+	if len(b.attachments) > 0 {
+		labels := make([]string, 0, len(b.attachments))
+		for _, item := range b.attachments {
+			labels = append(labels, item.label())
+		}
+
+		input = strings.Join(labels, " ") + "\n" + input
+	}
 
 	suggestions := b.picker.View()
 	if suggestions == "" {
@@ -97,6 +119,11 @@ func (b *inputBar) SetWidth(width int) {
 func (b *inputBar) Reset() {
 	b.input.Reset()
 	b.picker.Clear()
+	b.attachments = nil
+}
+
+func (b *inputBar) attach(item attachment) {
+	b.attachments = append(b.attachments, item)
 }
 
 func (b inputBar) PickerActive() bool {
@@ -146,8 +173,8 @@ func focusForState(s State) Focus {
 	return FocusInput
 }
 
-func emitSubmit(text string) tea.Cmd {
-	return func() tea.Msg { return submitMsg{Text: text} }
+func emitSubmit(content []kit.Content) tea.Cmd {
+	return func() tea.Msg { return submitMsg{Content: content} }
 }
 
 func emitCommand(msg commandMsg) tea.Cmd {

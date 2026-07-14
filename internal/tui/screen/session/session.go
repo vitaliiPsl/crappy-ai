@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	"github.com/vitaliiPsl/crappy-ai/internal/runtime"
 	"github.com/vitaliiPsl/crappy-ai/internal/server"
 	sessiondata "github.com/vitaliiPsl/crappy-ai/internal/session"
 	"github.com/vitaliiPsl/crappy-ai/internal/tui/command"
@@ -108,7 +109,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		return m.applyHistory(msg)
 
 	case submitMsg:
-		m, cmd = m.handleSubmit(msg.Text)
+		m, cmd = m.handleRunRequest(runtime.Request{Content: msg.Content})
 
 	case commandMsg:
 		m, cmd = m.handleCommand(msg)
@@ -118,6 +119,17 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case command.SubmitTextMsg:
 		m, cmd = m.handleSubmit(msg.Text)
+
+	case command.AttachFileMsg:
+		cmd = loadAttachmentCmd(m.state.Cwd, msg.Path)
+
+	case attachmentLoadedMsg:
+		if msg.err != nil {
+			m.state = m.state.SetError(msg.err)
+		} else {
+			m.input.attach(msg.result)
+			m.state = m.state.ClearError()
+		}
 
 	case command.SubmitSkillMsg:
 		m, cmd = m.handleSkillSubmit(msg)

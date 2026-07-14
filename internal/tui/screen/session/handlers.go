@@ -7,6 +7,8 @@ import (
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/vitaliiPsl/crappy-adk/kit"
+
 	"github.com/vitaliiPsl/crappy-ai/internal/ask"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/runtime"
@@ -98,6 +100,15 @@ func (m Model) handlePaste(msg tea.PasteMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if paths, ok := attachmentPaths(m.state.Cwd, msg.Content); ok {
+		cmds := make([]tea.Cmd, 0, len(paths))
+		for _, path := range paths {
+			cmds = append(cmds, loadAttachmentCmd(m.state.Cwd, path))
+		}
+
+		return m, tea.Batch(cmds...)
+	}
+
 	var cmd tea.Cmd
 
 	m.input, cmd = m.input.Update(msg)
@@ -184,7 +195,12 @@ func (m Model) handlePromptKey(key tea.KeyMsg) (Model, tea.Cmd) {
 }
 
 func (m Model) handleSubmit(text string) (Model, tea.Cmd) {
-	return m.handleRunRequest(runtime.Request{Text: text})
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return m, nil
+	}
+
+	return m.handleRunRequest(runtime.Request{Content: []kit.Content{kit.NewTextContent(text)}})
 }
 
 func (m Model) handleRunRequest(req runtime.Request) (Model, tea.Cmd) {
@@ -192,15 +208,14 @@ func (m Model) handleRunRequest(req runtime.Request) (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	req.Text = strings.TrimSpace(req.Text)
-	if req.Text == "" {
+	if len(req.Content) == 0 {
 		return m, nil
 	}
 
 	var cmds []tea.Cmd
 
 	if m.state.ID == "" {
-		sess, ch, err := m.openNewSession(deriveTitle(req.Text))
+		sess, ch, err := m.openNewSession(deriveTitle(userContentText(req.Content)))
 		if err != nil {
 			m.state = m.state.SetError(err)
 
@@ -224,7 +239,7 @@ func (m Model) handleRunRequest(req runtime.Request) (Model, tea.Cmd) {
 
 func (m Model) handleSkillSubmit(msg command.SubmitSkillMsg) (Model, tea.Cmd) {
 	return m.handleRunRequest(runtime.Request{
-		Text: msg.Text,
+		Content: []kit.Content{kit.NewTextContent(msg.Text)},
 		Skill: &runtime.SkillInvocation{
 			Name: msg.Name,
 			Args: msg.Args,
@@ -234,7 +249,7 @@ func (m Model) handleSkillSubmit(msg command.SubmitSkillMsg) (Model, tea.Cmd) {
 
 func (m Model) handleMCPPromptSubmit(msg command.SubmitMCPPromptMsg) (Model, tea.Cmd) {
 	return m.handleRunRequest(runtime.Request{
-		Text: msg.Name,
+		Content: []kit.Content{kit.NewTextContent(msg.Name)},
 		MCPPrompt: &runtime.MCPPromptInvocation{
 			Server: msg.Server,
 			Name:   msg.Name,

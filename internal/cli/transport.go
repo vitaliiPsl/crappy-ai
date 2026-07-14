@@ -37,7 +37,9 @@ func (t *Transport) Start(ctx context.Context) error {
 
 	defer t.srv.Unsubscribe(sess.ID, ch)
 
-	if err := t.srv.Run(ctx, sess.ID, runtime.Request{Text: t.prompt}); err != nil {
+	if err := t.srv.Run(ctx, sess.ID, runtime.Request{
+		Content: []kit.Content{kit.NewTextContent(t.prompt)},
+	}); err != nil {
 		return fmt.Errorf("send: %w", err)
 	}
 

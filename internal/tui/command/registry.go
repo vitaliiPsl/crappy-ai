@@ -27,6 +27,7 @@ func NewRegistry(ctx context.Context, providers ...Provider) *Registry {
 	r.Register(NewJobsCommand())
 	r.Register(NewCompactCommand())
 	r.Register(NewForkCommand())
+	r.Register(NewAttachCommand())
 	r.Register(NewHelpCommand(r))
 
 	for _, provider := range providers {

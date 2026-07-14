@@ -57,12 +57,15 @@ func TestInputProcessorPreservesRichContent(t *testing.T) {
 	if len(msg.Content) != 3 {
 		t.Fatalf("message content count = %d, want 3", len(msg.Content))
 	}
+
 	if msg.Content[1].Image == nil || string(msg.Content[1].Image.Data) != "image" {
 		t.Fatalf("message image = %+v, want inline image", msg.Content[1])
 	}
+
 	if msg.Content[2].Resource == nil || msg.Content[2].Resource.Text != "notes" {
 		t.Fatalf("message resource = %+v, want text resource", msg.Content[2])
 	}
+
 	if ev.Message == nil || len(ev.Message.Content) != 3 {
 		t.Fatalf("event message = %+v, want rich content", ev.Message)
 	}
