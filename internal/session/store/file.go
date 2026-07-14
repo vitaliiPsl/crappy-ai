@@ -1,11 +1,11 @@
 package store
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -20,11 +20,10 @@ import (
 )
 
 const (
-	sessionFile   = "session.json"
-	eventsFile    = "events.jsonl"
-	artifactsDir  = "artifacts"
-	artifactExt   = ".json"
-	scannerBuffer = 1 << 20
+	sessionFile  = "session.json"
+	eventsFile   = "events.jsonl"
+	artifactsDir = "artifacts"
+	artifactExt  = ".json"
 )
 
 var artifactNamePattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
@@ -232,19 +231,19 @@ func (st *FileStore) LoadEvents(_ context.Context, id string) ([]session.Event, 
 
 	var events []session.Event
 
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, scannerBuffer), scannerBuffer)
-
-	for scanner.Scan() {
+	decoder := json.NewDecoder(f)
+	for {
 		var ev session.Event
-		if err := json.Unmarshal(scanner.Bytes(), &ev); err != nil {
+		if err := decoder.Decode(&ev); errors.Is(err, io.EOF) {
+			break
+		} else if err != nil {
 			return nil, fmt.Errorf("decode event: %w", err)
 		}
 
 		events = append(events, ev)
 	}
 
-	return events, scanner.Err()
+	return events, nil
 }
 
 func (st *FileStore) Fork(ctx context.Context, params session.ForkParams) (_ *session.Session, err error) {

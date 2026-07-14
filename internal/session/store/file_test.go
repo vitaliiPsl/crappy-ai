@@ -486,6 +486,44 @@ func TestLoadEvents_RoundTripsKitContent(t *testing.T) {
 	}
 }
 
+func TestLoadEvents_RoundTripsLargeAttachment(t *testing.T) {
+	ctx := context.Background()
+	st, _ := newTestStore(t)
+
+	sess, err := st.Create(ctx, session.CreateParams{Title: "large attachment"})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	data := make([]byte, 2<<20)
+	for i := range data {
+		data[i] = byte(i)
+	}
+
+	msg := kit.NewUserMessage(kit.NewImageContent("image/png", data))
+	if err := st.AppendEvents(ctx, sess.ID, session.NewMessageEvent(sess.ID, msg)); err != nil {
+		t.Fatalf("AppendEvents: %v", err)
+	}
+
+	events, err := st.LoadEvents(ctx, sess.ID)
+	if err != nil {
+		t.Fatalf("LoadEvents: %v", err)
+	}
+
+	if len(events) != 1 || events[0].Message == nil || len(events[0].Message.Content) != 1 {
+		t.Fatalf("events = %+v, want one message with image content", events)
+	}
+
+	image := events[0].Message.Content[0].Image
+	if image == nil || image.MIMEType != "image/png" || len(image.Data) != len(data) {
+		t.Fatalf("image = %+v, want %d bytes", image, len(data))
+	}
+
+	if image.Data[0] != data[0] || image.Data[len(data)-1] != data[len(data)-1] {
+		t.Fatal("image data did not round trip")
+	}
+}
+
 type testArtifact struct {
 	Title string   `json:"title"`
 	Items []string `json:"items"`
