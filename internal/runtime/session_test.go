@@ -15,6 +15,10 @@ func bareSession() *Session {
 	return newSession("s1", nil, nil, nil, nil, nil, nil, nil)
 }
 
+func textRequest(text string) Request {
+	return Request{Content: []kit.Content{kit.NewTextContent(text)}}
+}
+
 func recv(t *testing.T, ch <-chan session.Event) session.Event {
 	t.Helper()
 
@@ -89,7 +93,7 @@ func TestRunQueuesFollowUpWhileTurnIsActive(t *testing.T) {
 	s.cancel = func() {}
 	sub := s.Subscribe()
 
-	if err := s.Run(context.Background(), Request{Text: "next"}); err != nil {
+	if err := s.Run(context.Background(), textRequest("next")); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 
@@ -100,8 +104,8 @@ func TestRunQueuesFollowUpWhileTurnIsActive(t *testing.T) {
 		t.Fatalf("pending turns = %d, want 1", len(s.pending))
 	}
 
-	if s.pending[0].Request.Text != "next" {
-		t.Fatalf("pending request text = %q, want next", s.pending[0].Request.Text)
+	if text := kit.ContentsText(s.pending[0].Request.Content); text != "next" {
+		t.Fatalf("pending request text = %q, want next", text)
 	}
 
 	event := recv(t, sub.Events())
@@ -109,7 +113,7 @@ func TestRunQueuesFollowUpWhileTurnIsActive(t *testing.T) {
 		t.Fatalf("event = %+v, want queued turn", event)
 	}
 
-	if event.Queue[0].Request.Text != "next" {
+	if kit.ContentsText(event.Queue[0].Request.Content) != "next" {
 		t.Fatalf("queued request = %+v, want text next", event.Queue[0])
 	}
 }
@@ -118,23 +122,23 @@ func TestUpdateQueuedPublishesQueueSnapshot(t *testing.T) {
 	s := bareSession()
 	s.pending = []QueuedRequest{{
 		ID:      "queued",
-		Request: Request{Text: "before"},
+		Request: textRequest("before"),
 	}}
 	sub := s.Subscribe()
 
-	if err := s.UpdateQueued("queued", Request{Text: "after"}); err != nil {
+	if err := s.UpdateQueued("queued", textRequest("after")); err != nil {
 		t.Fatalf("UpdateQueued: %v", err)
 	}
 
 	event := recv(t, sub.Events())
-	if len(event.Queue) != 1 || event.Queue[0].Request.Text != "after" {
+	if len(event.Queue) != 1 || kit.ContentsText(event.Queue[0].Request.Content) != "after" {
 		t.Fatalf("queue snapshot = %+v, want updated request", event.Queue)
 	}
 }
 
 func TestRemoveQueuedPublishesQueueSnapshot(t *testing.T) {
 	s := bareSession()
-	s.pending = []QueuedRequest{{ID: "queued", Request: Request{Text: "remove me"}}}
+	s.pending = []QueuedRequest{{ID: "queued", Request: textRequest("remove me")}}
 	sub := s.Subscribe()
 
 	if err := s.RemoveQueued("queued"); err != nil {

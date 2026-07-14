@@ -20,7 +20,9 @@ import (
 func TestInputProcessorProcessesText(t *testing.T) {
 	processor := NewInputProcessor("s1", nil, nil)
 
-	msg, ev, err := processor.Process(context.Background(), Request{Text: "hello"})
+	msg, ev, err := processor.Process(context.Background(), Request{
+		Content: []kit.Content{kit.NewTextContent("hello")},
+	})
 	if err != nil {
 		t.Fatalf("Process: %v", err)
 	}
@@ -39,12 +41,39 @@ func TestInputProcessorProcessesText(t *testing.T) {
 	}
 }
 
+func TestInputProcessorPreservesRichContent(t *testing.T) {
+	processor := NewInputProcessor("s1", nil, nil)
+	content := []kit.Content{
+		kit.NewTextContent("describe this"),
+		kit.NewImageContent("image/png", []byte("image")),
+		kit.NewResourceContent(kit.Resource{Name: "notes.txt", MIMEType: "text/plain", Text: "notes"}),
+	}
+
+	msg, ev, err := processor.Process(context.Background(), Request{Content: content})
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+
+	if len(msg.Content) != 3 {
+		t.Fatalf("message content count = %d, want 3", len(msg.Content))
+	}
+	if msg.Content[1].Image == nil || string(msg.Content[1].Image.Data) != "image" {
+		t.Fatalf("message image = %+v, want inline image", msg.Content[1])
+	}
+	if msg.Content[2].Resource == nil || msg.Content[2].Resource.Text != "notes" {
+		t.Fatalf("message resource = %+v, want text resource", msg.Content[2])
+	}
+	if ev.Message == nil || len(ev.Message.Content) != 3 {
+		t.Fatalf("event message = %+v, want rich content", ev.Message)
+	}
+}
+
 func TestInputProcessorProcessesSkill(t *testing.T) {
 	root := t.TempDir()
 	skillstest.WriteSkill(t, filepath.Join(root, "review", "SKILL.md"), "review", "Review code", "Read the diff carefully.")
 
 	req := Request{
-		Text: "ignored",
+		Content: []kit.Content{kit.NewTextContent("ignored")},
 		Skill: &SkillInvocation{
 			Name: "review",
 			Args: []string{"file.go"},
@@ -94,7 +123,7 @@ func TestInputProcessorProcessesMCPPrompt(t *testing.T) {
 	defer manager.Close()
 
 	req := Request{
-		Text: "ignored",
+		Content: []kit.Content{kit.NewTextContent("ignored")},
 		MCPPrompt: &MCPPromptInvocation{
 			Server: "prompts",
 			Name:   "review",

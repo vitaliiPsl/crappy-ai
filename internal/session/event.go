@@ -43,7 +43,7 @@ type Event struct {
 }
 
 type Request struct {
-	Text      string               `json:"text"`
+	Content   []kit.Content        `json:"content,omitempty"`
 	Skill     *SkillInvocation     `json:"skill,omitempty"`
 	MCPPrompt *MCPPromptInvocation `json:"mcp_prompt,omitempty"`
 }

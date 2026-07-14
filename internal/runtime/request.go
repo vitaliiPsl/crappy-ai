@@ -1,9 +1,13 @@
 package runtime
 
-import "github.com/vitaliiPsl/crappy-ai/internal/session"
+import (
+	"github.com/vitaliiPsl/crappy-adk/kit"
+
+	"github.com/vitaliiPsl/crappy-ai/internal/session"
+)
 
 type Request struct {
-	Text      string
+	Content   []kit.Content
 	Skill     *SkillInvocation
 	MCPPrompt *MCPPromptInvocation
 }
@@ -27,7 +31,7 @@ type QueuedRequest struct {
 func queueSnapshot(queue []QueuedRequest) []session.QueuedRequest {
 	out := make([]session.QueuedRequest, len(queue))
 	for i, queued := range queue {
-		req := session.Request{Text: queued.Request.Text}
+		req := session.Request{Content: append([]kit.Content(nil), queued.Request.Content...)}
 		if queued.Request.Skill != nil {
 			req.Skill = &session.SkillInvocation{
 				Name: queued.Request.Skill.Name,

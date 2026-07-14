@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/vitaliiPsl/crappy-adk/kit"
+
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	sessionstore "github.com/vitaliiPsl/crappy-ai/internal/session/store"
 )
@@ -24,7 +26,9 @@ func testManager(t *testing.T) *Manager {
 func TestManagerRunRequiresExistingSession(t *testing.T) {
 	m := testManager(t)
 
-	if err := m.Run(context.Background(), "missing", Request{Text: "hello"}); err == nil {
+	if err := m.Run(context.Background(), "missing", Request{
+		Content: []kit.Content{kit.NewTextContent("hello")},
+	}); err == nil {
 		t.Fatal("Run missing session error = nil")
 	}
 

@@ -27,8 +27,7 @@ func NewInputProcessor(sessionID string, skillRegistry *skills.Registry, mcpMana
 }
 
 func (p *InputProcessor) Process(ctx context.Context, req Request) (kit.Message, session.Event, error) {
-	text := req.Text
-	content := []kit.Content{kit.NewTextContent(text)}
+	content := append([]kit.Content(nil), req.Content...)
 
 	if req.Skill != nil {
 		resolved, err := p.resolveSkill(*req.Skill)
@@ -36,8 +35,7 @@ func (p *InputProcessor) Process(ctx context.Context, req Request) (kit.Message,
 			return kit.Message{}, session.Event{}, err
 		}
 
-		text = resolved
-		content = []kit.Content{kit.NewTextContent(text)}
+		content = []kit.Content{kit.NewTextContent(resolved)}
 	}
 
 	if req.MCPPrompt != nil {
