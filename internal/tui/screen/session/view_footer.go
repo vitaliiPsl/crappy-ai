@@ -91,7 +91,9 @@ func renderErrorLine(s *State, width int) string {
 		return ""
 	}
 
-	return errorStyle.Width(width).Render("Error: " + s.LastError)
+	message := strings.Join(strings.Fields(s.LastError), " ")
+
+	return errorStyle.Render(truncateInlineWidth("Error: "+message, width))
 }
 
 func renderMetaRow(s *State, width int) string {
