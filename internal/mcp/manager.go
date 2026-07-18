@@ -10,6 +10,7 @@ import (
 	"github.com/vitaliiPsl/crappy-adk/kit"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/mcp/oauth"
+	appoauth "github.com/vitaliiPsl/crappy-ai/internal/oauth"
 )
 
 type Manager struct {
@@ -25,11 +26,11 @@ type Manager struct {
 
 type ClientFactory func(Config) Client
 
-func New(configs []Config, oauthSessionStore oauth.Store, oauthCallback oauth.Callback) *Manager {
+func New(configs []Config, oauthSessionStore oauth.Store, oauthCallback appoauth.Callback) *Manager {
 	return NewManager(context.Background(), configs, oauthSessionStore, oauthCallback)
 }
 
-func NewManager(ctx context.Context, configs []Config, oauthSessionStore oauth.Store, oauthCallback oauth.Callback) *Manager {
+func NewManager(ctx context.Context, configs []Config, oauthSessionStore oauth.Store, oauthCallback appoauth.Callback) *Manager {
 	ctx, cancel := context.WithCancel(ctx)
 
 	transport := NewTransportFactory(oauthSessionStore, nil)

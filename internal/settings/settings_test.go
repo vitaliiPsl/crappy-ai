@@ -20,9 +20,12 @@ func TestMergeProvidersPreservesDefaultsForPartialOverride(t *testing.T) {
 				API: models.ProviderAnthropic,
 			},
 			{
-				ID:        models.ProviderOpenAI,
-				API:       models.ProviderOpenAI,
-				APIKeyEnv: "OPENAI_API_KEY",
+				ID:  models.ProviderOpenAI,
+				API: models.ProviderOpenAI,
+				Auth: ProviderAuthSettings{
+					Type:      ProviderAuthAPIKey,
+					APIKeyEnv: "OPENAI_API_KEY",
+				},
 			},
 			{
 				ID:  models.ProviderGoogle,
@@ -39,8 +42,11 @@ func TestMergeProvidersPreservesDefaultsForPartialOverride(t *testing.T) {
 	overlay := Settings{
 		Providers: []ProviderSettings{
 			{
-				ID:     models.ProviderOpenAI,
-				APIKey: "secret",
+				ID: models.ProviderOpenAI,
+				Auth: ProviderAuthSettings{
+					Type:   ProviderAuthAPIKey,
+					APIKey: "secret",
+				},
 			},
 			{
 				ID:      "local",
@@ -76,12 +82,12 @@ func TestMergeProvidersPreservesDefaultsForPartialOverride(t *testing.T) {
 		t.Errorf("API = %q, want %q", openai.API, models.ProviderOpenAI)
 	}
 
-	if openai.APIKeyEnv != "OPENAI_API_KEY" {
-		t.Errorf("APIKeyEnv = %q, want OPENAI_API_KEY", openai.APIKeyEnv)
+	if openai.Auth.APIKeyEnv != "" {
+		t.Errorf("APIKeyEnv = %q, want empty after auth replacement", openai.Auth.APIKeyEnv)
 	}
 
-	if openai.APIKey != "secret" {
-		t.Errorf("APIKey = %q, want secret", openai.APIKey)
+	if openai.Auth.APIKey != "secret" {
+		t.Errorf("APIKey = %q, want secret", openai.Auth.APIKey)
 	}
 
 	if len(got.Models[models.ProviderOpenAI]) != 1 || got.Models[models.ProviderOpenAI][0].ID != "gpt-5" {
@@ -123,7 +129,10 @@ func TestWriteFileUsesPrivatePermissions(t *testing.T) {
 
 	if err := writeFile(path, Settings{
 		Providers: []ProviderSettings{
-			{ID: models.ProviderOpenAI, APIKey: "secret"},
+			{
+				ID:   models.ProviderOpenAI,
+				Auth: ProviderAuthSettings{Type: ProviderAuthAPIKey, APIKey: "secret"},
+			},
 		},
 		ModelConfigs: map[string][]kit.ModelConfig{
 			"openai-local": {{ID: "gemma4"}},
@@ -165,10 +174,12 @@ func TestLoadMergesConfiguredModelsIntoCatalog(t *testing.T) {
 	data := []byte(`
 models_path: ` + filepath.Join(dir, "models.json") + `
 providers:
-  - name: openai-local
+  - id: openai-local
     api: openai
     base_url: http://localhost:11434/v1
-    api_key: local
+    auth:
+      type: api_key
+      api_key: local
 models:
   openai-local:
     - id: gemma4

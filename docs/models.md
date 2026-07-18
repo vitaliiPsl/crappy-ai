@@ -40,16 +40,18 @@ A provider entry maps a name to one of those APIs.
 
 ```yaml
 providers:
-  - name: openai
+  - id: openai
     api: openai
-    api_key_env: OPENAI_API_KEY
+    auth:
+      type: api_key
+      api_key_env: OPENAI_API_KEY
 ```
 
-`name` is what you select in config. `api` tells Crappy which provider protocol to use.
+`id` is what you select in config. `api` tells Crappy which provider protocol to use.
 
-For built-in providers, `name` and `api` are usually the same. For compatible gateways, proxies, or local servers, they can be different.
+For built-in providers, `id` and `api` are usually the same. For compatible gateways, proxies, or local servers, they can be different.
 
-## Credentials
+## Authentication
 
 Providers usually read API keys from environment variables.
 
@@ -57,7 +59,20 @@ Providers usually read API keys from environment variables.
 export OPENAI_API_KEY=...
 ```
 
-You can store a key directly in settings with `api_key`, but environment variables are safer for real credentials.
+You can store a key directly in settings with `auth.api_key`, but environment variables are safer for real credentials.
+
+OAuth-backed subscriptions use a separate provider entry with an explicit driver:
+
+```yaml
+providers:
+  - id: openai-subscription
+    api: openai
+    auth:
+      type: oauth
+      driver: openai-codex
+```
+
+Connect or disconnect the subscription from the settings screen. Crappy stores and refreshes the credential for the configured provider; OAuth failures do not fall back to an API key.
 
 ## Custom Providers
 
@@ -67,10 +82,12 @@ Custom providers work with any supported `api`: `anthropic`, `openai`, or `googl
 
 ```yaml
 providers:
-  - name: openai-local
+  - id: openai-local
     api: openai
     base_url: http://localhost:11434/v1
-    api_key: local
+    auth:
+      type: api_key
+      api_key: local
 ```
 
 Then select it in config:
@@ -80,20 +97,22 @@ provider: openai-local
 model: gemma4
 ```
 
-The provider name controls which model list appears in the settings screen. A provider named `openai-local` uses models listed for `openai-local`, not the built-in `openai` catalog.
+The provider ID controls which model list appears in the settings screen. A provider with ID `openai-local` uses models listed for `openai-local`, not the built-in `openai` catalog.
 
 ## Custom Models
 
 Add custom model metadata in `~/.crappy-ai/settings.yaml` with `models`.
 
-The key under `models` should match the provider name you select in config.
+The key under `models` should match the provider ID you select in config.
 
 ```yaml
 providers:
-  - name: openai-local
+  - id: openai-local
     api: openai
     base_url: http://localhost:11434/v1
-    api_key: local
+    auth:
+      type: api_key
+      api_key: local
 
 models:
   openai-local:

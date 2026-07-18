@@ -10,6 +10,7 @@ const (
 	stateSaving
 	stateSaved
 	stateFailed
+	stateAuthenticating
 )
 
 func isDirtyState(s state) bool {

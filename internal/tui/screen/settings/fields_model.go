@@ -14,6 +14,7 @@ const (
 	fieldActionEdit
 	fieldActionPickModel
 	fieldActionCycle
+	fieldActionAuthenticate
 )
 
 type fieldAction struct {
@@ -42,6 +43,13 @@ func newFieldsModel(defs []fieldDef) fieldsModel {
 	return fieldsModel{
 		defs:     defs,
 		viewport: vp,
+	}
+}
+
+func (m *fieldsModel) SetDefs(defs []fieldDef) {
+	m.defs = defs
+	if m.cursor >= len(defs) {
+		m.cursor = max(0, len(defs)-1)
 	}
 }
 
@@ -89,6 +97,8 @@ func (m fieldsModel) Update(msg tea.Msg) (fieldsModel, tea.Cmd) {
 				return m, fieldActionCmd(fieldAction{kind: fieldActionCycle, field: field, delta: 1})
 			case fieldModel:
 				return m, fieldActionCmd(fieldAction{kind: fieldActionPickModel, field: field})
+			case fieldOAuth:
+				return m, fieldActionCmd(fieldAction{kind: fieldActionAuthenticate, field: field})
 			default:
 				return m, fieldActionCmd(fieldAction{kind: fieldActionEdit, field: field})
 			}

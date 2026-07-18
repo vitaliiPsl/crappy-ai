@@ -108,7 +108,7 @@ func (s *Session) runSubagent(ctx context.Context, req SubagentRequest) (Subagen
 		return SubagentResult{}, fmt.Errorf("load parent session: %w", err)
 	}
 
-	model, err := s.modelRegistry.Build(sub.Provider, sub.Model)
+	model, err := s.modelRegistry.Build(ctx, sub.Provider, sub.Model)
 	if err != nil {
 		return SubagentResult{}, fmt.Errorf("build subagent %q model: %w", req.Agent, err)
 	}

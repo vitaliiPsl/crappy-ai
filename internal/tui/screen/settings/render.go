@@ -10,24 +10,25 @@ import (
 
 const (
 	headerText = "Settings"
-	hintsText  = "j/Down Move • Enter Edit • Left/Right Cycle • s Save • Esc Back"
+	hintsText  = "j/Down Move • Enter Edit/Auth • a Auth • x Logout • s Save • Esc Back"
 	editHints  = "Enter Confirm • Shift+Enter New Line • Esc Cancel"
 	pickHints  = "Type Filter • j/Down Move • Enter Select • Esc Cancel"
 	editPrefix = "Editing "
 
-	emptyValue     = "(none)"
-	savingText     = "Saving..."
-	savedText      = "Saved"
-	dirtyMarker    = " *"
-	cursorPrefix   = "> "
-	noCursorPrefix = "  "
-	valueSep       = "  "
-	errorPrefix    = "Error: "
-	maskText       = "********"
-	truncatedMark  = "..."
-	defaultOption  = "default"
-	optionSep      = " / "
-	labelWidth     = 20
+	emptyValue         = "(none)"
+	savingText         = "Saving..."
+	authenticatingText = "Authenticating..."
+	savedText          = "Saved"
+	dirtyMarker        = " *"
+	cursorPrefix       = "> "
+	noCursorPrefix     = "  "
+	valueSep           = "  "
+	errorPrefix        = "Error: "
+	maskText           = "********"
+	truncatedMark      = "..."
+	defaultOption      = "default"
+	optionSep          = " / "
+	labelWidth         = 20
 
 	headerLines  = 2
 	hintsHeight  = 1
@@ -78,6 +79,14 @@ func (m Model) View() string {
 }
 
 func (m *Model) refreshContent() {
+	defs := make([]fieldDef, 0, len(buildFields()))
+	for _, field := range buildFields() {
+		if field.visible == nil || field.visible(*m) {
+			defs = append(defs, field)
+		}
+	}
+
+	m.fields.SetDefs(defs)
 	m.fields.SetRows(m.fieldRows())
 }
 
@@ -173,11 +182,17 @@ func (m *Model) resizeViewport() {
 }
 
 func (m Model) statusView() string {
+	if m.oauthErr != nil {
+		return errorStyle.Width(m.width).Render(errorPrefix + m.oauthErr.Error())
+	}
+
 	switch m.state {
 	case stateFailed:
 		return errorStyle.Width(m.width).Render(errorPrefix + m.saveErr.Error())
 	case stateSaving:
 		return mutedStyle.Width(m.width).Render(savingText)
+	case stateAuthenticating:
+		return mutedStyle.Width(m.width).Render(authenticatingText)
 	case stateSaved:
 		return successStyle.Width(m.width).Render(savedText)
 	default:

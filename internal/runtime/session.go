@@ -269,7 +269,7 @@ func (s *Session) run(ctx context.Context, req Request) error {
 	cfg := s.configStore.Get()
 	mem := newMemory(s.sessionStore, s.id)
 
-	model, err := s.modelRegistry.Build(cfg.Provider, cfg.Model)
+	model, err := s.modelRegistry.Build(ctx, cfg.Provider, cfg.Model)
 	if err != nil {
 		return s.fail(fmt.Errorf("build model: %w", err))
 	}
@@ -306,7 +306,7 @@ func (s *Session) run(ctx context.Context, req Request) error {
 func (s *Session) compact(ctx context.Context) error {
 	cfg := s.configStore.Get()
 
-	model, err := s.modelRegistry.Build(cfg.Provider, cfg.Model)
+	model, err := s.modelRegistry.Build(ctx, cfg.Provider, cfg.Model)
 	if err != nil {
 		return s.fail(fmt.Errorf("build model: %w", err))
 	}

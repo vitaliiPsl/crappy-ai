@@ -13,6 +13,8 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
 	"golang.org/x/oauth2"
+
+	appoauth "github.com/vitaliiPsl/crappy-ai/internal/oauth"
 )
 
 type endpoints struct {
@@ -27,7 +29,7 @@ type AuthorizerConfig struct {
 	Key          Key
 	RedirectURL  string
 	Scopes       []string
-	Callback     Callback
+	Callback     appoauth.Callback
 	HTTPClient   *http.Client
 	Registration RegistrationInfo
 }

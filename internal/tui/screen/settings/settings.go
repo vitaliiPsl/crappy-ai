@@ -1,6 +1,8 @@
 package settings
 
 import (
+	"context"
+
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
@@ -20,6 +22,8 @@ type Model struct {
 	state       state
 	returnState state
 	saveErr     error
+	oauthStatus string
+	oauthErr    error
 
 	input       component.Input
 	modelPicker modelPicker
@@ -36,8 +40,9 @@ func New(srv *server.Server) Model {
 		providers: srv.GetProviders(),
 		input:     component.NewInput(),
 	}
-	m.fields = newFieldsModel(buildFields())
-	m.fields.SetRows(m.fieldRows())
+	m.fields = newFieldsModel(nil)
+	m.refreshOAuthStatus()
+	m.refreshContent()
 	m.modelPicker = newModelPicker(m.modelOptions())
 
 	return m
@@ -61,6 +66,25 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			m.saveErr = saved.err
 		}
 
+		m.refreshContent()
+
+		return m, nil
+	}
+
+	if result, ok := msg.(oauthMsg); ok {
+		m.state = m.returnState
+		m.oauthStatus = result.status
+
+		m.oauthErr = result.err
+		if result.err == nil && !m.hasModel(m.cfg.Model) {
+			models := m.modelOptions()
+			if len(models) > 0 {
+				m.cfg.Model = models[0].ID
+				m.state = stateDirty
+			}
+		}
+
+		m.resizeViewport()
 		m.refreshContent()
 
 		return m, nil
@@ -94,6 +118,12 @@ func (m Model) updateBrowsing(msg tea.Msg) (Model, tea.Cmd) {
 
 			return m, m.save()
 
+		case "a":
+			return m.authenticateProvider()
+
+		case "x":
+			return m.logoutProvider()
+
 		case "esc":
 			return m, func() tea.Msg { return ClosedMsg{} }
 		}
@@ -117,9 +147,84 @@ func (m Model) handleFieldAction(action fieldAction) (Model, tea.Cmd) {
 	case fieldActionCycle:
 		m.cycleOption(action.field, action.delta)
 		m.refreshContent()
+	case fieldActionAuthenticate:
+		return m.authenticateProvider()
 	}
 
 	return m, nil
+}
+
+func (m Model) authenticateProvider() (Model, tea.Cmd) {
+	if m.provider().Auth.Type != appsettings.ProviderAuthOAuth || !m.server.ProviderSupportsOAuth(m.cfg.Provider) {
+		return m, nil
+	}
+
+	m.returnState = m.state
+	m.state = stateAuthenticating
+	m.oauthErr = nil
+
+	return m, func() tea.Msg {
+		settings := m.server.GetSettings()
+
+		settings.Providers = m.settings.Providers
+		if err := m.server.UpdateSettings(settings); err != nil {
+			return m.providerOAuthMsg(err)
+		}
+
+		err := m.server.AuthenticateProvider(context.Background(), m.cfg.Provider)
+
+		return m.providerOAuthMsg(err)
+	}
+}
+
+func (m Model) logoutProvider() (Model, tea.Cmd) {
+	if m.provider().Auth.Type != appsettings.ProviderAuthOAuth || !m.server.ProviderSupportsOAuth(m.cfg.Provider) {
+		return m, nil
+	}
+
+	m.returnState = m.state
+	m.state = stateAuthenticating
+	m.oauthErr = nil
+
+	return m, func() tea.Msg {
+		settings := m.server.GetSettings()
+
+		settings.Providers = m.settings.Providers
+		if err := m.server.UpdateSettings(settings); err != nil {
+			return m.providerOAuthMsg(err)
+		}
+
+		err := m.server.LogoutProvider(context.Background(), m.cfg.Provider)
+
+		return m.providerOAuthMsg(err)
+	}
+}
+
+func (m Model) providerOAuthMsg(actionErr error) oauthMsg {
+	snapshot, statusErr := m.server.ProviderOAuthStatus(context.Background(), m.cfg.Provider)
+	if actionErr != nil {
+		return oauthMsg{status: string(snapshot.Status), err: actionErr}
+	}
+
+	return oauthMsg{status: string(snapshot.Status), err: statusErr}
+}
+
+func (m *Model) refreshOAuthStatus() {
+	m.oauthStatus = "unavailable"
+
+	m.oauthErr = nil
+	if m.server == nil || m.provider().Auth.Type != appsettings.ProviderAuthOAuth || !m.server.ProviderSupportsOAuth(m.cfg.Provider) {
+		return
+	}
+
+	snapshot, err := m.server.ProviderOAuthStatus(context.Background(), m.cfg.Provider)
+	if err != nil {
+		m.oauthErr = err
+
+		return
+	}
+
+	m.oauthStatus = string(snapshot.Status)
 }
 
 func (m Model) save() tea.Cmd {

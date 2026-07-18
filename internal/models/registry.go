@@ -1,21 +1,27 @@
 package models
 
 import (
+	"context"
 	"fmt"
 	"os"
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
+	adkproviders "github.com/vitaliiPsl/crappy-adk/providers"
 
+	appProviders "github.com/vitaliiPsl/crappy-ai/internal/providers"
+	provideroauth "github.com/vitaliiPsl/crappy-ai/internal/providers/oauth"
 	"github.com/vitaliiPsl/crappy-ai/internal/settings"
 )
 
 type Registry struct {
 	settingsStore *settings.Store
+	providers     *appProviders.Manager
 }
 
-func NewRegistry(settingsStore *settings.Store) *Registry {
+func NewRegistry(settingsStore *settings.Store, providers *appProviders.Manager) *Registry {
 	return &Registry{
 		settingsStore: settingsStore,
+		providers:     providers,
 	}
 }
 
@@ -32,11 +38,84 @@ func (r *Registry) GetProvider(id string) (settings.ProviderSettings, error) {
 	return p, nil
 }
 
-func (r *Registry) Build(provider, model string) (kit.Model, error) {
-	return buildModel(r.settingsStore.Get(), provider, model)
+func (r *Registry) Build(ctx context.Context, provider, model string) (kit.Model, error) {
+	return r.buildModel(ctx, r.settingsStore.Get(), provider, model)
 }
 
-func buildModel(s settings.Settings, providerName, modelID string) (kit.Model, error) {
+func (r *Registry) Authenticate(ctx context.Context, providerID string) error {
+	if r.providers == nil {
+		return fmt.Errorf("provider oauth is not configured")
+	}
+
+	provider, err := r.GetProvider(providerID)
+	if err != nil {
+		return err
+	}
+
+	if provider.Auth.Type != settings.ProviderAuthOAuth {
+		return fmt.Errorf("provider %q does not use oauth", provider.ID)
+	}
+
+	_, err = r.providers.Authenticate(ctx, provider.ID, provider.Auth.Driver)
+
+	return err
+}
+
+func (r *Registry) Logout(ctx context.Context, providerID string) error {
+	if r.providers == nil {
+		return fmt.Errorf("provider oauth is not configured")
+	}
+
+	provider, err := r.GetProvider(providerID)
+	if err != nil {
+		return err
+	}
+
+	if provider.Auth.Type != settings.ProviderAuthOAuth {
+		return fmt.Errorf("provider %q does not use oauth", provider.ID)
+	}
+
+	return r.providers.Logout(ctx, provider.ID, provider.Auth.Driver)
+}
+
+func (r *Registry) OAuthStatus(ctx context.Context, providerID string) (provideroauth.Snapshot, error) {
+	if r.providers == nil {
+		return provideroauth.Snapshot{}, fmt.Errorf("provider oauth is not configured")
+	}
+
+	provider, err := r.GetProvider(providerID)
+	if err != nil {
+		return provideroauth.Snapshot{}, err
+	}
+
+	if provider.Auth.Type != settings.ProviderAuthOAuth {
+		return provideroauth.Snapshot{}, fmt.Errorf("provider %q does not use oauth", provider.ID)
+	}
+
+	return r.providers.Status(ctx, provider.ID, provider.Auth.Driver)
+}
+
+func (r *Registry) SupportsOAuth(providerID string) bool {
+	_, ok := findProvider(r.settingsStore.Get().Providers, providerID)
+
+	return ok && r.providers != nil && r.providers.SupportsOAuth()
+}
+
+func (r *Registry) OAuthDrivers(providerID string) []string {
+	_, ok := findProvider(r.settingsStore.Get().Providers, providerID)
+	if !ok || r.providers == nil {
+		return nil
+	}
+
+	return r.providers.OAuthDrivers()
+}
+
+func (r *Registry) buildModel(
+	ctx context.Context,
+	s settings.Settings,
+	providerName,
+	modelID string,
+) (kit.Model, error) {
 	if providerName == "" {
 		return nil, fmt.Errorf("config: provider is not set")
 	}
@@ -55,18 +134,78 @@ func buildModel(s settings.Settings, providerName, modelID string) (kit.Model, e
 		return nil, fmt.Errorf("provider %q: unknown api %q", provider.ID, provider.API)
 	}
 
-	apiKey := provider.APIKey
-	if apiKey == "" && provider.APIKeyEnv != "" {
-		apiKey = os.Getenv(provider.APIKeyEnv)
+	modelConfig := findModel(s.Models[providerName], modelID)
+	opts := []adkproviders.ModelOption{
+		adkproviders.WithModelConfig(modelConfig),
+	}
+
+	if provider.BaseURL != "" {
+		opts = append(opts, adkproviders.WithBaseURL(provider.BaseURL))
+	}
+
+	authOpts, err := r.authOptions(ctx, provider)
+	if err != nil {
+		return nil, err
+	}
+
+	return adapter(modelID, append(opts, authOpts...)...)
+}
+
+func (r *Registry) authOptions(
+	ctx context.Context,
+	provider settings.ProviderSettings,
+) ([]adkproviders.ModelOption, error) {
+	switch provider.Auth.Type {
+	case settings.ProviderAuthAPIKey:
+		return r.apiKeyAuthOptions(provider)
+
+	case settings.ProviderAuthOAuth:
+		return r.oauthAuthOptions(ctx, provider)
+
+	default:
+		return nil, fmt.Errorf("provider %q: unsupported auth type %q", provider.ID, provider.Auth.Type)
+	}
+}
+
+func (r *Registry) apiKeyAuthOptions(provider settings.ProviderSettings) ([]adkproviders.ModelOption, error) {
+	apiKey := provider.Auth.APIKey
+	if apiKey == "" && provider.Auth.APIKeyEnv != "" {
+		apiKey = os.Getenv(provider.Auth.APIKeyEnv)
 	}
 
 	if apiKey == "" {
-		return nil, fmt.Errorf("provider %q: no API key (set %s)", provider.ID, provider.APIKeyEnv)
+		return nil, fmt.Errorf("provider %q: no API key configured", provider.ID)
 	}
 
-	modelConfig := findModel(s.Models[providerName], modelID)
+	return []adkproviders.ModelOption{adkproviders.WithAPIKey(apiKey)}, nil
+}
 
-	return adapter(apiKey, provider.BaseURL, modelID, modelConfig)
+func (r *Registry) oauthAuthOptions(
+	ctx context.Context,
+	provider settings.ProviderSettings,
+) ([]adkproviders.ModelOption, error) {
+	if r.providers == nil || !r.providers.SupportsOAuth() {
+		return nil, fmt.Errorf("provider %q: oauth is not supported", provider.ID)
+	}
+
+	if provider.Auth.APIKey != "" || provider.Auth.APIKeyEnv != "" {
+		return nil, fmt.Errorf("provider %q: API key settings cannot be used with oauth", provider.ID)
+	}
+
+	if provider.BaseURL != "" {
+		return nil, fmt.Errorf("provider %q: base_url cannot be used with oauth", provider.ID)
+	}
+
+	if provider.Auth.Driver == "" {
+		return nil, fmt.Errorf("provider %q: oauth driver is not configured", provider.ID)
+	}
+
+	auth, err := r.providers.Resolve(ctx, provider.ID, provider.Auth.Driver)
+	if err != nil {
+		return nil, fmt.Errorf("provider %q: %w", provider.ID, err)
+	}
+
+	return r.providers.ModelOptions(provider.Auth.Driver, auth), nil
 }
 
 func findProvider(providers []settings.ProviderSettings, id string) (settings.ProviderSettings, bool) {

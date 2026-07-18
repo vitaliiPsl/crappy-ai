@@ -1,4 +1,4 @@
-package mcp
+package oauth
 
 import (
 	"context"
@@ -12,10 +12,7 @@ import (
 	"time"
 )
 
-// BrowserCallback resolves the OAuth authorization code by opening the user's
-// browser at the authorization URL and capturing the redirect on a loopback
-// listener. The loopback address is read from the authorization URL's
-// redirect_uri, so one callback serves every client.
+// BrowserCallback opens an authorization URL and captures its loopback redirect.
 type BrowserCallback struct{}
 
 type callbackResult struct {
@@ -31,7 +28,7 @@ func NewBrowserCallback() *BrowserCallback {
 func (c *BrowserCallback) Wait(ctx context.Context, authURL string, redirectURL string) (string, string, error) {
 	redirect, err := url.Parse(redirectURL)
 	if err != nil {
-		return "", "", fmt.Errorf("mcp: parse oauth redirect URL: %w", err)
+		return "", "", fmt.Errorf("oauth: parse redirect URL: %w", err)
 	}
 
 	resultCh := make(chan callbackResult, 1)
@@ -39,14 +36,14 @@ func (c *BrowserCallback) Wait(ctx context.Context, authURL string, redirectURL 
 
 	listener, err := net.Listen("tcp", redirect.Host)
 	if err != nil {
-		return "", "", fmt.Errorf("mcp: start oauth callback listener: %w", err)
+		return "", "", fmt.Errorf("oauth: start callback listener: %w", err)
 	}
 
 	go serveCallback(server, listener, resultCh)
 	defer shutdownCallback(server)
 
 	if err := openBrowser(authURL); err != nil {
-		return "", "", fmt.Errorf("mcp: open oauth authorization URL: %w", err)
+		return "", "", fmt.Errorf("oauth: open authorization URL: %w", err)
 	}
 
 	select {
@@ -96,10 +93,7 @@ func callbackHandler(path string, resultCh chan<- callbackResult) http.Handler {
 			return
 		}
 
-		sendCallbackResult(resultCh, callbackResult{
-			code:  code,
-			state: query.Get("state"),
-		})
+		sendCallbackResult(resultCh, callbackResult{code: code, state: query.Get("state")})
 
 		_, _ = fmt.Fprintln(w, "Authorization complete. You can close this window.")
 	})

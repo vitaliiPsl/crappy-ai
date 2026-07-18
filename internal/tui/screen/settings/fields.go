@@ -23,6 +23,9 @@ const (
 	apiKeyLabel          = "API Key"
 	apiKeyEnvLabel       = "API Key Env"
 	baseURLLabel         = "Base URL"
+	authTypeLabel        = "Authentication"
+	oauthDriverLabel     = "OAuth Driver"
+	oauthLabel           = "Subscription"
 )
 
 type fieldKind int
@@ -32,6 +35,7 @@ const (
 	fieldTextarea
 	fieldOption
 	fieldModel
+	fieldOAuth
 )
 
 type fieldDef struct {
@@ -39,6 +43,7 @@ type fieldDef struct {
 	label   string
 	kind    fieldKind
 	masked  bool
+	visible func(Model) bool
 	options func(Model) []string
 	get     func(Model) string
 	set     func(*Model, string)
@@ -92,13 +97,58 @@ func buildFields() []fieldDef {
 		},
 		{
 			section: providerSection,
+			label:   authTypeLabel,
+			kind:    fieldOption,
+			options: authTypeOptions,
+			get:     func(m Model) string { return string(m.provider().Auth.Type) },
+			set: func(m *Model, value string) {
+				p := m.provider()
+
+				p.Auth = coresettings.ProviderAuthSettings{Type: coresettings.ProviderAuthType(value)}
+				if p.Auth.Type == coresettings.ProviderAuthOAuth {
+					drivers := m.server.ProviderOAuthDrivers(m.cfg.Provider)
+					if len(drivers) > 0 {
+						p.Auth.Driver = drivers[0]
+					}
+				}
+
+				m.setProvider(p)
+				m.oauthStatus = "disconnected"
+				m.oauthErr = nil
+			},
+		},
+		{
+			section: providerSection,
+			label:   oauthDriverLabel,
+			kind:    fieldOption,
+			visible: func(m Model) bool { return m.provider().Auth.Type == coresettings.ProviderAuthOAuth },
+			options: oauthDriverOptions,
+			get:     func(m Model) string { return m.provider().Auth.Driver },
+			set: func(m *Model, value string) {
+				p := m.provider()
+				p.Auth.Driver = value
+				m.setProvider(p)
+				m.oauthStatus = "disconnected"
+				m.oauthErr = nil
+			},
+		},
+		{
+			section: providerSection,
+			label:   oauthLabel,
+			kind:    fieldOAuth,
+			visible: func(m Model) bool { return m.provider().Auth.Type == coresettings.ProviderAuthOAuth },
+			get:     func(m Model) string { return m.oauthStatus },
+		},
+		{
+			section: providerSection,
 			label:   apiKeyLabel,
 			kind:    fieldText,
 			masked:  true,
-			get:     func(m Model) string { return m.provider().APIKey },
+			visible: func(m Model) bool { return m.provider().Auth.Type == coresettings.ProviderAuthAPIKey },
+			get:     func(m Model) string { return m.provider().Auth.APIKey },
 			set: func(m *Model, value string) {
 				p := m.provider()
-				p.APIKey = value
+				p.Auth.APIKey = value
 				m.setProvider(p)
 			},
 		},
@@ -106,10 +156,11 @@ func buildFields() []fieldDef {
 			section: providerSection,
 			label:   apiKeyEnvLabel,
 			kind:    fieldText,
-			get:     func(m Model) string { return m.provider().APIKeyEnv },
+			visible: func(m Model) bool { return m.provider().Auth.Type == coresettings.ProviderAuthAPIKey },
+			get:     func(m Model) string { return m.provider().Auth.APIKeyEnv },
 			set: func(m *Model, value string) {
 				p := m.provider()
-				p.APIKeyEnv = value
+				p.Auth.APIKeyEnv = value
 				m.setProvider(p)
 			},
 		},
@@ -125,6 +176,23 @@ func buildFields() []fieldDef {
 			},
 		},
 	}
+}
+
+func authTypeOptions(m Model) []string {
+	options := []string{string(coresettings.ProviderAuthAPIKey)}
+	if m.server != nil && m.server.ProviderSupportsOAuth(m.cfg.Provider) {
+		options = append(options, string(coresettings.ProviderAuthOAuth))
+	}
+
+	return options
+}
+
+func oauthDriverOptions(m Model) []string {
+	if m.server == nil {
+		return nil
+	}
+
+	return m.server.ProviderOAuthDrivers(m.cfg.Provider)
 }
 
 func providerOptions(m Model) []string {
@@ -153,7 +221,11 @@ func (m Model) provider() coresettings.ProviderSettings {
 		}
 	}
 
-	return coresettings.ProviderSettings{ID: m.cfg.Provider, API: m.cfg.Provider}
+	return coresettings.ProviderSettings{
+		ID:   m.cfg.Provider,
+		API:  m.cfg.Provider,
+		Auth: coresettings.ProviderAuthSettings{Type: coresettings.ProviderAuthAPIKey},
+	}
 }
 
 func formatFloat32Ptr(v *float32) string {
@@ -206,6 +278,7 @@ func (m *Model) setProvider(provider coresettings.ProviderSettings) {
 
 func (m *Model) setActiveProvider(provider string) {
 	m.cfg.Provider = provider
+	m.refreshOAuthStatus()
 
 	if m.hasModel(m.cfg.Model) {
 		return

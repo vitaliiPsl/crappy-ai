@@ -37,6 +37,60 @@ func TestLabelCellDoesNotWrapLongestFieldLabel(t *testing.T) {
 	}
 }
 
+func TestProviderCredentialFieldsFollowAuthType(t *testing.T) {
+	tests := []struct {
+		name   string
+		auth   appsettings.ProviderAuthType
+		want   []string
+		reject []string
+	}{
+		{
+			name:   "api key",
+			auth:   appsettings.ProviderAuthAPIKey,
+			want:   []string{authTypeLabel, apiKeyLabel, apiKeyEnvLabel},
+			reject: []string{oauthLabel},
+		},
+		{
+			name:   "oauth",
+			auth:   appsettings.ProviderAuthOAuth,
+			want:   []string{authTypeLabel, oauthDriverLabel, oauthLabel},
+			reject: []string{apiKeyLabel, apiKeyEnvLabel},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := Model{
+				cfg: config.Config{Agent: config.Agent{Provider: "openai"}},
+				settings: appsettings.Settings{Providers: []appsettings.ProviderSettings{{
+					ID:   "openai",
+					API:  "openai",
+					Auth: appsettings.ProviderAuthSettings{Type: tt.auth},
+				}}},
+			}
+			m.fields = newFieldsModel(nil)
+			m.refreshContent()
+
+			labels := make(map[string]bool, len(m.fields.defs))
+			for _, field := range m.fields.defs {
+				labels[field.label] = true
+			}
+
+			for _, label := range tt.want {
+				if !labels[label] {
+					t.Errorf("field %q is missing", label)
+				}
+			}
+
+			for _, label := range tt.reject {
+				if labels[label] {
+					t.Errorf("field %q is visible", label)
+				}
+			}
+		})
+	}
+}
+
 func TestModelOptionsDoesNotFallBackToProviderAPI(t *testing.T) {
 	m := Model{
 		cfg: config.Config{Agent: config.Agent{Provider: "local", Model: "llama3.1:8b"}},

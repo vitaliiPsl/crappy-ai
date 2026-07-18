@@ -10,17 +10,18 @@ import (
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/mcp/oauth"
+	appoauth "github.com/vitaliiPsl/crappy-ai/internal/oauth"
 )
 
 type TransportFactory func(Config) (mcpsdk.Transport, error)
 
-func NewTransportFactory(oauthSessionStore oauth.Store, oauthCallback oauth.Callback) TransportFactory {
+func NewTransportFactory(oauthSessionStore oauth.Store, oauthCallback appoauth.Callback) TransportFactory {
 	return func(cfg Config) (mcpsdk.Transport, error) {
 		return newTransport(cfg, oauthSessionStore, oauthCallback)
 	}
 }
 
-func newTransport(cfg Config, oauthSessionStore oauth.Store, oauthCallback oauth.Callback) (mcpsdk.Transport, error) {
+func newTransport(cfg Config, oauthSessionStore oauth.Store, oauthCallback appoauth.Callback) (mcpsdk.Transport, error) {
 	switch cfg.Transport {
 	case "", TransportStdio:
 		return newStdioTransport(cfg)
@@ -44,7 +45,7 @@ func newStdioTransport(cfg Config) (mcpsdk.Transport, error) {
 	}, nil
 }
 
-func newHTTPTransport(cfg Config, oauthSessionStore oauth.Store, oauthCallback oauth.Callback) (mcpsdk.Transport, error) {
+func newHTTPTransport(cfg Config, oauthSessionStore oauth.Store, oauthCallback appoauth.Callback) (mcpsdk.Transport, error) {
 	if cfg.URL == "" {
 		return nil, fmt.Errorf("mcp: client %q has no url for http transport", cfg.Name)
 	}
@@ -66,7 +67,7 @@ func newHTTPTransport(cfg Config, oauthSessionStore oauth.Store, oauthCallback o
 	}, nil
 }
 
-func newOAuthHandler(cfg Config, httpClient *http.Client, oauthSessionStore oauth.Store, oauthCallback oauth.Callback) (mcpauth.OAuthHandler, error) {
+func newOAuthHandler(cfg Config, httpClient *http.Client, oauthSessionStore oauth.Store, oauthCallback appoauth.Callback) (mcpauth.OAuthHandler, error) {
 	if cfg.OAuth == nil || !cfg.OAuth.IsEnabled() {
 		return nil, nil
 	}

@@ -130,7 +130,9 @@ skills_path: ~/.crappy-ai/skills
 providers:
   - id: openai
     api: openai
-    api_key_env: OPENAI_API_KEY
+    auth:
+      type: api_key
+      api_key_env: OPENAI_API_KEY
 
 models:
   openai-local:
@@ -156,7 +158,7 @@ Provider API keys are usually read from environment variables:
 export OPENAI_API_KEY=...
 ```
 
-You can also set `api_key` directly in settings, but environment variables are safer for real credentials.
+You can also set `auth.api_key` directly in settings, but environment variables are safer for real credentials.
 
 ## Provider Settings
 
@@ -167,7 +169,9 @@ providers:
   - id: openai-local
     api: openai
     base_url: http://localhost:11434/v1
-    api_key: local
+    auth:
+      type: api_key
+      api_key: local
 ```
 
 `id` is what you select in config.
@@ -176,7 +180,9 @@ providers:
 
 `base_url` points Crappy at a compatible gateway, proxy, or local model runtime.
 
-See [Models and Providers](models.md) for provider APIs, custom providers, and custom model metadata.
+`auth` selects API-key or OAuth authentication.
+
+See [Models and Providers](models.md) for provider APIs, custom providers, authentication, and custom model metadata.
 
 ## Permissions
 
@@ -220,7 +226,7 @@ CRAPPY_MODELS_PATH=~/.cache/crappy/models.json
 CRAPPY_SKILLS_PATH=~/.config/crappy/skills
 ```
 
-Provider API keys use the environment variable named by `api_key_env`, such as `OPENAI_API_KEY`.
+Provider API keys use the environment variable named by `auth.api_key_env`, such as `OPENAI_API_KEY`.
 
 ## CLI Overrides
 

@@ -72,9 +72,11 @@ permissions:
 
 ```yaml
 providers:
-  - name: openai
+  - id: openai
     api: openai
-    api_key_env: OPENAI_API_KEY
+    auth:
+      type: api_key
+      api_key_env: OPENAI_API_KEY
 
 skills_path: ~/.crappy-ai/skills
 ```
@@ -93,10 +95,12 @@ Custom providers can point at compatible endpoints:
 
 ```yaml
 providers:
-  - name: openai-local
+  - id: openai-local
     api: openai
     base_url: http://localhost:11434/v1
-    api_key: local
+    auth:
+      type: api_key
+      api_key: local
 
 models:
   openai-local:

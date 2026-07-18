@@ -114,12 +114,8 @@ func mergeProvider(base, overlay ProviderSettings) ProviderSettings {
 		base.BaseURL = overlay.BaseURL
 	}
 
-	if overlay.APIKey != "" {
-		base.APIKey = overlay.APIKey
-	}
-
-	if overlay.APIKeyEnv != "" {
-		base.APIKeyEnv = overlay.APIKeyEnv
+	if overlay.Auth.Type != "" {
+		base.Auth = overlay.Auth
 	}
 
 	return base

@@ -13,6 +13,10 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/mcp"
 	oauthstore "github.com/vitaliiPsl/crappy-ai/internal/mcp/oauth/store"
 	"github.com/vitaliiPsl/crappy-ai/internal/models"
+	appoauth "github.com/vitaliiPsl/crappy-ai/internal/oauth"
+	appproviders "github.com/vitaliiPsl/crappy-ai/internal/providers"
+	provideroauthstore "github.com/vitaliiPsl/crappy-ai/internal/providers/oauth/store"
+	"github.com/vitaliiPsl/crappy-ai/internal/providers/opencodex"
 	"github.com/vitaliiPsl/crappy-ai/internal/runtime"
 	"github.com/vitaliiPsl/crappy-ai/internal/server"
 	sessionstore "github.com/vitaliiPsl/crappy-ai/internal/session/store"
@@ -76,8 +80,8 @@ func run() error {
 		}
 	}()
 
-	modelRegistry := models.NewRegistry(settingsStore)
 	skillRegistry := skills.NewRegistry(settingsStore)
+	oauthCallback := appoauth.NewBrowserCallback()
 
 	mcpOauthStore, err := oauthstore.NewFileStore(settingsStore.Get().OAuthPath)
 	if err != nil {
@@ -88,9 +92,21 @@ func run() error {
 		ctx,
 		settingsStore.Get().MCPClients,
 		mcpOauthStore,
-		mcp.NewBrowserCallback(),
+		oauthCallback,
 	)
 	defer mcpManager.Close()
+
+	providerOauthStore, err := provideroauthstore.NewFileStore(settingsStore.Get().OAuthPath)
+	if err != nil {
+		return fmt.Errorf("init provider oauth store: %w", err)
+	}
+
+	providerManager := appproviders.NewManager(
+		providerOauthStore,
+		oauthCallback,
+		opencodex.New(),
+	)
+	modelRegistry := models.NewRegistry(settingsStore, providerManager)
 
 	backgroundManager := background.NewManager(ctx)
 	defer backgroundManager.Close()

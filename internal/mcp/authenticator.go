@@ -7,13 +7,14 @@ import (
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/mcp/oauth"
+	appoauth "github.com/vitaliiPsl/crappy-ai/internal/oauth"
 )
 
 type oauthAuthenticator struct {
 	newTransport TransportFactory
 }
 
-func NewOAuthAuthenticator(oauthSessionStore oauth.Store, oauthCallback oauth.Callback) Authenticator {
+func NewOAuthAuthenticator(oauthSessionStore oauth.Store, oauthCallback appoauth.Callback) Authenticator {
 	return &oauthAuthenticator{
 		newTransport: NewTransportFactory(oauthSessionStore, oauthCallback),
 	}

@@ -8,11 +8,9 @@ import (
 
 	mcpauth "github.com/modelcontextprotocol/go-sdk/auth"
 	"golang.org/x/oauth2"
-)
 
-type Callback interface {
-	Wait(ctx context.Context, authURL string, redirectURL string) (code string, state string, err error)
-}
+	appoauth "github.com/vitaliiPsl/crappy-ai/internal/oauth"
+)
 
 type RegistrationInfo struct {
 	ClientID     string
@@ -28,7 +26,7 @@ type HandlerConfig struct {
 	RedirectURL string
 	Scopes      []string
 
-	Callback     Callback
+	Callback     appoauth.Callback
 	HTTPClient   *http.Client
 	Registration RegistrationInfo
 }
