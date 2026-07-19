@@ -1,6 +1,9 @@
 package settings
 
-import "github.com/vitaliiPsl/crappy-ai/internal/settings/models"
+import (
+	provideroauth "github.com/vitaliiPsl/crappy-ai/internal/providers/oauth"
+	"github.com/vitaliiPsl/crappy-ai/internal/settings/models"
+)
 
 const (
 	ProviderAuthAPIKey = "api_key"
@@ -19,9 +22,13 @@ type ProviderSettings struct {
 type ProviderAuthSettings struct {
 	Type ProviderAuthType `yaml:"type"`
 
+	// API Key authentication settings
 	APIKey    string `yaml:"api_key,omitempty"`
 	APIKeyEnv string `yaml:"api_key_env,omitempty"`
-	Driver    string `yaml:"driver,omitempty"`
+
+	// OAuth authentication settings
+	Driver string               `yaml:"driver,omitempty"`
+	OAuth  provideroauth.Config `yaml:",inline"`
 }
 
 func DefaultProviders() []ProviderSettings {

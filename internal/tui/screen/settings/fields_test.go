@@ -51,9 +51,18 @@ func TestProviderCredentialFieldsFollowAuthType(t *testing.T) {
 			reject: []string{oauthLabel},
 		},
 		{
-			name:   "oauth",
-			auth:   appsettings.ProviderAuthOAuth,
-			want:   []string{authTypeLabel, oauthDriverLabel, oauthLabel},
+			name: "oauth",
+			auth: appsettings.ProviderAuthOAuth,
+			want: []string{
+				authTypeLabel,
+				oauthDriverLabel,
+				oauthClientIDLabel,
+				oauthAuthURLLabel,
+				oauthTokenURLLabel,
+				oauthRedirectURLLabel,
+				oauthScopesLabel,
+				oauthLabel,
+			},
 			reject: []string{apiKeyLabel, apiKeyEnvLabel},
 		},
 	}
@@ -70,6 +79,16 @@ func TestProviderCredentialFieldsFollowAuthType(t *testing.T) {
 			}
 			m.fields = newFieldsModel(nil)
 			m.refreshContent()
+
+			for _, field := range m.fields.defs {
+				if field.section == providerSection {
+					if field.label != baseURLLabel {
+						t.Fatalf("first provider field = %q, want %q", field.label, baseURLLabel)
+					}
+
+					break
+				}
+			}
 
 			labels := make(map[string]bool, len(m.fields.defs))
 			for _, field := range m.fields.defs {

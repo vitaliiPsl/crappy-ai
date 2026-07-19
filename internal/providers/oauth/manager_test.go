@@ -17,7 +17,9 @@ func TestManagerAuthenticateAndResolve(t *testing.T) {
 	store := newFakeStore()
 	manager := NewManager(store, fakeCallback{}, map[string]Provider{"openai": provider})
 
-	auth, err := manager.Authenticate(context.Background(), "openai", "openai")
+	config := Config{ClientID: "client"}
+
+	auth, err := manager.Authenticate(context.Background(), "openai", "openai", config)
 	if err != nil {
 		t.Fatalf("Authenticate() error = %v", err)
 	}
@@ -26,13 +28,17 @@ func TestManagerAuthenticateAndResolve(t *testing.T) {
 		t.Fatalf("Authenticate() token = %q, want access", auth.BearerToken)
 	}
 
-	auth, err = manager.Resolve(context.Background(), "openai", "openai")
+	auth, err = manager.Resolve(context.Background(), "openai", "openai", config)
 	if err != nil {
 		t.Fatalf("Resolve() error = %v", err)
 	}
 
 	if auth.BearerToken != "access" || provider.refreshes.Load() != 0 {
 		t.Fatalf("Resolve() = %+v, refreshes = %d", auth, provider.refreshes.Load())
+	}
+
+	if provider.config.ClientID != config.ClientID {
+		t.Fatalf("Authenticate() config = %+v, want %+v", provider.config, config)
 	}
 }
 
@@ -49,7 +55,7 @@ func TestManagerResolveRefreshesOnce(t *testing.T) {
 	var wg sync.WaitGroup
 	for range 8 {
 		wg.Go(func() {
-			auth, err := manager.Resolve(context.Background(), "openai", "openai")
+			auth, err := manager.Resolve(context.Background(), "openai", "openai", Config{})
 			if err != nil {
 				t.Errorf("Resolve() error = %v", err)
 			} else if auth.BearerToken != "new" {
@@ -71,7 +77,7 @@ func TestManagerResolveInvalidGrantDeletesCredential(t *testing.T) {
 	provider := &fakeProvider{refreshErr: ErrInvalidGrant}
 	manager := NewManager(store, nil, map[string]Provider{"openai": provider})
 
-	_, err := manager.Resolve(context.Background(), "openai", "openai")
+	_, err := manager.Resolve(context.Background(), "openai", "openai", Config{})
 	if !errors.Is(err, ErrAuthRequired) || !errors.Is(err, ErrInvalidGrant) {
 		t.Fatalf("Resolve() error = %v, want auth required and invalid grant", err)
 	}
@@ -89,7 +95,7 @@ func TestManagerResolveKeepsCredentialAfterTransientFailure(t *testing.T) {
 		"openai": &fakeProvider{refreshErr: wantErr},
 	})
 
-	_, err := manager.Resolve(context.Background(), "openai", "openai")
+	_, err := manager.Resolve(context.Background(), "openai", "openai", Config{})
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("Resolve() error = %v, want %v", err, wantErr)
 	}
@@ -137,14 +143,18 @@ type fakeProvider struct {
 	refreshed     Credential
 	refreshErr    error
 	refreshes     atomic.Int32
+	config        Config
 }
 
-func (p *fakeProvider) Authenticate(context.Context, appoauth.Callback) (Credential, error) {
+func (p *fakeProvider) Authenticate(_ context.Context, _ appoauth.Callback, config Config) (Credential, error) {
+	p.config = config
+
 	return p.authenticated, nil
 }
 
-func (p *fakeProvider) Refresh(context.Context, Credential) (Credential, error) {
+func (p *fakeProvider) Refresh(_ context.Context, _ Credential, config Config) (Credential, error) {
 	p.refreshes.Add(1)
+	p.config = config
 
 	return p.refreshed, p.refreshErr
 }

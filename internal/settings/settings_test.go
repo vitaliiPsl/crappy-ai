@@ -9,6 +9,7 @@ import (
 	"github.com/vitaliiPsl/crappy-adk/kit"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/mcp"
+	provideroauth "github.com/vitaliiPsl/crappy-ai/internal/providers/oauth"
 	"github.com/vitaliiPsl/crappy-ai/internal/settings/models"
 )
 
@@ -164,6 +165,49 @@ func TestWriteFileUsesPrivatePermissions(t *testing.T) {
 
 	if !strings.Contains(string(data), "gemma4") {
 		t.Fatalf("settings file should persist configured models, got:\n%s", data)
+	}
+}
+
+func TestProviderOAuthConfigIsInlineInYAML(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.yaml")
+	want := provideroauth.Config{
+		ClientID:         "client",
+		AuthorizationURL: "https://auth.example/authorize",
+		TokenURL:         "https://auth.example/token",
+		RedirectURL:      "http://localhost/callback",
+		Scopes:           []string{"openid", "offline_access"},
+	}
+
+	err := writeFile(path, Settings{Providers: []ProviderSettings{{
+		ID:  "subscription",
+		API: "openai",
+		Auth: ProviderAuthSettings{
+			Type:   ProviderAuthOAuth,
+			Driver: "openai-codex",
+			OAuth:  want,
+		},
+	}}})
+	if err != nil {
+		t.Fatalf("writeFile() error = %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+
+	if strings.Contains(string(data), "oauth:") || !strings.Contains(string(data), "client_id: client") {
+		t.Fatalf("OAuth config is not inline:\n%s", data)
+	}
+
+	got, _, err := loadFile(path)
+	if err != nil {
+		t.Fatalf("loadFile() error = %v", err)
+	}
+
+	if len(got.Providers) != 1 || got.Providers[0].Auth.OAuth.ClientID != want.ClientID ||
+		got.Providers[0].Auth.OAuth.TokenURL != want.TokenURL {
+		t.Fatalf("OAuth config = %+v, want %+v", got.Providers, want)
 	}
 }
 

@@ -187,9 +187,16 @@ func TestBuildModelUsesOpenAIOAuthWithoutAPIKey(t *testing.T) {
 
 	s := testSettings()
 	s.Providers[1].ID = "work-openai"
+	s.Providers[1].BaseURL = "https://chatgpt.example/codex"
 	s.Providers[1].Auth = settings.ProviderAuthSettings{
 		Type:   settings.ProviderAuthOAuth,
 		Driver: openai.DriverID,
+		OAuth: provideroauth.Config{
+			ClientID:         "client",
+			AuthorizationURL: "https://auth.example/authorize",
+			TokenURL:         "https://auth.example/token",
+			RedirectURL:      "http://localhost/callback",
+		},
 	}
 	s.Models["work-openai"] = s.Models[settingsmodels.ProviderOpenAI]
 
@@ -209,7 +216,7 @@ func TestBuildModelUsesOpenAIOAuthWithoutAPIKey(t *testing.T) {
 		t.Fatalf("buildModel() error = %v", err)
 	}
 
-	if got.BaseURL != openai.CodexAPIURL || got.BearerToken != "access" {
+	if got.BaseURL != "https://chatgpt.example/codex" || got.BearerToken != "access" {
 		t.Fatalf("model options = %+v", got)
 	}
 

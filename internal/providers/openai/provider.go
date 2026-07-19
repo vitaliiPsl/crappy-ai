@@ -12,29 +12,16 @@ import (
 
 	"golang.org/x/oauth2"
 
-	adkproviders "github.com/vitaliiPsl/crappy-adk/providers"
-
 	appoauth "github.com/vitaliiPsl/crappy-ai/internal/oauth"
 	provideroauth "github.com/vitaliiPsl/crappy-ai/internal/providers/oauth"
 )
 
 const (
-	DriverID    = "openai-codex"
-	CodexAPIURL = "https://chatgpt.com/backend-api/codex"
-
-	clientID    = "app_EMoamEEZ73f0CkXaXp7hrann"
-	issuer      = "https://auth.openai.com"
-	redirectURL = "http://localhost:1455/auth/callback"
+	DriverID = "openai-codex"
 
 	accountIDMetadata = "account_id"
 	defaultTokenTTL   = time.Hour
 )
-
-type Provider struct {
-	httpClient  *http.Client
-	issuer      string
-	redirectURL string
-}
 
 type claims struct {
 	AccountID     string         `json:"chatgpt_account_id"`
@@ -50,11 +37,13 @@ type apiAuth struct {
 	AccountID string `json:"chatgpt_account_id"`
 }
 
+type Provider struct {
+	httpClient *http.Client
+}
+
 func New() *Provider {
 	return &Provider{
-		httpClient:  http.DefaultClient,
-		issuer:      issuer,
-		redirectURL: redirectURL,
+		httpClient: http.DefaultClient,
 	}
 }
 
@@ -62,20 +51,20 @@ func (p *Provider) ID() string {
 	return DriverID
 }
 
-func (p *Provider) ModelOptions(auth provideroauth.Authorization) []adkproviders.ModelOption {
-	return []adkproviders.ModelOption{
-		adkproviders.WithBaseURL(CodexAPIURL),
-		adkproviders.WithBearerToken(auth.BearerToken),
-		adkproviders.WithHeaders(auth.Headers),
-	}
-}
-
-func (p *Provider) Authenticate(ctx context.Context, callback appoauth.Callback) (provideroauth.Credential, error) {
+func (p *Provider) Authenticate(
+	ctx context.Context,
+	callback appoauth.Callback,
+	config provideroauth.Config,
+) (provideroauth.Credential, error) {
 	if callback == nil {
 		return provideroauth.Credential{}, errors.New("openai codex oauth: browser callback is not configured")
 	}
 
-	token, err := p.codeFlow().Authorize(
+	if err := validateConfig(config); err != nil {
+		return provideroauth.Credential{}, err
+	}
+
+	token, err := p.codeFlow(config).Authorize(
 		ctx,
 		callback,
 		appoauth.CodeFlowOptions{Authorization: []oauth2.AuthCodeOption{
@@ -91,9 +80,17 @@ func (p *Provider) Authenticate(ctx context.Context, callback appoauth.Callback)
 	return credentialFromToken(token, nil)
 }
 
-func (p *Provider) Refresh(ctx context.Context, credential provideroauth.Credential) (provideroauth.Credential, error) {
+func (p *Provider) Refresh(
+	ctx context.Context,
+	credential provideroauth.Credential,
+	config provideroauth.Config,
+) (provideroauth.Credential, error) {
 	if credential.RefreshToken == "" {
 		return provideroauth.Credential{}, provideroauth.ErrInvalidGrant
+	}
+
+	if err := validateConfig(config); err != nil {
+		return provideroauth.Credential{}, err
 	}
 
 	token := &oauth2.Token{
@@ -102,7 +99,7 @@ func (p *Provider) Refresh(ctx context.Context, credential provideroauth.Credent
 		Expiry:       time.Now().Add(-time.Second),
 	}
 
-	refreshed, err := p.codeFlow().TokenSource(ctx, token).Token()
+	refreshed, err := p.codeFlow(config).TokenSource(ctx, token).Token()
 	if err != nil {
 		wrapped := fmt.Errorf("openai codex oauth: refresh token: %w", err)
 		if appoauth.IsInvalidGrant(err) {
@@ -127,19 +124,34 @@ func (p *Provider) Authorization(credential provideroauth.Credential) provideroa
 	}
 }
 
-func (p *Provider) codeFlow() appoauth.CodeFlow {
+func (p *Provider) codeFlow(config provideroauth.Config) appoauth.CodeFlow {
 	return appoauth.CodeFlow{
 		Config: oauth2.Config{
-			ClientID:    clientID,
-			RedirectURL: p.redirectURL,
-			Scopes:      []string{"openid", "profile", "email", "offline_access"},
+			ClientID:    config.ClientID,
+			RedirectURL: config.RedirectURL,
+			Scopes:      config.Scopes,
 			Endpoint: oauth2.Endpoint{
-				AuthURL:   p.issuer + "/oauth/authorize",
-				TokenURL:  p.issuer + "/oauth/token",
+				AuthURL:   config.AuthorizationURL,
+				TokenURL:  config.TokenURL,
 				AuthStyle: oauth2.AuthStyleInParams,
 			},
 		},
 		HTTPClient: p.httpClient,
+	}
+}
+
+func validateConfig(config provideroauth.Config) error {
+	switch {
+	case config.ClientID == "":
+		return errors.New("openai codex oauth: client_id is required")
+	case config.AuthorizationURL == "":
+		return errors.New("openai codex oauth: authorization_url is required")
+	case config.TokenURL == "":
+		return errors.New("openai codex oauth: token_url is required")
+	case config.RedirectURL == "":
+		return errors.New("openai codex oauth: redirect_url is required")
+	default:
+		return nil
 	}
 }
 

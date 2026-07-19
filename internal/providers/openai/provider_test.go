@@ -31,10 +31,9 @@ func TestAuthenticateExchangesCodeAndExtractsAccountID(t *testing.T) {
 
 	provider := New()
 	provider.httpClient = server.Client()
-	provider.issuer = server.URL
 	callback := &testCallback{}
 
-	credential, err := provider.Authenticate(context.Background(), callback)
+	credential, err := provider.Authenticate(context.Background(), callback, testConfig(server.URL))
 	if err != nil {
 		t.Fatalf("Authenticate() error = %v", err)
 	}
@@ -65,13 +64,12 @@ func TestRefreshPreservesRefreshTokenAndMetadata(t *testing.T) {
 
 	provider := New()
 	provider.httpClient = server.Client()
-	provider.issuer = server.URL
 
 	credential, err := provider.Refresh(context.Background(), provideroauth.Credential{
 		AccessToken:  "old",
 		RefreshToken: "refresh",
 		Metadata:     map[string]string{accountIDMetadata: "account"},
-	})
+	}, testConfig(server.URL))
 	if err != nil {
 		t.Fatalf("Refresh() error = %v", err)
 	}
@@ -91,9 +89,12 @@ func TestRefreshClassifiesInvalidGrant(t *testing.T) {
 
 	provider := New()
 	provider.httpClient = server.Client()
-	provider.issuer = server.URL
 
-	_, err := provider.Refresh(context.Background(), provideroauth.Credential{RefreshToken: "refresh"})
+	_, err := provider.Refresh(
+		context.Background(),
+		provideroauth.Credential{RefreshToken: "refresh"},
+		testConfig(server.URL),
+	)
 	if !errors.Is(err, provideroauth.ErrInvalidGrant) {
 		t.Fatalf("Refresh() error = %v, want invalid grant", err)
 	}
@@ -131,4 +132,14 @@ func testJWT(payload string) string {
 		base64.RawURLEncoding.EncodeToString([]byte(payload)),
 		"signature",
 	}, ".")
+}
+
+func testConfig(serverURL string) provideroauth.Config {
+	return provideroauth.Config{
+		ClientID:         "client",
+		AuthorizationURL: serverURL + "/authorize",
+		TokenURL:         serverURL,
+		RedirectURL:      "http://localhost:1455/auth/callback",
+		Scopes:           []string{"openid", "offline_access"},
+	}
 }

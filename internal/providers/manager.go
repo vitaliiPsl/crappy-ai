@@ -4,8 +4,6 @@ import (
 	"context"
 	"slices"
 
-	adkproviders "github.com/vitaliiPsl/crappy-adk/providers"
-
 	appoauth "github.com/vitaliiPsl/crappy-ai/internal/oauth"
 	provideroauth "github.com/vitaliiPsl/crappy-ai/internal/providers/oauth"
 )
@@ -14,7 +12,6 @@ type OAuthDriver interface {
 	provideroauth.Provider
 
 	ID() string
-	ModelOptions(auth provideroauth.Authorization) []adkproviders.ModelOption
 }
 
 type Manager struct {
@@ -37,21 +34,22 @@ func NewManager(store provideroauth.Store, callback appoauth.Callback, registere
 	}
 }
 
-func (m *Manager) Authenticate(ctx context.Context, providerID, driverID string) (provideroauth.Authorization, error) {
-	return m.oauth.Authenticate(ctx, providerID, driverID)
+func (m *Manager) Authenticate(
+	ctx context.Context,
+	providerID string,
+	driverID string,
+	config provideroauth.Config,
+) (provideroauth.Authorization, error) {
+	return m.oauth.Authenticate(ctx, providerID, driverID, config)
 }
 
-func (m *Manager) Resolve(ctx context.Context, providerID, driverID string) (provideroauth.Authorization, error) {
-	return m.oauth.Resolve(ctx, providerID, driverID)
-}
-
-func (m *Manager) ModelOptions(driverID string, auth provideroauth.Authorization) []adkproviders.ModelOption {
-	driver, ok := m.drivers[driverID]
-	if !ok {
-		return nil
-	}
-
-	return driver.ModelOptions(auth)
+func (m *Manager) Resolve(
+	ctx context.Context,
+	providerID string,
+	driverID string,
+	config provideroauth.Config,
+) (provideroauth.Authorization, error) {
+	return m.oauth.Resolve(ctx, providerID, driverID, config)
 }
 
 func (m *Manager) Logout(ctx context.Context, providerID, driverID string) error {

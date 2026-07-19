@@ -25,7 +25,7 @@ func newSource(providerID string, provider Provider, store Store) *source {
 	}
 }
 
-func (s *source) resolve(ctx context.Context) (Authorization, error) {
+func (s *source) resolve(ctx context.Context, config Config) (Authorization, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -42,7 +42,7 @@ func (s *source) resolve(ctx context.Context) (Authorization, error) {
 		return s.provider.Authorization(*credential), nil
 	}
 
-	refreshed, err := s.provider.Refresh(ctx, *credential)
+	refreshed, err := s.provider.Refresh(ctx, *credential, config)
 	if err != nil {
 		if errors.Is(err, ErrInvalidGrant) {
 			if deleteErr := s.store.Delete(ctx, s.providerID); deleteErr != nil {

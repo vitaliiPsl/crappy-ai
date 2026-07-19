@@ -2,6 +2,7 @@ package settings
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/vitaliiPsl/crappy-adk/kit"
 
@@ -14,18 +15,23 @@ const (
 	modelSection        = "Model"
 	providerSection     = "Provider Credentials"
 
-	promptLabel          = "Prompt"
-	providerLabel        = "Provider"
-	modelLabel           = "Model"
-	thinkingLabel        = "Thinking"
-	temperatureLabel     = "Temperature"
-	maxOutputTokensLabel = "Max Output Tokens"
-	apiKeyLabel          = "API Key"
-	apiKeyEnvLabel       = "API Key Env"
-	baseURLLabel         = "Base URL"
-	authTypeLabel        = "Authentication"
-	oauthDriverLabel     = "OAuth Driver"
-	oauthLabel           = "Subscription"
+	promptLabel           = "Prompt"
+	providerLabel         = "Provider"
+	modelLabel            = "Model"
+	thinkingLabel         = "Thinking"
+	temperatureLabel      = "Temperature"
+	maxOutputTokensLabel  = "Max Output Tokens"
+	apiKeyLabel           = "API Key"
+	apiKeyEnvLabel        = "API Key Env"
+	baseURLLabel          = "Base URL"
+	authTypeLabel         = "Authentication"
+	oauthDriverLabel      = "OAuth Driver"
+	oauthClientIDLabel    = "OAuth Client ID"
+	oauthAuthURLLabel     = "Authorization URL"
+	oauthTokenURLLabel    = "Token URL"
+	oauthRedirectURLLabel = "Redirect URL"
+	oauthScopesLabel      = "OAuth Scopes"
+	oauthLabel            = "Subscription"
 )
 
 type fieldKind int
@@ -36,6 +42,7 @@ const (
 	fieldOption
 	fieldModel
 	fieldOAuth
+	fieldReadOnly
 )
 
 type fieldDef struct {
@@ -97,25 +104,20 @@ func buildFields() []fieldDef {
 		},
 		{
 			section: providerSection,
-			label:   authTypeLabel,
-			kind:    fieldOption,
-			options: authTypeOptions,
-			get:     func(m Model) string { return string(m.provider().Auth.Type) },
+			label:   baseURLLabel,
+			kind:    fieldText,
+			get:     func(m Model) string { return m.provider().BaseURL },
 			set: func(m *Model, value string) {
 				p := m.provider()
-
-				p.Auth = coresettings.ProviderAuthSettings{Type: coresettings.ProviderAuthType(value)}
-				if p.Auth.Type == coresettings.ProviderAuthOAuth {
-					drivers := m.server.ProviderOAuthDrivers(m.cfg.Provider)
-					if len(drivers) > 0 {
-						p.Auth.Driver = drivers[0]
-					}
-				}
-
+				p.BaseURL = value
 				m.setProvider(p)
-				m.oauthStatus = "disconnected"
-				m.oauthErr = nil
 			},
+		},
+		{
+			section: providerSection,
+			label:   authTypeLabel,
+			kind:    fieldReadOnly,
+			get:     func(m Model) string { return string(m.provider().Auth.Type) },
 		},
 		{
 			section: providerSection,
@@ -130,6 +132,66 @@ func buildFields() []fieldDef {
 				m.setProvider(p)
 				m.oauthStatus = "disconnected"
 				m.oauthErr = nil
+			},
+		},
+		{
+			section: providerSection,
+			label:   oauthClientIDLabel,
+			kind:    fieldText,
+			visible: func(m Model) bool { return m.provider().Auth.Type == coresettings.ProviderAuthOAuth },
+			get:     func(m Model) string { return m.provider().Auth.OAuth.ClientID },
+			set: func(m *Model, value string) {
+				p := m.provider()
+				p.Auth.OAuth.ClientID = value
+				m.setProvider(p)
+			},
+		},
+		{
+			section: providerSection,
+			label:   oauthAuthURLLabel,
+			kind:    fieldText,
+			visible: func(m Model) bool { return m.provider().Auth.Type == coresettings.ProviderAuthOAuth },
+			get:     func(m Model) string { return m.provider().Auth.OAuth.AuthorizationURL },
+			set: func(m *Model, value string) {
+				p := m.provider()
+				p.Auth.OAuth.AuthorizationURL = value
+				m.setProvider(p)
+			},
+		},
+		{
+			section: providerSection,
+			label:   oauthTokenURLLabel,
+			kind:    fieldText,
+			visible: func(m Model) bool { return m.provider().Auth.Type == coresettings.ProviderAuthOAuth },
+			get:     func(m Model) string { return m.provider().Auth.OAuth.TokenURL },
+			set: func(m *Model, value string) {
+				p := m.provider()
+				p.Auth.OAuth.TokenURL = value
+				m.setProvider(p)
+			},
+		},
+		{
+			section: providerSection,
+			label:   oauthRedirectURLLabel,
+			kind:    fieldText,
+			visible: func(m Model) bool { return m.provider().Auth.Type == coresettings.ProviderAuthOAuth },
+			get:     func(m Model) string { return m.provider().Auth.OAuth.RedirectURL },
+			set: func(m *Model, value string) {
+				p := m.provider()
+				p.Auth.OAuth.RedirectURL = value
+				m.setProvider(p)
+			},
+		},
+		{
+			section: providerSection,
+			label:   oauthScopesLabel,
+			kind:    fieldText,
+			visible: func(m Model) bool { return m.provider().Auth.Type == coresettings.ProviderAuthOAuth },
+			get:     func(m Model) string { return strings.Join(m.provider().Auth.OAuth.Scopes, ", ") },
+			set: func(m *Model, value string) {
+				p := m.provider()
+				p.Auth.OAuth.Scopes = splitScopes(value)
+				m.setProvider(p)
 			},
 		},
 		{
@@ -164,27 +226,18 @@ func buildFields() []fieldDef {
 				m.setProvider(p)
 			},
 		},
-		{
-			section: providerSection,
-			label:   baseURLLabel,
-			kind:    fieldText,
-			get:     func(m Model) string { return m.provider().BaseURL },
-			set: func(m *Model, value string) {
-				p := m.provider()
-				p.BaseURL = value
-				m.setProvider(p)
-			},
-		},
 	}
 }
 
-func authTypeOptions(m Model) []string {
-	options := []string{string(coresettings.ProviderAuthAPIKey)}
-	if m.server != nil && m.server.ProviderSupportsOAuth(m.cfg.Provider) {
-		options = append(options, string(coresettings.ProviderAuthOAuth))
+func splitScopes(value string) []string {
+	var scopes []string
+	for scope := range strings.SplitSeq(value, ",") {
+		if scope = strings.TrimSpace(scope); scope != "" {
+			scopes = append(scopes, scope)
+		}
 	}
 
-	return options
+	return scopes
 }
 
 func oauthDriverOptions(m Model) []string {

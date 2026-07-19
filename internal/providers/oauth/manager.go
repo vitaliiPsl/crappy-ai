@@ -45,7 +45,7 @@ func NewManager(store Store, callback appoauth.Callback, providers map[string]Pr
 	}
 }
 
-func (m *Manager) Authenticate(ctx context.Context, providerID, driverID string) (Authorization, error) {
+func (m *Manager) Authenticate(ctx context.Context, providerID, driverID string, config Config) (Authorization, error) {
 	provider, err := m.provider(driverID)
 	if err != nil {
 		return Authorization{}, err
@@ -55,7 +55,7 @@ func (m *Manager) Authenticate(ctx context.Context, providerID, driverID string)
 	source.mu.Lock()
 	defer source.mu.Unlock()
 
-	credential, err := provider.Authenticate(ctx, m.callback)
+	credential, err := provider.Authenticate(ctx, m.callback, config)
 	if err != nil {
 		return Authorization{}, err
 	}
@@ -71,13 +71,13 @@ func (m *Manager) Authenticate(ctx context.Context, providerID, driverID string)
 	return provider.Authorization(credential), nil
 }
 
-func (m *Manager) Resolve(ctx context.Context, providerID, driverID string) (Authorization, error) {
+func (m *Manager) Resolve(ctx context.Context, providerID, driverID string, config Config) (Authorization, error) {
 	provider, err := m.provider(driverID)
 	if err != nil {
 		return Authorization{}, err
 	}
 
-	return m.source(providerID, driverID, provider).resolve(ctx)
+	return m.source(providerID, driverID, provider).resolve(ctx, config)
 }
 
 func (m *Manager) Logout(ctx context.Context, providerID, driverID string) error {

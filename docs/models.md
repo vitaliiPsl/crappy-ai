@@ -67,9 +67,19 @@ OAuth-backed subscriptions use a separate provider entry with an explicit driver
 providers:
   - id: openai-subscription
     api: openai
+    base_url: https://chatgpt.com/backend-api/codex
     auth:
       type: oauth
       driver: openai-codex
+      client_id: app_EMoamEEZ73f0CkXaXp7hrann
+      authorization_url: https://auth.openai.com/oauth/authorize
+      token_url: https://auth.openai.com/oauth/token
+      redirect_url: http://localhost:1455/auth/callback
+      scopes:
+        - openid
+        - profile
+        - email
+        - offline_access
 ```
 
 Connect or disconnect the subscription from the settings screen. Crappy stores and refreshes the credential for the configured provider; OAuth failures do not fall back to an API key.

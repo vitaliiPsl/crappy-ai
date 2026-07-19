@@ -93,6 +93,8 @@ func (m fieldsModel) Update(msg tea.Msg) (fieldsModel, tea.Cmd) {
 		case "enter":
 			field := m.currentField()
 			switch field.kind {
+			case fieldReadOnly:
+				return m, nil
 			case fieldOption:
 				return m, fieldActionCmd(fieldAction{kind: fieldActionCycle, field: field, delta: 1})
 			case fieldModel:

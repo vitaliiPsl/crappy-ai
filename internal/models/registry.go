@@ -56,7 +56,7 @@ func (r *Registry) Authenticate(ctx context.Context, providerID string) error {
 		return fmt.Errorf("provider %q does not use oauth", provider.ID)
 	}
 
-	_, err = r.providers.Authenticate(ctx, provider.ID, provider.Auth.Driver)
+	_, err = r.providers.Authenticate(ctx, provider.ID, provider.Auth.Driver, provider.Auth.OAuth)
 
 	return err
 }
@@ -192,20 +192,19 @@ func (r *Registry) oauthAuthOptions(
 		return nil, fmt.Errorf("provider %q: API key settings cannot be used with oauth", provider.ID)
 	}
 
-	if provider.BaseURL != "" {
-		return nil, fmt.Errorf("provider %q: base_url cannot be used with oauth", provider.ID)
-	}
-
 	if provider.Auth.Driver == "" {
 		return nil, fmt.Errorf("provider %q: oauth driver is not configured", provider.ID)
 	}
 
-	auth, err := r.providers.Resolve(ctx, provider.ID, provider.Auth.Driver)
+	auth, err := r.providers.Resolve(ctx, provider.ID, provider.Auth.Driver, provider.Auth.OAuth)
 	if err != nil {
 		return nil, fmt.Errorf("provider %q: %w", provider.ID, err)
 	}
 
-	return r.providers.ModelOptions(provider.Auth.Driver, auth), nil
+	return []adkproviders.ModelOption{
+		adkproviders.WithBearerToken(auth.BearerToken),
+		adkproviders.WithHeaders(auth.Headers),
+	}, nil
 }
 
 func findProvider(providers []settings.ProviderSettings, id string) (settings.ProviderSettings, bool) {
