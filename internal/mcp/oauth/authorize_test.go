@@ -130,26 +130,6 @@ func TestReadChallenge(t *testing.T) {
 	}
 }
 
-func TestRandomState(t *testing.T) {
-	first, err := randomState()
-	if err != nil {
-		t.Fatalf("randomState() error = %v", err)
-	}
-
-	second, err := randomState()
-	if err != nil {
-		t.Fatalf("randomState() error = %v", err)
-	}
-
-	if first == "" {
-		t.Fatal("randomState() returned an empty string")
-	}
-
-	if first == second {
-		t.Fatal("randomState() returned the same value twice")
-	}
-}
-
 func TestAuthorizerScopes(t *testing.T) {
 	configured := NewAuthorizer(AuthorizerConfig{Scopes: []string{"configured"}})
 	if got := configured.scopes([]string{"discovered"}); !slices.Equal(got, []string{"configured"}) {

@@ -13,7 +13,7 @@ import (
 	appproviders "github.com/vitaliiPsl/crappy-ai/internal/providers"
 	provideroauth "github.com/vitaliiPsl/crappy-ai/internal/providers/oauth"
 	provideroauthstore "github.com/vitaliiPsl/crappy-ai/internal/providers/oauth/store"
-	"github.com/vitaliiPsl/crappy-ai/internal/providers/opencodex"
+	"github.com/vitaliiPsl/crappy-ai/internal/providers/openai"
 	"github.com/vitaliiPsl/crappy-ai/internal/settings"
 	settingsmodels "github.com/vitaliiPsl/crappy-ai/internal/settings/models"
 )
@@ -183,13 +183,13 @@ func TestBuildModelUsesOpenAIOAuthWithoutAPIKey(t *testing.T) {
 		t.Fatalf("Save() error = %v", err)
 	}
 
-	providerManager := appproviders.NewManager(store, nil, opencodex.New())
+	providerManager := appproviders.NewManager(store, nil, openai.New())
 
 	s := testSettings()
 	s.Providers[1].ID = "work-openai"
 	s.Providers[1].Auth = settings.ProviderAuthSettings{
 		Type:   settings.ProviderAuthOAuth,
-		Driver: opencodex.DriverID,
+		Driver: openai.DriverID,
 	}
 	s.Models["work-openai"] = s.Models[settingsmodels.ProviderOpenAI]
 
@@ -209,7 +209,7 @@ func TestBuildModelUsesOpenAIOAuthWithoutAPIKey(t *testing.T) {
 		t.Fatalf("buildModel() error = %v", err)
 	}
 
-	if got.BaseURL != opencodex.CodexAPIURL || got.BearerToken != "access" {
+	if got.BaseURL != openai.CodexAPIURL || got.BearerToken != "access" {
 		t.Fatalf("model options = %+v", got)
 	}
 
@@ -224,7 +224,7 @@ func TestBuildModelOAuthRejectsAPIKeySettings(t *testing.T) {
 		t.Fatalf("NewFileStore() error = %v", err)
 	}
 
-	providerManager := appproviders.NewManager(store, nil, opencodex.New())
+	providerManager := appproviders.NewManager(store, nil, openai.New())
 	s := settings.Settings{
 		Providers: []settings.ProviderSettings{{
 			ID:  "work-openai",
@@ -232,7 +232,7 @@ func TestBuildModelOAuthRejectsAPIKeySettings(t *testing.T) {
 			Auth: settings.ProviderAuthSettings{
 				Type:   settings.ProviderAuthOAuth,
 				APIKey: "must-not-be-used",
-				Driver: opencodex.DriverID,
+				Driver: openai.DriverID,
 			},
 		}},
 	}

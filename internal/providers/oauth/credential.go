@@ -5,7 +5,7 @@ import "time"
 type Credential struct {
 	AccessToken  string            `json:"access_token"`
 	RefreshToken string            `json:"refresh_token,omitempty"`
-	ExpiresAt    time.Time         `json:"expires_at,omitempty"`
+	ExpiresAt    time.Time         `json:"expires_at"`
 	Metadata     map[string]string `json:"metadata,omitempty"`
 }
 

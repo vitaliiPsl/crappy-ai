@@ -16,7 +16,7 @@ import (
 	appoauth "github.com/vitaliiPsl/crappy-ai/internal/oauth"
 	appproviders "github.com/vitaliiPsl/crappy-ai/internal/providers"
 	provideroauthstore "github.com/vitaliiPsl/crappy-ai/internal/providers/oauth/store"
-	"github.com/vitaliiPsl/crappy-ai/internal/providers/opencodex"
+	"github.com/vitaliiPsl/crappy-ai/internal/providers/openai"
 	"github.com/vitaliiPsl/crappy-ai/internal/runtime"
 	"github.com/vitaliiPsl/crappy-ai/internal/server"
 	sessionstore "github.com/vitaliiPsl/crappy-ai/internal/session/store"
@@ -104,7 +104,7 @@ func run() error {
 	providerManager := appproviders.NewManager(
 		providerOauthStore,
 		oauthCallback,
-		opencodex.New(),
+		openai.New(),
 	)
 	modelRegistry := models.NewRegistry(settingsStore, providerManager)
 

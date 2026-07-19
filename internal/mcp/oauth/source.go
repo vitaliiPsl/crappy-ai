@@ -8,6 +8,8 @@ import (
 
 	mcpauth "github.com/modelcontextprotocol/go-sdk/auth"
 	"golang.org/x/oauth2"
+
+	appoauth "github.com/vitaliiPsl/crappy-ai/internal/oauth"
 )
 
 // persistingSource refreshes the access token from the stored refresh token and
@@ -37,7 +39,7 @@ func newPersistingSource(session Session, key Key, store Store) *persistingSourc
 func (s *persistingSource) Token() (*oauth2.Token, error) {
 	token, err := s.base.Token()
 	if err != nil {
-		if isInvalidGrant(err) {
+		if appoauth.IsInvalidGrant(err) {
 			return nil, s.invalidate(err)
 		}
 
@@ -62,13 +64,4 @@ func (s *persistingSource) invalidate(err error) error {
 	}
 
 	return fmt.Errorf("mcp: oauth grant is invalid; re-authentication required: %w", errors.Join(mcpauth.ErrOAuth, err))
-}
-
-func isInvalidGrant(err error) bool {
-	var retrieveErr *oauth2.RetrieveError
-	if !errors.As(err, &retrieveErr) {
-		return false
-	}
-
-	return retrieveErr.ErrorCode == "invalid_grant"
 }

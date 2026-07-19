@@ -1,4 +1,4 @@
-package opencodex
+package openai
 
 import (
 	"context"
@@ -23,6 +23,8 @@ func TestAuthenticateExchangesCodeAndExtractsAccountID(t *testing.T) {
 		}
 
 		form = req.Form
+
+		w.Header().Set("Content-Type", "application/json")
 		_, _ = fmt.Fprintf(w, "{\"id_token\":%q,\"access_token\":\"access\",\"refresh_token\":\"refresh\",\"expires_in\":3600}", testJWT("{\"chatgpt_account_id\":\"account\"}"))
 	}))
 	defer server.Close()
@@ -56,6 +58,7 @@ func TestAuthenticateExchangesCodeAndExtractsAccountID(t *testing.T) {
 
 func TestRefreshPreservesRefreshTokenAndMetadata(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		_, _ = fmt.Fprint(w, "{\"access_token\":\"new\",\"expires_in\":3600}")
 	}))
 	defer server.Close()
@@ -80,6 +83,7 @@ func TestRefreshPreservesRefreshTokenAndMetadata(t *testing.T) {
 
 func TestRefreshClassifiesInvalidGrant(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
 		_, _ = fmt.Fprint(w, "{\"error\":\"invalid_grant\",\"error_description\":\"Grant not found\"}")
 	}))

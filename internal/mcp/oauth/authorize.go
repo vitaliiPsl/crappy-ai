@@ -2,8 +2,6 @@ package oauth
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -159,27 +157,13 @@ func (a *Authorizer) client(ctx context.Context, registrationURL string) (string
 }
 
 func (a *Authorizer) exchange(ctx context.Context, cfg oauth2.Config, resource string) (*oauth2.Token, error) {
-	verifier := oauth2.GenerateVerifier()
-
-	state, err := randomState()
-	if err != nil {
-		return nil, err
-	}
-
 	resourceParam := oauth2.SetAuthURLParam("resource", resource)
+	flow := appoauth.CodeFlow{Config: cfg, HTTPClient: a.config.HTTPClient}
 
-	authURL := cfg.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.S256ChallengeOption(verifier), resourceParam)
-
-	code, returnedState, err := a.config.Callback.Wait(ctx, authURL, cfg.RedirectURL)
-	if err != nil {
-		return nil, err
-	}
-
-	if returnedState != state {
-		return nil, errors.New("oauth: authorization state mismatch")
-	}
-
-	return cfg.Exchange(ctx, code, oauth2.VerifierOption(verifier), resourceParam)
+	return flow.Authorize(ctx, a.config.Callback, appoauth.CodeFlowOptions{
+		Authorization: []oauth2.AuthCodeOption{oauth2.AccessTypeOffline, resourceParam},
+		Token:         []oauth2.AuthCodeOption{resourceParam},
+	})
 }
 
 func (a *Authorizer) scopes(discovered []string) []string {
@@ -259,15 +243,6 @@ func authServerMetadataURLs(issuer string) []string {
 	oidc.Path = path + "/.well-known/openid-configuration"
 
 	return []string{rfc8414.String(), oidc.String()}
-}
-
-func randomState() (string, error) {
-	buf := make([]byte, 32)
-	if _, err := rand.Read(buf); err != nil {
-		return "", err
-	}
-
-	return base64.RawURLEncoding.EncodeToString(buf), nil
 }
 
 func closeResponse(resp *http.Response) {
