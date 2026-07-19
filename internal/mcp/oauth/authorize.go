@@ -3,25 +3,13 @@ package oauth
 import (
 	"context"
 	"errors"
-	"fmt"
-	"io"
 	"net/http"
-	"net/url"
-	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
 	"golang.org/x/oauth2"
 
 	appoauth "github.com/vitaliiPsl/crappy-ai/internal/oauth"
 )
-
-type endpoints struct {
-	resource        string
-	authURL         string
-	tokenURL        string
-	registrationURL string
-	scopes          []string
-}
 
 type AuthorizerConfig struct {
 	Key          Key
@@ -41,96 +29,32 @@ func NewAuthorizer(config AuthorizerConfig) *Authorizer {
 }
 
 func (a *Authorizer) Authorize(ctx context.Context, resp *http.Response) (Session, error) {
-	challenge := readChallenge(resp)
-
-	found, err := a.discover(ctx, challenge)
+	discovery, err := Discover(ctx, a.config.HTTPClient, a.config.Key.ServerURL, resp)
 	if err != nil {
 		return Session{}, err
 	}
 
-	clientID, clientSecret, err := a.client(ctx, found.registrationURL)
+	clientID, clientSecret, err := a.client(ctx, discovery.RegistrationURL)
 	if err != nil {
 		return Session{}, err
 	}
 
 	session := Session{
 		ServerURL:    a.config.Key.ServerURL,
-		Resource:     found.resource,
+		Resource:     discovery.Resource,
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
-		AuthURL:      found.authURL,
-		TokenURL:     found.tokenURL,
-		Scopes:       a.scopes(found.scopes),
+		AuthURL:      discovery.AuthorizationURL,
+		TokenURL:     discovery.TokenURL,
+		Scopes:       a.scopes(discovery.Scopes),
 	}
 
-	token, err := a.exchange(ctx, session.oauthConfig(a.config.RedirectURL), found.resource)
+	token, err := a.exchange(ctx, session.oauthConfig(a.config.RedirectURL), discovery.Resource)
 	if err != nil {
 		return Session{}, err
 	}
 
 	return withToken(session, token), nil
-}
-
-func (a *Authorizer) discover(ctx context.Context, metadataURL string) (endpoints, error) {
-	prm, err := a.resourceMetadata(ctx, metadataURL)
-	if err != nil {
-		return endpoints{}, err
-	}
-
-	asm, err := a.authServerMeta(ctx, prm.AuthorizationServers)
-	if err != nil {
-		return endpoints{}, err
-	}
-
-	return endpoints{
-		resource:        prm.Resource,
-		authURL:         asm.AuthorizationEndpoint,
-		tokenURL:        asm.TokenEndpoint,
-		registrationURL: asm.RegistrationEndpoint,
-		scopes:          prm.ScopesSupported,
-	}, nil
-}
-
-func (a *Authorizer) resourceMetadata(ctx context.Context, metadataURL string) (*oauthex.ProtectedResourceMetadata, error) {
-	for _, candidate := range resourceMetadataURLs(metadataURL, a.config.Key.ServerURL) {
-		prm, err := oauthex.GetProtectedResourceMetadata(ctx, candidate.url, candidate.resource, a.config.HTTPClient)
-		if err != nil || prm == nil {
-			continue
-		}
-
-		if len(prm.AuthorizationServers) == 0 {
-			return nil, errors.New("oauth: protected resource metadata has no authorization servers")
-		}
-
-		return prm, nil
-	}
-
-	return nil, fmt.Errorf("oauth: no protected resource metadata for %q", a.config.Key.ServerURL)
-}
-
-func (a *Authorizer) authServerMeta(ctx context.Context, issuers []string) (*oauthex.AuthServerMeta, error) {
-	var lastErr error
-
-	for _, issuer := range issuers {
-		for _, metadataURL := range authServerMetadataURLs(issuer) {
-			asm, err := oauthex.GetAuthServerMeta(ctx, metadataURL, issuer, a.config.HTTPClient)
-			if err != nil {
-				lastErr = err
-
-				continue
-			}
-
-			if asm != nil {
-				return asm, nil
-			}
-		}
-	}
-
-	if lastErr != nil {
-		return nil, lastErr
-	}
-
-	return nil, fmt.Errorf("oauth: no authorization server metadata for issuers %v", issuers)
 }
 
 func (a *Authorizer) client(ctx context.Context, registrationURL string) (string, string, error) {
@@ -172,85 +96,4 @@ func (a *Authorizer) scopes(discovered []string) []string {
 	}
 
 	return discovered
-}
-
-func readChallenge(resp *http.Response) string {
-	defer closeResponse(resp)
-
-	if resp == nil {
-		return ""
-	}
-
-	challenges, err := oauthex.ParseWWWAuthenticate(resp.Header.Values("WWW-Authenticate"))
-	if err != nil {
-		return ""
-	}
-
-	for _, challenge := range challenges {
-		if challenge.Scheme != "bearer" {
-			continue
-		}
-
-		if url := challenge.Params["resource_metadata"]; url != "" {
-			return url
-		}
-	}
-
-	return ""
-}
-
-type resourceCandidate struct {
-	url      string
-	resource string
-}
-
-func resourceMetadataURLs(metadataURL, resourceURL string) []resourceCandidate {
-	var candidates []resourceCandidate
-
-	if metadataURL != "" {
-		candidates = append(candidates, resourceCandidate{url: metadataURL, resource: resourceURL})
-	}
-
-	rurl, err := url.Parse(resourceURL)
-	if err != nil {
-		return candidates
-	}
-
-	atPath := *rurl
-	atPath.Path = "/.well-known/oauth-protected-resource/" + strings.TrimLeft(rurl.Path, "/")
-	candidates = append(candidates, resourceCandidate{url: atPath.String(), resource: resourceURL})
-
-	atRoot := *rurl
-	atRoot.Path = "/.well-known/oauth-protected-resource"
-	rurl.Path = ""
-	candidates = append(candidates, resourceCandidate{url: atRoot.String(), resource: rurl.String()})
-
-	return candidates
-}
-
-func authServerMetadataURLs(issuer string) []string {
-	u, err := url.Parse(issuer)
-	if err != nil {
-		return nil
-	}
-
-	path := strings.TrimSuffix(u.Path, "/")
-
-	rfc8414 := *u
-	rfc8414.Path = "/.well-known/oauth-authorization-server" + path
-
-	oidc := *u
-	oidc.Path = path + "/.well-known/openid-configuration"
-
-	return []string{rfc8414.String(), oidc.String()}
-}
-
-func closeResponse(resp *http.Response) {
-	if resp == nil || resp.Body == nil {
-		return
-	}
-
-	defer func() { _ = resp.Body.Close() }()
-
-	_, _ = io.Copy(io.Discard, resp.Body)
 }

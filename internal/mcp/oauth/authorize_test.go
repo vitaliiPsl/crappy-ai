@@ -180,9 +180,7 @@ func TestAuthServerMetaFallsBackToOIDC(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	authorizer := NewAuthorizer(AuthorizerConfig{HTTPClient: server.Client()})
-
-	asm, err := authorizer.authServerMeta(context.Background(), []string{server.URL})
+	asm, err := fetchAuthServerMetadata(context.Background(), server.Client(), []string{server.URL})
 	if err != nil {
 		t.Fatalf("authServerMeta() error = %v", err)
 	}
@@ -198,9 +196,7 @@ func TestAuthServerMetaReturnsLastErrorWhenAllFail(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	authorizer := NewAuthorizer(AuthorizerConfig{HTTPClient: server.Client()})
-
-	if _, err := authorizer.authServerMeta(context.Background(), []string{server.URL}); err == nil {
+	if _, err := fetchAuthServerMetadata(context.Background(), server.Client(), []string{server.URL}); err == nil {
 		t.Fatal("authServerMeta() error = nil, want failure when every candidate fails")
 	}
 }
@@ -216,12 +212,7 @@ func TestResourceMetadataRequiresAuthorizationServers(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	authorizer := NewAuthorizer(AuthorizerConfig{
-		Key:        Key{ServerURL: server.URL},
-		HTTPClient: server.Client(),
-	})
-
-	if _, err := authorizer.resourceMetadata(context.Background(), ""); err == nil {
+	if _, err := fetchResourceMetadata(context.Background(), server.Client(), server.URL, ""); err == nil {
 		t.Fatal("resourceMetadata() error = nil, want failure when no authorization servers are listed")
 	}
 }
@@ -229,26 +220,21 @@ func TestResourceMetadataRequiresAuthorizationServers(t *testing.T) {
 func TestDiscover(t *testing.T) {
 	server := newAuthServer(t)
 
-	authorizer := NewAuthorizer(AuthorizerConfig{
-		Key:        Key{ServerURL: server.URL},
-		HTTPClient: server.Client(),
-	})
-
-	got, err := authorizer.discover(context.Background(), "")
+	got, err := Discover(context.Background(), server.Client(), server.URL, nil)
 	if err != nil {
 		t.Fatalf("discover() error = %v", err)
 	}
 
-	want := endpoints{
-		resource:        server.URL,
-		authURL:         server.URL + "/authorize",
-		tokenURL:        server.URL + "/token",
-		registrationURL: server.URL + "/register",
-		scopes:          []string{"read", "write"},
+	want := Discovery{
+		Resource:         server.URL,
+		AuthorizationURL: server.URL + "/authorize",
+		TokenURL:         server.URL + "/token",
+		RegistrationURL:  server.URL + "/register",
+		Scopes:           []string{"read", "write"},
 	}
 
-	if got.resource != want.resource || got.authURL != want.authURL || got.tokenURL != want.tokenURL ||
-		got.registrationURL != want.registrationURL || !slices.Equal(got.scopes, want.scopes) {
+	if got.Resource != want.Resource || got.AuthorizationURL != want.AuthorizationURL || got.TokenURL != want.TokenURL ||
+		got.RegistrationURL != want.RegistrationURL || !slices.Equal(got.Scopes, want.Scopes) {
 		t.Fatalf("discover() = %+v, want %+v", got, want)
 	}
 }
