@@ -23,6 +23,10 @@ type CodeFlowOptions struct {
 }
 
 func (f CodeFlow) Authorize(ctx context.Context, callback Callback, options CodeFlowOptions) (*oauth2.Token, error) {
+	if callback == nil {
+		return nil, errors.New("oauth: callback is not configured")
+	}
+
 	verifier := oauth2.GenerateVerifier()
 
 	state, err := randomState()

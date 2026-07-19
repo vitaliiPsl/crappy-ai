@@ -31,6 +31,7 @@ func Load() (*Store, error) {
 	settings.ModelsPath = utils.ExpandHome(settings.ModelsPath)
 	settings.SkillsPath = utils.ExpandHome(settings.SkillsPath)
 	settings.OAuthPath = utils.ExpandHome(settings.OAuthPath)
+	settings.MCPOAuthPath = utils.ExpandHome(settings.MCPOAuthPath)
 
 	settings.Models = models.Merge(models.Load(settings.ModelsPath), settings.ModelConfigs)
 
@@ -56,6 +57,10 @@ func merge(base, overlay Settings) Settings {
 
 	if overlay.OAuthPath != "" {
 		base.OAuthPath = overlay.OAuthPath
+	}
+
+	if overlay.MCPOAuthPath != "" {
+		base.MCPOAuthPath = overlay.MCPOAuthPath
 	}
 
 	if len(overlay.Providers) > 0 {

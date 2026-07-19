@@ -4,15 +4,15 @@ import (
 	"context"
 
 	"github.com/vitaliiPsl/crappy-ai/internal/mcp/oauth"
-	oauthstore "github.com/vitaliiPsl/crappy-ai/internal/oauth/store"
+	"github.com/vitaliiPsl/crappy-ai/internal/store/jsonfile"
 )
 
 type FileStore struct {
-	file *oauthstore.File[oauth.Session]
+	file *jsonfile.File[oauth.Session]
 }
 
 func NewFileStore(path string) (*FileStore, error) {
-	file, err := oauthstore.NewFile[oauth.Session](path, "sessions")
+	file, err := jsonfile.New[oauth.Session](path)
 	if err != nil {
 		return nil, err
 	}

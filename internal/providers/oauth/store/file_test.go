@@ -2,9 +2,7 @@ package store
 
 import (
 	"context"
-	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	provideroauth "github.com/vitaliiPsl/crappy-ai/internal/providers/oauth"
@@ -35,14 +33,5 @@ func TestFileStorePersistsCredentials(t *testing.T) {
 
 	if got == nil || got.AccessToken != want.AccessToken || got.RefreshToken != want.RefreshToken {
 		t.Fatalf("Load() = %+v, want %+v", got, want)
-	}
-
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("ReadFile() error = %v", err)
-	}
-
-	if !strings.Contains(string(data), `"credentials"`) {
-		t.Fatalf("oauth file = %s, want credentials envelope", data)
 	}
 }

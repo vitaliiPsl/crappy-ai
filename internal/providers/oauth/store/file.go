@@ -3,16 +3,16 @@ package store
 import (
 	"context"
 
-	appoauthstore "github.com/vitaliiPsl/crappy-ai/internal/oauth/store"
 	provideroauth "github.com/vitaliiPsl/crappy-ai/internal/providers/oauth"
+	"github.com/vitaliiPsl/crappy-ai/internal/store/jsonfile"
 )
 
 type FileStore struct {
-	file *appoauthstore.File[provideroauth.Credential]
+	file *jsonfile.File[provideroauth.Credential]
 }
 
 func NewFileStore(path string) (*FileStore, error) {
-	file, err := appoauthstore.NewFile[provideroauth.Credential](path, "credentials")
+	file, err := jsonfile.New[provideroauth.Credential](path)
 	if err != nil {
 		return nil, err
 	}

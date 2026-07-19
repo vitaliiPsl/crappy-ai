@@ -1,17 +1,10 @@
 package oauth
 
 import (
-	"context"
 	"time"
 
 	"golang.org/x/oauth2"
 )
-
-type Store interface {
-	Load(ctx context.Context, key Key) (*Session, error)
-	Save(ctx context.Context, key Key, session Session) error
-	Delete(ctx context.Context, key Key) error
-}
 
 type Key struct {
 	ServerName string

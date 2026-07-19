@@ -12,6 +12,12 @@ import (
 	appoauth "github.com/vitaliiPsl/crappy-ai/internal/oauth"
 )
 
+type Store interface {
+	Load(ctx context.Context, key Key) (*Session, error)
+	Save(ctx context.Context, key Key, session Session) error
+	Delete(ctx context.Context, key Key) error
+}
+
 type RegistrationInfo struct {
 	ClientID     string
 	ClientSecret string

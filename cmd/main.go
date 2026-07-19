@@ -83,7 +83,7 @@ func run() error {
 	skillRegistry := skills.NewRegistry(settingsStore)
 	oauthCallback := appoauth.NewBrowserCallback()
 
-	mcpOauthStore, err := oauthstore.NewFileStore(settingsStore.Get().OAuthPath)
+	mcpOauthStore, err := oauthstore.NewFileStore(settingsStore.Get().MCPOAuthPath)
 	if err != nil {
 		return fmt.Errorf("init oauth store: %w", err)
 	}
