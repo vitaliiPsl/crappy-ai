@@ -10,6 +10,7 @@ type Config struct {
 	ClientID         string   `yaml:"client_id,omitempty"`
 	AuthorizationURL string   `yaml:"authorization_url,omitempty"`
 	TokenURL         string   `yaml:"token_url,omitempty"`
+	LimitsURL        string   `yaml:"limits_url,omitempty"`
 	RedirectURL      string   `yaml:"redirect_url,omitempty"`
 	Scopes           []string `yaml:"scopes,omitempty"`
 }
@@ -18,6 +19,7 @@ type Provider interface {
 	Authenticate(ctx context.Context, callback appoauth.Callback, config Config) (Credential, error)
 	Refresh(ctx context.Context, credential Credential, config Config) (Credential, error)
 	Authorization(credential Credential) Authorization
+	Limits(ctx context.Context, auth Authorization, config Config) (Limits, error)
 }
 
 type Store interface {

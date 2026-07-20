@@ -176,6 +176,7 @@ func TestProviderOAuthConfigIsInlineInYAML(t *testing.T) {
 		TokenURL:         "https://auth.example/token",
 		RedirectURL:      "http://localhost/callback",
 		Scopes:           []string{"openid", "offline_access"},
+		LimitsURL:        "https://example.test/usage",
 	}
 
 	err := writeFile(path, Settings{Providers: []ProviderSettings{{
@@ -206,7 +207,8 @@ func TestProviderOAuthConfigIsInlineInYAML(t *testing.T) {
 	}
 
 	if len(got.Providers) != 1 || got.Providers[0].Auth.OAuth.ClientID != want.ClientID ||
-		got.Providers[0].Auth.OAuth.TokenURL != want.TokenURL {
+		got.Providers[0].Auth.OAuth.TokenURL != want.TokenURL ||
+		got.Providers[0].Auth.OAuth.LimitsURL != want.LimitsURL {
 		t.Fatalf("OAuth config = %+v, want %+v", got.Providers, want)
 	}
 }

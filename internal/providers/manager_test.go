@@ -25,6 +25,28 @@ func TestManagerResolvesProviderAccess(t *testing.T) {
 	}
 }
 
+func TestManagerFetchesProviderLimits(t *testing.T) {
+	store := &memoryStore{credentials: map[string]provideroauth.Credential{
+		"work": {AccessToken: "access", ExpiresAt: time.Now().Add(time.Hour)},
+	}}
+	provider := &testLimitsProvider{testProvider: testProvider{}}
+	manager := NewManager(store, nil, provider)
+
+	limits, err := manager.Limits(
+		context.Background(),
+		"work",
+		"test",
+		provideroauth.Config{LimitsURL: "https://example.test"},
+	)
+	if err != nil {
+		t.Fatalf("Limits() error = %v", err)
+	}
+
+	if limits.Plan != "plus" || provider.auth.BearerToken != "access" || provider.limitsURL != "https://example.test" {
+		t.Fatalf("Limits() = %+v, provider = %+v", limits, provider)
+	}
+}
+
 type testProvider struct{}
 
 func (testProvider) ID() string {
@@ -41,6 +63,31 @@ func (testProvider) Refresh(context.Context, provideroauth.Credential, providero
 
 func (testProvider) Authorization(credential provideroauth.Credential) provideroauth.Authorization {
 	return provideroauth.Authorization{BearerToken: credential.AccessToken}
+}
+
+func (testProvider) Limits(
+	context.Context,
+	provideroauth.Authorization,
+	provideroauth.Config,
+) (provideroauth.Limits, error) {
+	return provideroauth.Limits{}, nil
+}
+
+type testLimitsProvider struct {
+	testProvider
+	limitsURL string
+	auth      provideroauth.Authorization
+}
+
+func (p *testLimitsProvider) Limits(
+	_ context.Context,
+	auth provideroauth.Authorization,
+	config provideroauth.Config,
+) (provideroauth.Limits, error) {
+	p.limitsURL = config.LimitsURL
+	p.auth = auth
+
+	return provideroauth.Limits{Plan: "plus"}, nil
 }
 
 type memoryStore struct {

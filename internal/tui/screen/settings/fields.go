@@ -24,6 +24,7 @@ const (
 	apiKeyLabel           = "API Key"
 	apiKeyEnvLabel        = "API Key Env"
 	baseURLLabel          = "Base URL"
+	limitsURLLabel        = "Usage Limits URL"
 	authTypeLabel         = "Authentication"
 	oauthDriverLabel      = "OAuth Driver"
 	oauthClientIDLabel    = "OAuth Client ID"
@@ -118,6 +119,18 @@ func buildFields() []fieldDef {
 			label:   authTypeLabel,
 			kind:    fieldReadOnly,
 			get:     func(m Model) string { return string(m.provider().Auth.Type) },
+		},
+		{
+			section: providerSection,
+			label:   limitsURLLabel,
+			kind:    fieldText,
+			visible: func(m Model) bool { return m.provider().Auth.Type == coresettings.ProviderAuthOAuth },
+			get:     func(m Model) string { return m.provider().Auth.OAuth.LimitsURL },
+			set: func(m *Model, value string) {
+				p := m.provider()
+				p.Auth.OAuth.LimitsURL = value
+				m.setProvider(p)
+			},
 		},
 		{
 			section: providerSection,

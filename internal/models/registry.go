@@ -95,10 +95,26 @@ func (r *Registry) OAuthStatus(ctx context.Context, providerID string) (provider
 	return r.providers.Status(ctx, provider.ID, provider.Auth.Driver)
 }
 
-func (r *Registry) SupportsOAuth(providerID string) bool {
-	_, ok := findProvider(r.settingsStore.Get().Providers, providerID)
+func (r *Registry) Limits(ctx context.Context, providerID string) (provideroauth.Limits, error) {
+	if r.providers == nil {
+		return provideroauth.Limits{}, fmt.Errorf("provider limits are not configured")
+	}
 
-	return ok && r.providers != nil && r.providers.SupportsOAuth()
+	provider, err := r.GetProvider(providerID)
+	if err != nil {
+		return provideroauth.Limits{}, err
+	}
+
+	if provider.Auth.Type != settings.ProviderAuthOAuth {
+		return provideroauth.Limits{}, fmt.Errorf("provider %q does not use oauth", provider.ID)
+	}
+
+	return r.providers.Limits(
+		ctx,
+		provider.ID,
+		provider.Auth.Driver,
+		provider.Auth.OAuth,
+	)
 }
 
 func (r *Registry) OAuthDrivers(providerID string) []string {
@@ -184,7 +200,7 @@ func (r *Registry) oauthAuthOptions(
 	ctx context.Context,
 	provider settings.ProviderSettings,
 ) ([]adkproviders.ModelOption, error) {
-	if r.providers == nil || !r.providers.SupportsOAuth() {
+	if r.providers == nil {
 		return nil, fmt.Errorf("provider %q: oauth is not supported", provider.ID)
 	}
 

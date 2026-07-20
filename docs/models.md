@@ -71,6 +71,7 @@ providers:
     auth:
       type: oauth
       driver: openai-codex
+      limits_url: https://chatgpt.com/backend-api/wham/usage
       client_id: app_EMoamEEZ73f0CkXaXp7hrann
       authorization_url: https://auth.openai.com/oauth/authorize
       token_url: https://auth.openai.com/oauth/token
@@ -82,7 +83,7 @@ providers:
         - offline_access
 ```
 
-Connect or disconnect the subscription from the settings screen. Crappy stores and refreshes the credential for the configured provider; OAuth failures do not fall back to an API key.
+Connect or disconnect the subscription from the settings screen. `limits_url` is the provider endpoint used by `/usage`. Crappy stores and refreshes the credential for the configured provider; OAuth failures do not fall back to an API key.
 
 ## Custom Providers
 

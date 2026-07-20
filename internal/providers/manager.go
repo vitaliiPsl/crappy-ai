@@ -2,6 +2,7 @@ package providers
 
 import (
 	"context"
+	"fmt"
 	"slices"
 
 	appoauth "github.com/vitaliiPsl/crappy-ai/internal/oauth"
@@ -60,8 +61,23 @@ func (m *Manager) Status(ctx context.Context, providerID, driverID string) (prov
 	return m.oauth.Status(ctx, providerID, driverID)
 }
 
-func (m *Manager) SupportsOAuth() bool {
-	return len(m.drivers) > 0
+func (m *Manager) Limits(
+	ctx context.Context,
+	providerID,
+	driverID string,
+	config provideroauth.Config,
+) (provideroauth.Limits, error) {
+	driver, ok := m.drivers[driverID]
+	if !ok {
+		return provideroauth.Limits{}, fmt.Errorf("unknown oauth driver %q", driverID)
+	}
+
+	auth, err := m.Resolve(ctx, providerID, driverID, config)
+	if err != nil {
+		return provideroauth.Limits{}, err
+	}
+
+	return driver.Limits(ctx, auth, config)
 }
 
 func (m *Manager) OAuthDrivers() []string {

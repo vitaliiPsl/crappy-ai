@@ -55,6 +55,7 @@ func TestProviderCredentialFieldsFollowAuthType(t *testing.T) {
 			auth: appsettings.ProviderAuthOAuth,
 			want: []string{
 				authTypeLabel,
+				limitsURLLabel,
 				oauthDriverLabel,
 				oauthClientIDLabel,
 				oauthAuthURLLabel,

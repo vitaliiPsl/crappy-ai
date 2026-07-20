@@ -31,14 +31,18 @@ func (s *Server) ProviderOAuthStatus(ctx context.Context, providerID string) (pr
 	return s.modelsRegistry.OAuthStatus(ctx, providerID)
 }
 
-func (s *Server) ProviderSupportsOAuth(providerID string) bool {
-	return s.modelsRegistry != nil && s.modelsRegistry.SupportsOAuth(providerID)
-}
-
 func (s *Server) ProviderOAuthDrivers(providerID string) []string {
 	if s.modelsRegistry == nil {
 		return nil
 	}
 
 	return s.modelsRegistry.OAuthDrivers(providerID)
+}
+
+func (s *Server) ProviderLimits(ctx context.Context, providerID string) (provideroauth.Limits, error) {
+	if s.modelsRegistry == nil {
+		return provideroauth.Limits{}, fmt.Errorf("provider limits are not configured")
+	}
+
+	return s.modelsRegistry.Limits(ctx, providerID)
 }

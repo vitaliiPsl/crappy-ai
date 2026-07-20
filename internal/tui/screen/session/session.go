@@ -37,7 +37,12 @@ type Model struct {
 
 func New(ctx context.Context, srv *server.Server, sessionID string) Model {
 	cfg := srv.GetConfig()
-	registry := command.NewRegistry(ctx, command.NewSkillProvider(srv), command.NewMCPPromptProvider(srv))
+	registry := command.NewRegistry(
+		ctx,
+		command.NewUsageProvider(srv, cfg.Provider),
+		command.NewSkillProvider(srv),
+		command.NewMCPPromptProvider(srv),
+	)
 
 	vp := viewport.New()
 	vp.SoftWrap = true

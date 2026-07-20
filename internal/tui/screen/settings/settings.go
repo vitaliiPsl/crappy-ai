@@ -155,7 +155,7 @@ func (m Model) handleFieldAction(action fieldAction) (Model, tea.Cmd) {
 }
 
 func (m Model) authenticateProvider() (Model, tea.Cmd) {
-	if m.provider().Auth.Type != appsettings.ProviderAuthOAuth || !m.server.ProviderSupportsOAuth(m.cfg.Provider) {
+	if m.provider().Auth.Type != appsettings.ProviderAuthOAuth {
 		return m, nil
 	}
 
@@ -178,7 +178,7 @@ func (m Model) authenticateProvider() (Model, tea.Cmd) {
 }
 
 func (m Model) logoutProvider() (Model, tea.Cmd) {
-	if m.provider().Auth.Type != appsettings.ProviderAuthOAuth || !m.server.ProviderSupportsOAuth(m.cfg.Provider) {
+	if m.provider().Auth.Type != appsettings.ProviderAuthOAuth {
 		return m, nil
 	}
 
@@ -213,7 +213,7 @@ func (m *Model) refreshOAuthStatus() {
 	m.oauthStatus = "unavailable"
 
 	m.oauthErr = nil
-	if m.server == nil || m.provider().Auth.Type != appsettings.ProviderAuthOAuth || !m.server.ProviderSupportsOAuth(m.cfg.Provider) {
+	if m.server == nil || m.provider().Auth.Type != appsettings.ProviderAuthOAuth {
 		return
 	}
 

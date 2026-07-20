@@ -163,6 +163,10 @@ func (p *fakeProvider) Authorization(credential Credential) Authorization {
 	return Authorization{BearerToken: credential.AccessToken}
 }
 
+func (p *fakeProvider) Limits(context.Context, Authorization, Config) (Limits, error) {
+	return Limits{}, nil
+}
+
 type fakeStore struct {
 	mu          sync.Mutex
 	credentials map[string]Credential
