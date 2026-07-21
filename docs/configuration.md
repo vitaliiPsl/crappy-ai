@@ -126,6 +126,7 @@ config_path: ~/.crappy-ai/config.yaml
 sessions_dir: ~/.crappy-ai/sessions
 models_path: ~/.crappy-ai/models.json
 skills_path: ~/.crappy-ai/skills
+memory_path: ~/.crappy-ai/memory.json
 
 providers:
   - id: openai
@@ -147,6 +148,8 @@ models:
 `models_path` is where Crappy stores model metadata.
 
 `skills_path` is where Crappy loads user-level skills.
+
+`memory_path` is where Crappy stores explicitly saved persistent memories.
 
 `providers` tells Crappy how to connect to model providers.
 

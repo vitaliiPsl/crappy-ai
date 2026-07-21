@@ -10,6 +10,7 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/eventbus"
 	"github.com/vitaliiPsl/crappy-ai/internal/mcp"
+	"github.com/vitaliiPsl/crappy-ai/internal/memory"
 	"github.com/vitaliiPsl/crappy-ai/internal/models"
 	"github.com/vitaliiPsl/crappy-ai/internal/permission"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
@@ -22,6 +23,7 @@ type Manager struct {
 
 	configStore       *config.Store
 	sessionStore      session.Store
+	memoryStore       memory.Store
 	permissions       *permission.Service
 	modelRegistry     *models.Registry
 	skillRegistry     *skills.Registry
@@ -32,6 +34,7 @@ type Manager struct {
 func NewManager(
 	configStore *config.Store,
 	sessionStore session.Store,
+	memoryStore memory.Store,
 	modelRegistry *models.Registry,
 	skillRegistry *skills.Registry,
 	mcpManager *mcp.Manager,
@@ -41,6 +44,7 @@ func NewManager(
 		live:              make(map[string]*Session),
 		configStore:       configStore,
 		sessionStore:      sessionStore,
+		memoryStore:       memoryStore,
 		permissions:       permission.NewService(configStore),
 		modelRegistry:     modelRegistry,
 		skillRegistry:     skillRegistry,
@@ -193,6 +197,7 @@ func (m *Manager) getOrCreate(sessionID string) *Session {
 		sessionID,
 		m.configStore,
 		m.sessionStore,
+		m.memoryStore,
 		m.permissions,
 		m.modelRegistry,
 		m.skillRegistry,

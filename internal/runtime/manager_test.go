@@ -20,7 +20,7 @@ func testManager(t *testing.T) *Manager {
 
 	cfg := config.NewStore(config.Config{Cwd: t.TempDir()}, "")
 
-	return NewManager(cfg, store, nil, nil, nil, nil)
+	return NewManager(cfg, store, nil, nil, nil, nil, nil)
 }
 
 func TestManagerRunRequiresExistingSession(t *testing.T) {

@@ -12,6 +12,7 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/mcp"
 	oauthstore "github.com/vitaliiPsl/crappy-ai/internal/mcp/oauth/store"
+	memoryStore "github.com/vitaliiPsl/crappy-ai/internal/memory/store"
 	"github.com/vitaliiPsl/crappy-ai/internal/models"
 	appoauth "github.com/vitaliiPsl/crappy-ai/internal/oauth"
 	appproviders "github.com/vitaliiPsl/crappy-ai/internal/providers"
@@ -74,6 +75,11 @@ func run() error {
 		return fmt.Errorf("init session store: %w", err)
 	}
 
+	memStore, err := memoryStore.NewFileStore(settingsStore.Get().MemoryPath)
+	if err != nil {
+		return fmt.Errorf("init memory store: %w", err)
+	}
+
 	go func() {
 		if err := settingsStore.RefreshModels(context.Background()); err != nil {
 			fmt.Fprintf(os.Stderr, "warning: refresh models from remote: %v\n", err)
@@ -114,6 +120,7 @@ func run() error {
 	runtimeManager := runtime.NewManager(
 		configStore,
 		sessStore,
+		memStore,
 		modelRegistry,
 		skillRegistry,
 		mcpManager,

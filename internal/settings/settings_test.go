@@ -108,6 +108,14 @@ func TestMergeReadsSkillsPath(t *testing.T) {
 	}
 }
 
+func TestMergeReadsMemoryPath(t *testing.T) {
+	got := merge(Settings{MemoryPath: "/default/memory.json"}, Settings{MemoryPath: "/custom/memory.json"})
+
+	if got.MemoryPath != "/custom/memory.json" {
+		t.Fatalf("MemoryPath = %q, want /custom/memory.json", got.MemoryPath)
+	}
+}
+
 func TestMergeReadsMCPClients(t *testing.T) {
 	got := merge(Settings{}, Settings{
 		MCPClients: []mcp.Config{{

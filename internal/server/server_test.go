@@ -42,7 +42,7 @@ func newTestServer(t *testing.T) (*Server, *session.Session) {
 	}
 
 	cfg := config.NewStore(config.Config{Cwd: t.TempDir()}, "")
-	rt := runtime.NewManager(cfg, store, nil, nil, nil, nil)
+	rt := runtime.NewManager(cfg, store, nil, nil, nil, nil, nil)
 	t.Cleanup(rt.Close)
 
 	srv := New(rt, nil, cfg, nil, nil, nil, nil)

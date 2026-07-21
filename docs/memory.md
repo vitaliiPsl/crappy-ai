@@ -1,5 +1,27 @@
 # Memory and Context
 
+Crappy has two forms of persistent context: session history and explicit semantic memory.
+
+## Persistent Memory
+
+Crappy can remember durable information about you across sessions. Memories have one of three kinds:
+
+- `profile` for stable facts about you and your world
+- `preference` for choices that should influence responses
+- `instruction` for persistent behavior you explicitly request
+
+Ask Crappy to remember something explicitly, for example:
+
+```text
+Remember that I prefer concise answers.
+```
+
+Crappy can list, correct, and forget saved memories. Memory changes use the normal tool permission flow; listing memories is read-only. Memories are stored as structured JSON in `~/.crappy-ai/memory.json` by default. Change the location with `memory_path` in settings or `CRAPPY_MEMORY_PATH`.
+
+Persistent memories may become outdated. Current requests, user-provided project instructions, and directly observed evidence take precedence. Crappy never edits `AGENTS.md` or `CLAUDE.md` to store memories.
+
+Crappy does not automatically infer or save memories in this version. Session transcripts remain the record of what happened in a conversation.
+
 Crappy remembers work through session history.
 
 When you continue a session, Crappy uses the conversation from that session as context for the next model turn. This includes the messages that matter for continuing the task, such as what you asked, what the assistant answered, and the results of tool work.

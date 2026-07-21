@@ -8,19 +8,19 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
 )
 
-// memory is a kit.Memory backed by a session's persisted event log. Context
+// agentMemory is a kit.Memory backed by a session's persisted event log. Context
 // returns the full history truncated to the most recent summary, so the agent
 // continues from a compaction rather than replaying everything.
-type memory struct {
+type agentMemory struct {
 	store     session.Store
 	sessionID string
 }
 
 func newMemory(store session.Store, sessionID string) kit.Memory {
-	return &memory{store: store, sessionID: sessionID}
+	return &agentMemory{store: store, sessionID: sessionID}
 }
 
-func (m *memory) Context(ctx context.Context) ([]kit.Message, error) {
+func (m *agentMemory) Context(ctx context.Context) ([]kit.Message, error) {
 	history, err := m.History(ctx)
 	if err != nil {
 		return nil, err
@@ -35,7 +35,7 @@ func (m *memory) Context(ctx context.Context) ([]kit.Message, error) {
 	return history, nil
 }
 
-func (m *memory) History(ctx context.Context) ([]kit.Message, error) {
+func (m *agentMemory) History(ctx context.Context) ([]kit.Message, error) {
 	events, err := m.store.LoadEvents(ctx, m.sessionID)
 	if err != nil {
 		return nil, err
@@ -51,7 +51,7 @@ func (m *memory) History(ctx context.Context) ([]kit.Message, error) {
 	return messages, nil
 }
 
-func (m *memory) Record(ctx context.Context, messages ...kit.Message) error {
+func (m *agentMemory) Record(ctx context.Context, messages ...kit.Message) error {
 	if len(messages) == 0 {
 		return nil
 	}

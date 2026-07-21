@@ -150,7 +150,9 @@ See [Skills](docs/skills.md).
 
 Sessions store conversation history, tool activity, usage, and the working directory for a thread of work.
 
-Memory is session-scoped. Continuing a session sends its message history back to the model. Long sessions can be compacted into a summary, and future turns continue from the latest summary plus newer messages.
+Conversation history is session-scoped. Continuing a session sends its message history back to the model. Long sessions can be compacted into a summary, and future turns continue from the latest summary plus newer messages.
+
+Crappy also keeps explicitly requested persistent memories about the user across sessions. These structured memories are grouped as profile facts, preferences, or instructions. Memory changes follow the normal permission flow and are stored in `~/.crappy-ai/memory.json` by default.
 
 Crappy also reads `AGENTS.md` and `CLAUDE.md` instruction files from the working directory and its ancestors. Use them for shared conventions, workflows, and build/test notes that should be visible in every turn.
 

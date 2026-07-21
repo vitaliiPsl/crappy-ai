@@ -33,3 +33,36 @@ func optionRule(t *testing.T, request model.Prompt, id string) model.Rule {
 
 	return *option.Rule
 }
+
+func TestMemoryListIsAllowedUnlessExplicitlyDenied(t *testing.T) {
+	call := kit.NewToolCall("call-1", ToolMemoryList, map[string]any{})
+
+	result := Resolve(model.Permissions{Default: model.Ask}, call)
+	if result.Decision != model.Allow {
+		t.Fatalf("Resolve() decision = %q, want allow", result.Decision)
+	}
+
+	result = Resolve(model.Permissions{
+		Default: model.Ask,
+		Deny:    []model.Rule{{Tool: ToolMemoryList}},
+	}, call)
+	if result.Decision != model.Deny {
+		t.Fatalf("Resolve() explicit deny decision = %q, want deny", result.Decision)
+	}
+}
+
+func TestMemoryMutationUsesDefaultPermissionAndContentDetail(t *testing.T) {
+	call := kit.NewToolCall("call-1", ToolMemoryRemember, map[string]any{
+		"kind":    "preference",
+		"content": "Prefers concise answers.",
+	})
+
+	result := Resolve(model.Permissions{Default: model.Ask}, call)
+	if result.Decision != model.Ask || result.Prompt == nil {
+		t.Fatalf("Resolve() = %+v, want ask prompt", result)
+	}
+
+	if result.Prompt.Input != "Prefers concise answers." {
+		t.Fatalf("Prompt input = %q", result.Prompt.Input)
+	}
+}

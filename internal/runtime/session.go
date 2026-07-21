@@ -17,6 +17,7 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/eventbus"
 	"github.com/vitaliiPsl/crappy-ai/internal/mcp"
+	"github.com/vitaliiPsl/crappy-ai/internal/memory"
 	"github.com/vitaliiPsl/crappy-ai/internal/models"
 	"github.com/vitaliiPsl/crappy-ai/internal/permission"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
@@ -24,6 +25,7 @@ import (
 
 	bgext "github.com/vitaliiPsl/crappy-ai/internal/extensions/background"
 	mcpext "github.com/vitaliiPsl/crappy-ai/internal/extensions/mcp"
+	memoryext "github.com/vitaliiPsl/crappy-ai/internal/extensions/memory"
 	planningext "github.com/vitaliiPsl/crappy-ai/internal/extensions/planning"
 	skillsext "github.com/vitaliiPsl/crappy-ai/internal/extensions/skills"
 )
@@ -35,6 +37,7 @@ type Session struct {
 
 	configStore  *config.Store
 	sessionStore session.Store
+	memoryStore  memory.Store
 
 	permissions *permission.Service
 
@@ -57,6 +60,7 @@ func newSession(
 	id string,
 	configStore *config.Store,
 	sessionStore session.Store,
+	memoryStore memory.Store,
 	permissions *permission.Service,
 	modelRegistry *models.Registry,
 	skillRegistry *skills.Registry,
@@ -72,6 +76,7 @@ func newSession(
 		shutdown:          cancel,
 		configStore:       configStore,
 		sessionStore:      sessionStore,
+		memoryStore:       memoryStore,
 		permissions:       permissions,
 		modelRegistry:     modelRegistry,
 		skillRegistry:     skillRegistry,
@@ -380,6 +385,7 @@ func (s *Session) buildAgent(ctx context.Context, sess session.Session, cfg conf
 		bgext.New(s.backgroundManager),
 		skillsext.New(s.skillRegistry),
 		planningext.New(s.sessionStore),
+		memoryext.New(s.memoryStore),
 		mcpext.New(s.mcpManager),
 	)
 }
