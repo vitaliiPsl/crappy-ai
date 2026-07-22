@@ -34,16 +34,16 @@ func forTool(tool string) Strategy {
 		return bashStrategy{}
 	case ToolJobStatus, ToolJobResult, ToolJobCancel, ToolJobList:
 		return jobStrategy{}
-	case ToolMemoryList:
-		return safeReadStrategy{}
+	case ToolMemoryList, ToolMemoryRemember:
+		return autoAllowStrategy{}
 	default:
 		return defaultStrategy{}
 	}
 }
 
-type safeReadStrategy struct{}
+type autoAllowStrategy struct{}
 
-func (safeReadStrategy) Resolve(permissions model.Permissions, call kit.ToolCall) model.ResolveResult {
+func (autoAllowStrategy) Resolve(permissions model.Permissions, call kit.ToolCall) model.ResolveResult {
 	if matchesRuleSet(permissions.Deny, call.Name, "", nil) {
 		return model.ResolveResult{Decision: model.Deny}
 	}

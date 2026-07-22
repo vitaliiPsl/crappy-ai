@@ -13,7 +13,7 @@ const (
 	toolList                = "memory_list"
 	toolListDescription     = "List all persistent memories with IDs and timestamps."
 	toolRemember            = "memory_remember"
-	toolRememberDescription = "Save one persistent memory. Use only when the user explicitly asks you to remember something."
+	toolRememberDescription = "Save one durable memory about the user."
 	toolUpdate              = "memory_update"
 	toolUpdateDescription   = "Correct an existing persistent memory by exact ID. Call memory_list first."
 	toolForget              = "memory_forget"

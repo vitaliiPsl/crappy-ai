@@ -10,17 +10,19 @@ Crappy can remember durable information about you across sessions. Memories have
 - `preference` for choices that should influence responses
 - `instruction` for persistent behavior you explicitly request
 
-Ask Crappy to remember something explicitly, for example:
+You can ask Crappy to remember something explicitly, for example:
 
 ```text
 Remember that I prefer concise answers.
 ```
 
-Crappy can list, correct, and forget saved memories. Memory changes use the normal tool permission flow; listing memories is read-only. Memories are stored as structured JSON in `~/.crappy-ai/memory.json` by default. Change the location with `memory_path` in settings or `CRAPPY_MEMORY_PATH`.
+Crappy may also save a memory when you directly reveal something durable that is likely to improve future interactions. Instructions are never inferred and require an explicit request from you.
+
+Crappy can list, correct, and forget saved memories. Memories are stored as structured JSON in `~/.crappy-ai/memory.json` by default. Change the location with `memory_path` in settings or `CRAPPY_MEMORY_PATH`.
 
 Persistent memories may become outdated. Current requests, user-provided project instructions, and directly observed evidence take precedence. Crappy never edits `AGENTS.md` or `CLAUDE.md` to store memories.
 
-Crappy does not automatically infer or save memories in this version. Session transcripts remain the record of what happened in a conversation.
+Crappy does not derive memories from external content, guesses, or transient task details. Session transcripts remain the record of what happened in a conversation.
 
 Crappy remembers work through session history.
 

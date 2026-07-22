@@ -14,7 +14,7 @@ func TestFormatContextGroupsKinds(t *testing.T) {
 		{Kind: corememory.KindInstruction, Content: "Do not use emojis."},
 	})
 
-	for _, want := range []string{"## Profile", "- Writes Go.", "## Preferences", "## Instructions"} {
+	for _, want := range []string{"# Saved memories", "## Profile", "- Writes Go.", "## Preferences", "## Instructions"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("FormatContext() missing %q:\n%s", want, got)
 		}

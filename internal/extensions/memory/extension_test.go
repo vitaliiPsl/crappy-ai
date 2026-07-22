@@ -43,9 +43,13 @@ func TestExtensionAddsMemoryContextAndTools(t *testing.T) {
 
 	req := model.CallAt(0)
 	for _, want := range []string{
-		"# Persistent memory",
+		"# Memory policy",
+		"# Saved memories",
 		"## Preferences",
 		"- Prefers concise answers.",
+		"proactively when the user directly reveals something durable",
+		"Save useful memories directly",
+		"Never infer an instruction.",
 		"Never edit them to record memories.",
 	} {
 		if !strings.Contains(req.Instructions, want) {

@@ -7,7 +7,7 @@ import (
 	corememory "github.com/vitaliiPsl/crappy-ai/internal/memory"
 )
 
-const contextPreamble = `# Persistent memory
+const contextPreamble = `# Saved memories
 
 These are user-approved memories from previous interactions. They may be outdated. Prefer the current user request, user-provided project instructions, and directly observed evidence.`
 

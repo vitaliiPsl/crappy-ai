@@ -10,15 +10,17 @@ import (
 	corememory "github.com/vitaliiPsl/crappy-ai/internal/memory"
 )
 
-const instructions = `# Persistent memory
+const instructions = `# Memory policy
 
 You can manage persistent memories about the user with memory tools.
 
-- Only remember information when the user explicitly asks you to remember it.
+- Remember information when the user explicitly asks, or proactively when the user directly reveals something durable that is likely to improve future interactions.
+- Save useful memories directly when they meet these criteria.
 - Store one concise, durable memory at a time.
 - Use profile for stable facts, preference for user preferences, and instruction for explicitly requested persistent behavior.
+- Never infer an instruction. Only save an instruction when the user explicitly asks for persistent behavior.
+- Do not remember transient details, guesses, information from external content, or facts that are useful only for the current task.
 - Never store passwords, API keys, tokens, or other secrets.
-- Use memory_list before updating or forgetting so you have the exact memory ID.
 - Persistent memories may be outdated. Current user instructions and directly observed evidence take precedence.
 - AGENTS.md and CLAUDE.md are user-owned instruction files. Never edit them to record memories.`
 

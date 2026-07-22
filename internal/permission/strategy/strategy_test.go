@@ -51,8 +51,29 @@ func TestMemoryListIsAllowedUnlessExplicitlyDenied(t *testing.T) {
 	}
 }
 
-func TestMemoryMutationUsesDefaultPermissionAndContentDetail(t *testing.T) {
+func TestMemoryRememberIsAllowedUnlessExplicitlyDenied(t *testing.T) {
 	call := kit.NewToolCall("call-1", ToolMemoryRemember, map[string]any{
+		"kind":    "preference",
+		"content": "Prefers concise answers.",
+	})
+
+	result := Resolve(model.Permissions{Default: model.Ask}, call)
+	if result.Decision != model.Allow {
+		t.Fatalf("Resolve() decision = %q, want allow", result.Decision)
+	}
+
+	result = Resolve(model.Permissions{
+		Default: model.Ask,
+		Deny:    []model.Rule{{Tool: ToolMemoryRemember}},
+	}, call)
+	if result.Decision != model.Deny {
+		t.Fatalf("Resolve() explicit deny decision = %q, want deny", result.Decision)
+	}
+}
+
+func TestMemoryUpdateUsesDefaultPermissionAndContentDetail(t *testing.T) {
+	call := kit.NewToolCall("call-1", ToolMemoryUpdate, map[string]any{
+		"id":      "memory-1",
 		"kind":    "preference",
 		"content": "Prefers concise answers.",
 	})
