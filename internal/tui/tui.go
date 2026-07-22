@@ -10,6 +10,7 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/tui/command"
 	jobsScreen "github.com/vitaliiPsl/crappy-ai/internal/tui/screen/jobs"
 	mcpScreen "github.com/vitaliiPsl/crappy-ai/internal/tui/screen/mcp"
+	memoryScreen "github.com/vitaliiPsl/crappy-ai/internal/tui/screen/memory"
 	sessionScreen "github.com/vitaliiPsl/crappy-ai/internal/tui/screen/session"
 	sessionsScreen "github.com/vitaliiPsl/crappy-ai/internal/tui/screen/sessions"
 	settingsScreen "github.com/vitaliiPsl/crappy-ai/internal/tui/screen/settings"
@@ -27,6 +28,7 @@ const (
 	screenSettings
 	screenMCP
 	screenJobs
+	screenMemory
 )
 
 type Model struct {
@@ -42,6 +44,7 @@ type Model struct {
 	settings  *settingsScreen.Model
 	mcp       *mcpScreen.Model
 	jobs      *jobsScreen.Model
+	memory    *memoryScreen.Model
 
 	width  int
 	height int
@@ -112,6 +115,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.openPrev()
 	case jobsScreen.ClosedMsg:
 		return m, m.openPrev()
+	case memoryScreen.ClosedMsg:
+		return m, m.openPrev()
 	case command.NavNewSessionMsg:
 		if m.session != nil {
 			m.session.Cleanup()
@@ -142,6 +147,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		return m, m.openJobs()
+	case command.NavMemoryMsg:
+		if m.active == screenSession && m.session != nil {
+			m.session.Cleanup()
+		}
+
+		return m, m.openMemory()
 	}
 
 	switch m.active {
@@ -199,6 +210,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		*m.jobs, cmd = m.jobs.Update(msg)
 
 		return m, cmd
+
+	case screenMemory:
+		if m.memory == nil {
+			return m, nil
+		}
+
+		var cmd tea.Cmd
+
+		*m.memory, cmd = m.memory.Update(msg)
+
+		return m, cmd
 	}
 
 	return m, nil
@@ -227,6 +249,10 @@ func (m Model) View() tea.View {
 	case screenJobs:
 		if m.jobs != nil {
 			content = m.jobs.View()
+		}
+	case screenMemory:
+		if m.memory != nil {
+			content = m.memory.View()
 		}
 	}
 
@@ -270,6 +296,12 @@ func (m *Model) resize() {
 		}
 
 		m.jobs.SetSize(innerWidth, m.height)
+	case screenMemory:
+		if m.memory == nil {
+			return
+		}
+
+		m.memory.SetSize(innerWidth, m.height)
 	}
 }
 
@@ -323,6 +355,16 @@ func (m *Model) openJobs() tea.Cmd {
 	return m.jobs.Init()
 }
 
+func (m *Model) openMemory() tea.Cmd {
+	m.prev = m.active
+	screen := memoryScreen.New(m.ctx, m.server)
+	m.memory = &screen
+	m.active = screenMemory
+	m.resize()
+
+	return m.memory.Init()
+}
+
 func (m *Model) openPrev() tea.Cmd {
 	switch m.prev {
 	case screenSession:
@@ -360,6 +402,15 @@ func (m *Model) openPrev() tea.Cmd {
 		}
 
 		m.active = screenJobs
+		m.resize()
+
+		return nil
+	case screenMemory:
+		if m.memory == nil {
+			return m.openMemory()
+		}
+
+		m.active = screenMemory
 		m.resize()
 
 		return nil

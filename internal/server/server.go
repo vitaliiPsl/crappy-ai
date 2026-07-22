@@ -7,6 +7,7 @@ import (
 	"github.com/vitaliiPsl/crappy-ai/internal/background"
 	"github.com/vitaliiPsl/crappy-ai/internal/config"
 	"github.com/vitaliiPsl/crappy-ai/internal/mcp"
+	"github.com/vitaliiPsl/crappy-ai/internal/memory"
 	"github.com/vitaliiPsl/crappy-ai/internal/models"
 	"github.com/vitaliiPsl/crappy-ai/internal/runtime"
 	"github.com/vitaliiPsl/crappy-ai/internal/session"
@@ -28,6 +29,7 @@ type Server struct {
 	skillRegistry  *skills.Registry
 	mcpManager     *mcp.Manager
 	background     *background.Manager
+	memoryStore    memory.Store
 
 	mu            sync.Mutex
 	subscriptions map[<-chan session.Event]func()
@@ -41,6 +43,7 @@ func New(
 	skillRegistry *skills.Registry,
 	mcpManager *mcp.Manager,
 	backgroundManager *background.Manager,
+	memoryStore memory.Store,
 ) *Server {
 	return &Server{
 		runtime:        runtimeManager,
@@ -50,6 +53,7 @@ func New(
 		skillRegistry:  skillRegistry,
 		mcpManager:     mcpManager,
 		background:     backgroundManager,
+		memoryStore:    memoryStore,
 		subscriptions:  make(map[<-chan session.Event]func()),
 	}
 }

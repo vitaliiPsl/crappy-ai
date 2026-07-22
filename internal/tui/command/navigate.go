@@ -75,3 +75,17 @@ func (c *JobsCommand) Definition() Definition {
 func (c *JobsCommand) Execute(_ context.Context, _ Request) tea.Cmd {
 	return func() tea.Msg { return NavJobsMsg{} }
 }
+
+type MemoryCommand struct{}
+
+func NewMemoryCommand() *MemoryCommand {
+	return &MemoryCommand{}
+}
+
+func (c *MemoryCommand) Definition() Definition {
+	return Definition{Name: "memory", Description: "Open the memory screen"}
+}
+
+func (c *MemoryCommand) Execute(_ context.Context, _ Request) tea.Cmd {
+	return func() tea.Msg { return NavMemoryMsg{} }
+}

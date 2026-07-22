@@ -25,6 +25,7 @@ func NewRegistry(ctx context.Context, providers ...Provider) *Registry {
 	r.Register(NewSettingsCommand())
 	r.Register(NewMCPCommand())
 	r.Register(NewJobsCommand())
+	r.Register(NewMemoryCommand())
 	r.Register(NewCompactCommand())
 	r.Register(NewForkCommand())
 	r.Register(NewAttachCommand())

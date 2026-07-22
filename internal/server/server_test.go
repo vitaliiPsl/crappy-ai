@@ -45,7 +45,7 @@ func newTestServer(t *testing.T) (*Server, *session.Session) {
 	rt := runtime.NewManager(cfg, store, nil, nil, nil, nil, nil)
 	t.Cleanup(rt.Close)
 
-	srv := New(rt, nil, cfg, nil, nil, nil, nil)
+	srv := New(rt, nil, cfg, nil, nil, nil, nil, nil)
 
 	sess, err := srv.CreateSession(context.Background(), "test")
 	if err != nil {

@@ -136,6 +136,7 @@ func run() error {
 		skillRegistry,
 		mcpManager,
 		backgroundManager,
+		memStore,
 	)
 
 	if *prompt != "" {
